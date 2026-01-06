@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Image from 'next/image';
 
 const navItems = [
@@ -32,32 +32,25 @@ export function Navigation() {
   const pathname = usePathname();
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
-  useEffect(() => {
-    async function checkAdmin() {
-      try {
-        const response = await fetch('/api/admin/check');
-        if (response.ok) {
-          const data = await response.json();
-          setIsAdmin(data.isAdmin);
-        }
-      } catch (_error) {
-        setIsAdmin(false);
-      } finally {
-        setIsCheckingAdmin(false);
+  // Use React Query to cache admin status - prevents refetch on every navigation
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ['admin-status'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/check');
+      if (response.ok) {
+        const data = await response.json();
+        return data.isAdmin === true;
       }
-    }
-    if (user) {
-      checkAdmin();
-    } else {
-      setIsCheckingAdmin(false);
-    }
-  }, [user]);
+      return false;
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+  });
 
   const displayNavItems = [...navItems];
-  if (!isCheckingAdmin && isAdmin) {
+  if (isAdmin) {
     displayNavItems.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
   }
 
