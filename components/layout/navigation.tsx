@@ -28,12 +28,14 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
+const adminNavItem = { href: '/admin', label: 'Admin', icon: ShieldCheck };
+
 export function Navigation() {
   const pathname = usePathname();
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
 
-  // Use React Query to cache admin status - prevents refetch on every navigation
+  // Use React Query to cache admin status - fetch once and never refetch
   const { data: isAdmin = false } = useQuery({
     queryKey: ['admin-status'],
     queryFn: async () => {
@@ -45,14 +47,12 @@ export function Navigation() {
       return false;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: Infinity, // Never consider stale
+    gcTime: Infinity, // Never garbage collect
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
-
-  const displayNavItems = [...navItems];
-  if (isAdmin) {
-    displayNavItems.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
-  }
 
   const handleLogout = async () => {
     await signOut();
@@ -124,7 +124,7 @@ export function Navigation() {
         {/* Desktop Navigation - Centered */}
         <div className="hidden md:flex md:flex-1 md:justify-center">
           <div className="flex items-center gap-1">
-            {displayNavItems.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
@@ -143,6 +143,21 @@ export function Navigation() {
                 </Link>
               );
             })}
+            {/* Admin nav item - only visible for admins, no layout shift */}
+            {isAdmin && (
+              <Link
+                href={adminNavItem.href}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  pathname === adminNavItem.href
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                )}
+              >
+                <adminNavItem.icon className="h-4 w-4" />
+                <span>{adminNavItem.label}</span>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -199,7 +214,7 @@ export function Navigation() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              {displayNavItems.map((item) => {
+              {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (
@@ -217,6 +232,20 @@ export function Navigation() {
                   </DropdownMenuItem>
                 );
               })}
+              {isAdmin && (
+                <DropdownMenuItem asChild>
+                  <Link
+                    href={adminNavItem.href}
+                    className={cn(
+                      'flex items-center gap-2',
+                      pathname === adminNavItem.href && 'bg-primary/10 text-primary',
+                    )}
+                  >
+                    <adminNavItem.icon className="h-4 w-4" />
+                    {adminNavItem.label}
+                  </Link>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
