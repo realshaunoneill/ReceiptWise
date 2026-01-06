@@ -51,7 +51,14 @@ export function InvitationNotifications() {
     }
   };
 
-  if (isLoading) return null;
+  // Show the bell icon without badge during loading to prevent layout jitter
+  if (isLoading) {
+    return (
+      <Button variant="ghost" size="icon" className="relative h-9 w-9" disabled>
+        <Bell className="h-5 w-5" />
+      </Button>
+    );
+  }
 
   const pendingCount = invitations.length;
 
