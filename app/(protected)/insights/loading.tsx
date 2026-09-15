@@ -93,24 +93,8 @@ export default function InsightsLoading() {
           </CardContent>
         </Card>
 
-        {/* Item Search Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-5 w-5 rounded-full" />
-              <Skeleton className="h-6 w-36" />
-            </div>
-            <Skeleton className="h-4 w-72" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-8 w-20 rounded-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* The item-search card used to be drawn here too, but item search moved
+            to its own Items tab — Overview is two panels, so the skeleton is two. */}
       </div>
     </main>
   );

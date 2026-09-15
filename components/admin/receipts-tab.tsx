@@ -102,16 +102,16 @@ export function ReceiptsTab({ receipts, onOpenReceipt, onRefresh }: ReceiptsTabP
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="gap-1 bg-green-500/10 border-green-500/30">
-              <CheckCircle2 className="h-3 w-3 text-green-500" />
+            <Badge variant="outline" className="gap-1 border-success/30 bg-success/10">
+              <CheckCircle2 className="h-3 w-3 text-success" />
               {statusCounts.completed}
             </Badge>
-            <Badge variant="outline" className="gap-1 bg-red-500/10 border-red-500/30">
-              <AlertCircle className="h-3 w-3 text-red-500" />
+            <Badge variant="outline" className="gap-1 border-destructive/30 bg-destructive/10">
+              <AlertCircle className="h-3 w-3 text-destructive" />
               {statusCounts.failed}
             </Badge>
-            <Badge variant="outline" className="gap-1 bg-amber-500/10 border-amber-500/30">
-              <Clock className="h-3 w-3 text-amber-500" />
+            <Badge variant="outline" className="gap-1 border-warning/30 bg-warning/10">
+              <Clock className="h-3 w-3 text-warning" />
               {statusCounts.pending}
             </Badge>
           </div>
@@ -139,19 +139,19 @@ export function ReceiptsTab({ receipts, onOpenReceipt, onRefresh }: ReceiptsTabP
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="completed">
                   <span className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <CheckCircle2 className="h-3 w-3 text-success" />
                     Completed
                   </span>
                 </SelectItem>
                 <SelectItem value="failed">
                   <span className="flex items-center gap-2">
-                    <AlertCircle className="h-3 w-3 text-red-500" />
+                    <AlertCircle className="h-3 w-3 text-destructive" />
                     Failed
                   </span>
                 </SelectItem>
                 <SelectItem value="pending">
                   <span className="flex items-center gap-2">
-                    <Clock className="h-3 w-3 text-amber-500" />
+                    <Clock className="h-3 w-3 text-warning" />
                     Pending
                   </span>
                 </SelectItem>

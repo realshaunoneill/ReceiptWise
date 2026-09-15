@@ -8,6 +8,7 @@ import { type Subscription } from '@/lib/db/schema';
 import { useCurrency } from '@/lib/hooks/use-currency';
 import { differenceInDays, format, isToday, isTomorrow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { urgencySurfaceClass, urgencyTextClass, urgencyTintClass } from '@/lib/utils/urgency';
 
 type NextSubscriptionCardProps = {
   subscription: Subscription;
@@ -28,17 +29,11 @@ export function NextSubscriptionCard({ subscription, onClick }: NextSubscription
     return `Due ${format(billingDate, 'MMM dd, yyyy')}`;
   };
 
-  const isUrgent = daysUntil !== null && daysUntil <= 2;
-  const isWithinWeek = daysUntil !== null && daysUntil <= 7;
-
   return (
     <Card
       className={cn(
-        'relative overflow-hidden transition-all duration-300 cursor-pointer border-2',
-        'hover:shadow-xl',
-        isUrgent && 'border-red-500/50 bg-red-500/5',
-        isWithinWeek && !isUrgent && 'border-blue-500/50 bg-blue-500/5',
-        !isWithinWeek && 'border-border',
+        'relative cursor-pointer overflow-hidden border-2 transition-colors hover:border-primary/50',
+        daysUntil !== null ? urgencySurfaceClass(daysUntil) : '',
       )}
       onClick={onClick}
     >
@@ -49,23 +44,22 @@ export function NextSubscriptionCard({ subscription, onClick }: NextSubscription
             <div className="flex items-start gap-3 sm:gap-4">
               {/* Icon */}
               <div className={cn(
-                'p-2 sm:p-3 rounded-xl shrink-0',
-                isUrgent && 'bg-red-500/10',
-                isWithinWeek && !isUrgent && 'bg-blue-500/10',
-                !isWithinWeek && 'bg-muted',
+                'shrink-0 rounded-xl p-2 sm:p-3',
+                daysUntil !== null ? urgencyTintClass(daysUntil) : 'bg-muted',
               )}>
-                <Clock className={cn(
-                  'w-5 h-5 sm:w-6 sm:h-6',
-                  isUrgent && 'text-red-600 dark:text-red-400',
-                  isWithinWeek && !isUrgent && 'text-blue-600 dark:text-blue-400',
-                  !isWithinWeek && 'text-muted-foreground',
-                )} />
+                <Clock
+                  className={cn(
+                    'h-5 w-5 sm:h-6 sm:w-6',
+                    daysUntil !== null ? urgencyTextClass(daysUntil) : 'text-muted-foreground',
+                  )}
+                  aria-hidden="true"
+                />
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <h3 className="text-lg sm:text-xl font-bold truncate">{subscription.name}</h3>
+                  <h3 className="truncate text-lg font-semibold sm:text-xl">{subscription.name}</h3>
                   {subscription.isBusinessExpense && (
                     <Badge variant="secondary" className="text-xs">Business</Badge>
                   )}
@@ -107,7 +101,7 @@ export function NextSubscriptionCard({ subscription, onClick }: NextSubscription
           <div className="flex flex-col items-start sm:items-end gap-4 sm:gap-2 w-full sm:w-auto">
             <div className="text-left sm:text-right w-full sm:w-auto">
               <div className="flex items-baseline gap-1 sm:justify-end">
-                <span className="text-2xl sm:text-3xl font-bold tracking-tight">
+                <span className="amount text-2xl font-semibold tracking-tight sm:text-3xl">
                   {formatCurrency(parseFloat(subscription.amount))}
                 </span>
               </div>
@@ -119,10 +113,7 @@ export function NextSubscriptionCard({ subscription, onClick }: NextSubscription
             {billingDate && (
               <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium w-full sm:w-auto">
                 <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span className={cn(
-                  isUrgent && 'text-red-600 dark:text-red-400',
-                  isWithinWeek && !isUrgent && 'text-blue-600 dark:text-blue-400',
-                )}>
+                <span className={daysUntil !== null ? urgencyTextClass(daysUntil) : undefined}>
                   {getDateLabel()}
                 </span>
               </div>

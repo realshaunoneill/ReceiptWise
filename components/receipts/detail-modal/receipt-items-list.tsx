@@ -4,6 +4,7 @@ import { ShoppingBag, TrendingUp, Percent, Tag, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { capitalizeText } from '@/lib/utils/format-category';
+import { cn } from '@/lib/utils';
 import type { ReceiptItem } from '@/lib/db/schema';
 
 type Modifier = {
@@ -100,25 +101,25 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
                         className="flex items-center justify-between text-xs"
                       >
                         <div className="flex items-center gap-1.5">
-                          {isDiscount && <Percent className="h-3 w-3 text-green-600" />}
-                          {isDeposit && <Tag className="h-3 w-3 text-blue-600" />}
-                          {isFee && <Info className="h-3 w-3 text-orange-600" />}
-                          <span className={`${isDiscount ? 'text-green-600' : 'text-muted-foreground'}`}>
+                          {isDiscount && <Percent className="h-3 w-3 text-success" aria-hidden="true" />}
+                          {isDeposit && <Tag className="h-3 w-3 text-info" aria-hidden="true" />}
+                          {isFee && <Info className="h-3 w-3 text-warning" aria-hidden="true" />}
+                          <span className={isDiscount ? 'text-success' : 'text-muted-foreground'}>
                             {modifier.name}
                           </span>
                           <Badge
                             variant="outline"
                             className={`text-[10px] px-1 py-0 h-4 ${
-                              isDiscount ? 'border-green-600/30 text-green-600' :
-                              isDeposit ? 'border-blue-600/30 text-blue-600' :
-                              isFee ? 'border-orange-600/30 text-orange-600' :
+                              isDiscount ? 'border-success/30 text-success' :
+                              isDeposit ? 'border-info/30 text-info' :
+                              isFee ? 'border-warning/30 text-warning' :
                               'border-muted-foreground/30'
                             }`}
                           >
                             {capitalizeText(modifier.type || 'modifier')}
                           </Badge>
                         </div>
-                        <span className={`font-medium ${isDiscount ? 'text-green-600' : ''}`}>
+                        <span className={cn('amount font-medium', isDiscount && 'text-success')}>
                           {modifierPrice >= 0 ? '+' : ''}{currency} {Math.abs(modifierPrice).toFixed(2)}
                         </span>
                       </div>

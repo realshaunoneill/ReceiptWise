@@ -15,13 +15,13 @@ export function ReceiptBusinessExpenseInfo({ receipt }: ReceiptBusinessExpenseIn
   }
 
   return (
-    <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
+    <Card className="border-info/25 bg-info/5">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2 text-blue-700 dark:text-blue-400">
+        <CardTitle className="flex items-center gap-2 text-base text-info">
           <Briefcase className="h-4 w-4" />
           Business Expense Information
           {receipt.taxDeductible && (
-            <Badge variant="secondary" className="ml-auto bg-green-500/10 text-green-700 dark:text-green-400">
+            <Badge variant="outline" className="ml-auto border-success/25 bg-success/10 text-success">
               <Check className="h-3 w-3 mr-1" />
               Tax Deductible
             </Badge>

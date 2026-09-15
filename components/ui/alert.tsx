@@ -11,6 +11,18 @@ const alertVariants = cva(
         default: 'bg-card text-card-foreground',
         destructive:
           'text-destructive bg-card [&>svg]:text-current *:data-[slot=alert-description]:text-destructive/90',
+        /*
+         * Callout variants. Before these existed, every informational box in the
+         * app hand-rolled its own colours — `bg-blue-50 dark:bg-blue-950/30`,
+         * `border-green-500 bg-green-50`, `border-amber-500/30 bg-amber-500/10` —
+         * so no two notices matched and several were unreadable in dark mode.
+         */
+        info:
+          'text-info bg-info/8 border-info/25 *:data-[slot=alert-description]:text-info/85',
+        success:
+          'text-success bg-success/8 border-success/25 *:data-[slot=alert-description]:text-success/85',
+        warning:
+          'text-warning bg-warning/10 border-warning/30 *:data-[slot=alert-description]:text-warning/85',
       },
     },
     defaultVariants: {
@@ -39,7 +51,9 @@ function AlertTitle({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="alert-title"
       className={cn(
-        'col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight',
+        // Not line-clamped: titles here are short sentences that must be allowed
+        // to wrap on narrow screens rather than be silently truncated.
+        'col-start-2 min-h-4 font-medium tracking-tight',
         className,
       )}
       {...props}

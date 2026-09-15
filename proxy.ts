@@ -16,6 +16,10 @@ const isPublicRoute = createRouteMatcher([
   '/manifest.json',
   '/opengraph-image(.*)',
   '/twitter-image(.*)',
+  // Public so the landing page can quote the live Stripe price rather than a
+  // hardcoded one. The route is force-static, cached for an hour and returns
+  // only product/price fields — no user or account data.
+  '/api/pricing',
   '/api/webhooks(.*)',
   '/api/stripe/webhooks', // Stripe webhooks
   '/api/extension(.*)', // Chrome extension API (uses API key auth)

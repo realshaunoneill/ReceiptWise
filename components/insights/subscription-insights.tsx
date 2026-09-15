@@ -8,6 +8,7 @@ import { useCurrency } from '@/lib/hooks/use-currency';
 import { Loader2, TrendingUp, Calendar, DollarSign, AlertCircle, ArrowRight } from 'lucide-react';
 import { differenceInDays, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { urgencySurfaceClass } from '@/lib/utils/urgency';
 import Link from 'next/link';
 
 export function SubscriptionInsights() {
@@ -100,22 +101,22 @@ export function SubscriptionInsights() {
           </div>
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Monthly Total</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalMonthly)}</p>
+            <p className="amount text-2xl font-semibold">{formatCurrency(totalMonthly)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Yearly Total</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalYearly)}</p>
+            <p className="amount text-2xl font-semibold">{formatCurrency(totalYearly)}</p>
           </div>
           {missingPaymentsCount > 0 && (
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <AlertCircle className="h-4 w-4 text-orange-500" />
+                <AlertCircle className="h-4 w-4 text-warning" aria-hidden="true" />
                 Missing Receipts
               </p>
               <div className="flex items-baseline gap-2">
-                <p className="text-2xl font-bold text-orange-600">{missingPaymentsCount}</p>
+                <p className="amount text-2xl font-semibold text-warning">{missingPaymentsCount}</p>
                 <Link href="/subscriptions?filter=missing">
-                  <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-orange-600 hover:text-orange-700 hover:bg-transparent">
+                  <Button variant="link" size="sm" className="h-auto p-0 text-xs">
                     View All <ArrowRight className="h-3 w-3 ml-1" />
                   </Button>
                 </Link>
@@ -158,9 +159,8 @@ export function SubscriptionInsights() {
                 <div
                   key={sub.id}
                   className={cn(
-                    'flex items-center justify-between p-3 rounded-lg border',
-                    sub.daysUntil <= 2 && 'border-red-500/50 bg-red-500/5',
-                    sub.daysUntil > 2 && 'border-blue-500/50 bg-blue-500/5',
+                    'flex items-center justify-between rounded-lg border p-3',
+                    urgencySurfaceClass(sub.daysUntil),
                   )}
                 >
                   <div className="flex-1 min-w-0">
@@ -172,7 +172,7 @@ export function SubscriptionInsights() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">{formatCurrency(parseFloat(sub.amount))}</p>
+                    <p className="amount font-semibold">{formatCurrency(parseFloat(sub.amount))}</p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(sub.nextBillingDate!), 'MMM dd')}
                     </p>

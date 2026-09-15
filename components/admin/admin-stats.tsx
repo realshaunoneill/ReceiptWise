@@ -111,7 +111,7 @@ export function AdminStats({ users, households, receipts }: AdminStatsProps) {
             <div className="text-2xl font-bold">{users.length}</div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <CreditCard className="h-3 w-3 text-green-500" />
+                <CreditCard className="h-3 w-3 text-success" />
                 {stats.subscribedUsers} subscribed
               </span>
               <span>•</span>
@@ -129,9 +129,9 @@ export function AdminStats({ users, households, receipts }: AdminStatsProps) {
             <div className="text-2xl font-bold">{stats.newUsersThisMonth}</div>
             <div className="flex items-center gap-1 text-xs">
               {stats.userGrowth >= 0 ? (
-                <span className="text-green-500">+{stats.userGrowth}%</span>
+                <span className="text-success">+{stats.userGrowth}%</span>
               ) : (
-                <span className="text-red-500">{stats.userGrowth}%</span>
+                <span className="text-destructive">{stats.userGrowth}%</span>
               )}
               <span className="text-muted-foreground">vs last month</span>
             </div>
@@ -167,40 +167,40 @@ export function AdminStats({ users, households, receipts }: AdminStatsProps) {
 
       {/* Secondary Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-green-500/5 border-green-500/20">
+        <Card className="border-success/20 bg-success/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">Processed</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium text-success">Processed</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-700 dark:text-green-400">{stats.completedReceipts}</div>
-            <p className="text-xs text-green-600/80 dark:text-green-400/80">
+            <div className="text-2xl font-bold text-success">{stats.completedReceipts}</div>
+            <p className="text-xs text-success/80">
               {stats.successRate}% success rate
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-red-500/5 border-red-500/20">
+        <Card className="border-destructive/20 bg-destructive/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400">Failed</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium text-destructive">Failed</CardTitle>
+            <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-700 dark:text-red-400">{stats.failedReceipts}</div>
-            <p className="text-xs text-red-600/80 dark:text-red-400/80">
+            <div className="text-2xl font-bold text-destructive">{stats.failedReceipts}</div>
+            <p className="text-xs text-destructive/80">
               Needs attention
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-amber-500/5 border-amber-500/20">
+        <Card className="border-warning/20 bg-warning/5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium text-warning">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">{stats.pendingReceipts}</div>
-            <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+            <div className="text-2xl font-bold text-warning">{stats.pendingReceipts}</div>
+            <p className="text-xs text-warning/80">
               In queue
             </p>
           </CardContent>

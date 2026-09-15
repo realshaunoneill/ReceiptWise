@@ -99,7 +99,7 @@ export function ReceiptCard({ receipt, onOpenReceipt, onDeleted }: ReceiptCardPr
             </TooltipProvider>
           )}
           {receipt.isBusinessExpense && (
-            <Badge variant="outline" className="gap-1 shrink-0 bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-400">
+            <Badge variant="outline" className="gap-1 shrink-0 border-info/30 bg-info/10 text-info">
               <Briefcase className="h-3 w-3" />
               Business
             </Badge>

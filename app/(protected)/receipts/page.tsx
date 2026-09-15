@@ -13,7 +13,7 @@ import { ReceiptSearchFilters, type ReceiptFilters } from '@/components/receipts
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Upload, Camera, Scan, FileText, Crown, Sparkles, Chrome } from 'lucide-react';
+import { Calendar, Upload, Camera, ScanLine, FileText, Crown, Tag, Chrome, FileX2, SearchX } from 'lucide-react';
 import { useUser as useClerkUser } from '@clerk/nextjs';
 import { useUser } from '@/lib/hooks/use-user';
 import { useReceipts, useRecentReceipts } from '@/lib/hooks/use-receipts';
@@ -172,13 +172,15 @@ function ReceiptsPageContent() {
               Receipts
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              Upload and manage your receipts with automatic scanning
+              Add a receipt and it gets read, itemised and filed.
             </p>
             {isSubscribed && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+              /* Was `text-blue-600 dark:text-blue-400` — the only blue text on the
+                 page, on a palette whose accent is emerald. */
+              <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Chrome className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Try our Chrome Extension for quick captures from anywhere on the web</span>
-              </div>
+                Online receipts can be clipped from the browser with the extension.
+              </p>
             )}
           </div>
 
@@ -206,51 +208,45 @@ function ReceiptsPageContent() {
                 onUploadComplete={handleUploadComplete}
               />
             ) : (
-              <Card className="border-2 border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5">
-                <CardHeader className="text-center pb-4">
-                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                    <Upload className="h-7 w-7 text-primary" aria-hidden="true" />
+              <Card className="border-primary/30">
+                <CardHeader className="pb-4">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                    <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <CardTitle className="text-xl text-foreground">Unlock Receipt Uploads</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-xl text-foreground">Uploading needs a subscription</CardTitle>
                     {trialDays > 0 && (
-                      <Badge variant="default" className="text-xs">
-                        {trialDays}-day trial
-                      </Badge>
+                      <Badge variant="secondary">{trialDays}-day trial</Badge>
                     )}
                   </div>
                   <CardDescription className="text-sm">
-                    Upload receipts and let AI extract all the details automatically.
+                    Everything you have already added stays readable. Adding new receipts is
+                    part of Premium.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
-                      <Camera className="h-5 w-5 text-primary mb-2" aria-hidden="true" />
-                      <span className="text-xs text-muted-foreground">Photo upload</span>
-                    </div>
-                    <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
-                      <Scan className="h-5 w-5 text-primary mb-2" aria-hidden="true" />
-                      <span className="text-xs text-muted-foreground">AI scanning</span>
-                    </div>
-                    <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
-                      <FileText className="h-5 w-5 text-primary mb-2" aria-hidden="true" />
-                      <span className="text-xs text-muted-foreground">Auto extraction</span>
-                    </div>
-                    <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
-                      <Sparkles className="h-5 w-5 text-primary mb-2" aria-hidden="true" />
-                      <span className="text-xs text-muted-foreground">Smart categorization</span>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleUpgradeClick}
-                    className="w-full gap-2"
-                  >
+                <CardContent className="space-y-5">
+                  {/* Four tiles that said "Photo upload / AI scanning / Auto
+                      extraction / Smart categorization" — four names for one thing,
+                      one of them iconed with sparkles. */}
+                  <ul className="space-y-2.5 text-sm">
+                    {[
+                      { icon: Camera, text: 'Photograph a receipt, or upload a PDF or screenshot' },
+                      { icon: ScanLine, text: 'Merchant, date, total and tax read automatically' },
+                      { icon: FileText, text: 'Every line item extracted, not just the total' },
+                      { icon: Tag, text: 'Sorted into a spending category as it arrives' },
+                    ].map(({ icon: Icon, text }) => (
+                      <li key={text} className="flex items-start gap-2.5 text-muted-foreground">
+                        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button onClick={handleUpgradeClick} className="w-full gap-2">
                     <Crown className="h-4 w-4" aria-hidden="true" />
-                    {trialDays > 0 ? 'Start Free Trial' : 'Upgrade Now'}
+                    {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
                   </Button>
-                  <p className="text-xs text-center text-muted-foreground">
-                    {trialDays > 0 ? 'Cancel anytime during trial' : 'Cancel anytime'}
+                  <p className="text-center text-xs text-muted-foreground">
+                    {trialDays > 0 ? 'Cancel during the trial and nothing is charged.' : 'Cancel any time.'}
                   </p>
                 </CardContent>
               </Card>
@@ -269,8 +265,8 @@ function ReceiptsPageContent() {
               <ReceiptList receipts={recentReceipts} onReceiptClick={handleReceiptClick} onRetry={handleRetry} />
             ) : (
               <Card>
-                <CardContent className="text-center p-8 text-muted-foreground">
-                  No receipts found. Upload your first receipt to get started!
+                <CardContent className="p-8 text-center text-sm text-muted-foreground">
+                  Recently added receipts will show up here.
                 </CardContent>
               </Card>
             )}
@@ -281,17 +277,18 @@ function ReceiptsPageContent() {
         <div className="space-y-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                <Calendar className="h-6 w-6 text-muted-foreground" />
-                Receipt Timeline
+              <h2 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
+                <Calendar className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                Timeline
               </h2>
-              <p className="text-muted-foreground mt-1">
+              <p className="mt-1 text-muted-foreground">
                 {pagination ? (
                   <>
-                    <span className="font-medium">{pagination.total}</span> receipts organized by date
+                    <span className="amount font-medium">{pagination.total}</span> receipt
+                    {pagination.total !== 1 ? 's' : ''}, newest first
                   </>
                 ) : (
-                  'Loading your receipts...'
+                  'Loading…'
                 )}
               </p>
             </div>
@@ -334,15 +331,18 @@ function ReceiptsPageContent() {
               )}
             </>
           ) : filters.search ? (
-            <div className="text-center p-12 border rounded-lg bg-muted/20">
-              <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                🔍
+            /* The two empty states below were an emoji in a grey circle — 🔍 and
+               📄 — the only emoji rendered as UI iconography in the app, next to
+               several hundred lucide icons. */
+            <div className="rounded-lg border bg-muted/20 p-12 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <SearchX className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No matching receipts</h3>
-              <p className="text-muted-foreground mb-4">
-                No receipts found matching "<span className="font-medium">{filters.search}</span>"
+              <h3 className="mb-2 text-lg font-semibold">No matching receipts</h3>
+              <p className="mb-4 text-muted-foreground">
+                Nothing matched &ldquo;<span className="font-medium">{filters.search}</span>&rdquo;.
                 {selectedHouseholdId && !filters.searchAllHouseholds && (
-                  <span className="block mt-1 text-sm">Try searching across all households</span>
+                  <span className="mt-1 block text-sm">It may be in another household.</span>
                 )}
               </p>
               <div className="flex flex-col sm:flex-row gap-2 justify-center">
@@ -363,13 +363,14 @@ function ReceiptsPageContent() {
               </div>
             </div>
           ) : (
-            <div className="text-center p-12">
-              <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                📄
+            <div className="p-12 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <FileX2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No receipts found</h3>
-              <p className="text-muted-foreground mb-4">
-                Upload your first receipt to get started tracking your expenses.
+              <h3 className="mb-2 text-lg font-semibold">Nothing here yet</h3>
+              <p className="mb-4 text-muted-foreground">
+                Add a receipt and it will appear on the timeline, grouped by the day you
+                spent it.
               </p>
             </div>
           )}

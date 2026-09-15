@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp, Calendar, Bell, PieChart, Pause, XCircle, PlayCircle, CreditCard } from 'lucide-react';
+import { TrendingUp, Calendar, Link2, PieChart, Pause, XCircle, PlayCircle, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { CreateSubscriptionDialog } from './create-subscription-dialog';
 
@@ -13,8 +13,8 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
     return (
       <Card className="border-dashed bg-muted/30">
         <CardContent className="flex flex-col items-center justify-center py-12 px-6">
-          <div className="rounded-full bg-amber-500/10 p-4 mb-4">
-            <Pause className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+          <div className="mb-4 rounded-full bg-warning/10 p-4">
+            <Pause className="h-8 w-8 text-warning" aria-hidden="true" />
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-2">No paused subscriptions</h3>
           <p className="text-sm text-muted-foreground text-center max-w-sm mb-4">
@@ -66,36 +66,40 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
   }
 
   return (
-    <Card className="border-2 border-dashed border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5">
-      <CardContent className="py-12 px-6">
-        <div className="flex flex-col items-center text-center max-w-lg mx-auto">
+    /* "Payment Reminders / Never miss a due date" was one of three tiles here.
+       No reminder is ever sent — the app shows upcoming payments when you look at
+       it. The tiles say what actually happens. */
+    <Card className="border-dashed">
+      <CardContent className="px-6 py-12">
+        <div className="mx-auto max-w-lg">
           {/* Icon */}
-          <div className="rounded-full bg-primary/10 p-5 mb-6">
-            <TrendingUp className="w-8 h-8 text-primary" />
+          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+            <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
           </div>
 
           {/* Title & Description */}
-          <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Track Your Subscriptions</h3>
-          <p className="text-muted-foreground mb-8">
-            Never miss a payment again. Add your subscriptions to get insights on your recurring expenses.
+          <h3 className="mb-2 text-xl font-semibold text-foreground">No subscriptions yet</h3>
+          <p className="mb-8 text-muted-foreground">
+            Add the recurring payments you already have — streaming, phone, insurance — and
+            they get totalled and tracked alongside your receipts.
           </p>
 
           {/* Benefits */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-8">
-            <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-              <Calendar className="w-6 h-6 text-primary mb-2" />
-              <span className="text-sm font-medium">Payment Reminders</span>
-              <span className="text-xs text-muted-foreground">Never miss a due date</span>
+          <div className="mb-8 grid w-full grid-cols-1 gap-6 sm:grid-cols-3">
+            <div>
+              <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+              <p className="mt-2 text-sm font-medium">What is due next</p>
+              <p className="text-xs text-muted-foreground">Shown on this page and the dashboard</p>
             </div>
-            <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-              <PieChart className="w-6 h-6 text-primary mb-2" />
-              <span className="text-sm font-medium">Cost Analysis</span>
-              <span className="text-xs text-muted-foreground">See monthly & yearly totals</span>
+            <div>
+              <PieChart className="h-5 w-5 text-primary" aria-hidden="true" />
+              <p className="mt-2 text-sm font-medium">Monthly and yearly cost</p>
+              <p className="text-xs text-muted-foreground">Per subscription and in total</p>
             </div>
-            <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-              <Bell className="w-6 h-6 text-primary mb-2" />
-              <span className="text-sm font-medium">Receipt Matching</span>
-              <span className="text-xs text-muted-foreground">Link receipts to subscriptions</span>
+            <div>
+              <Link2 className="h-5 w-5 text-primary" aria-hidden="true" />
+              <p className="mt-2 text-sm font-medium">Matched to receipts</p>
+              <p className="text-xs text-muted-foreground">Link the receipt that proves a payment</p>
             </div>
           </div>
 

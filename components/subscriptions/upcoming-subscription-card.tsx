@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, TrendingUp } from 'lucide-react';
 import { type Subscription } from '@/lib/db/schema';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { urgencyTextClass } from '@/lib/utils/urgency';
+import { cn } from '@/lib/utils';
 import { differenceInDays, format, isToday, isTomorrow, startOfDay } from 'date-fns';
 
 type UpcomingSubscriptionCardProps = {
@@ -28,23 +30,16 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
     return format(billingDate, 'MMM dd, yyyy');
   };
 
-  const getUrgencyColor = () => {
-    if (daysUntil === 0) return 'text-red-600 dark:text-red-400';
-    if (daysUntil === 1) return 'text-orange-600 dark:text-orange-400';
-    if (daysUntil <= 3) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-blue-600 dark:text-blue-400';
-  };
-
   return (
     <Card
-      className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all duration-200"
+      className="cursor-pointer transition-colors hover:border-primary/50"
       onClick={onClick}
     >
       <CardContent className="p-6 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-xl font-bold truncate mb-1">{subscription.name}</h3>
+            <h3 className="mb-1 truncate text-xl font-semibold">{subscription.name}</h3>
             {subscription.category && (
               <Badge variant="outline" className="text-xs capitalize">
                 {subscription.category}
@@ -65,7 +60,7 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
         {/* Date */}
         <div className="flex items-center gap-2 text-sm border-t pt-3">
           <Calendar className="w-4 h-4 text-muted-foreground" />
-          <span className={`font-semibold ${getUrgencyColor()}`}>
+          <span className={cn('font-semibold', urgencyTextClass(daysUntil))}>
             {getDateLabel()}
           </span>
           <span className="text-muted-foreground">
@@ -81,7 +76,7 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
               {subscription.billingFrequency}
             </span>
           </div>
-          <span className="text-3xl font-bold">
+          <span className="amount text-3xl font-semibold tracking-tight">
             {formatCurrency(parseFloat(subscription.amount))}
           </span>
         </div>

@@ -4,23 +4,26 @@ export function Footer() {
   return (
     <footer className="border-t border-border/50 bg-card/50 px-4 py-12 backdrop-blur-sm">
       <div className="container mx-auto">
-        <div className="mb-8 flex flex-col items-center justify-between gap-8 sm:flex-row">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="ReceiptWise" className="h-8 w-auto" />
-            <span className="text-xl font-bold text-foreground">ReceiptWise</span>
+            <img src="/logo.png" alt="" className="h-7 w-auto" aria-hidden="true" />
+            <span className="font-semibold tracking-tight text-foreground">ReceiptWise</span>
           </div>
-          <div className="flex gap-6 text-sm text-muted-foreground">
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy</Link>
             <Link href="/terms" className="transition-colors hover:text-foreground">Terms</Link>
             <Link href="/refund" className="transition-colors hover:text-foreground">Refunds</Link>
             <Link href="/support" className="transition-colors hover:text-foreground">Support</Link>
-          </div>
+            <a href="mailto:support@receiptwise.io" className="transition-colors hover:text-foreground">
+              support@receiptwise.io
+            </a>
+          </nav>
         </div>
-        <div className="border-t border-border/50 pt-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} ReceiptWise. All rights reserved.
-          </p>
-        </div>
+        {/* Was a centred "All rights reserved." on its own bordered row — the
+            boilerplate takes a line to itself, so it now shares one. */}
+        <p className="mt-8 border-t border-border/50 pt-6 text-sm text-muted-foreground">
+          &copy; {new Date().getFullYear()} ReceiptWise
+        </p>
       </div>
     </footer>
   );

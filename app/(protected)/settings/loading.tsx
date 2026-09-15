@@ -15,10 +15,12 @@ export default function SettingsLoading() {
         </div>
       </div>
 
-      {/* Tabs - matches TabsList grid w-full grid-cols-5 */}
-      <div className="grid w-full grid-cols-5 lg:w-auto lg:flex gap-1 p-1 bg-muted rounded-lg">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Skeleton key={i} className="h-9 rounded-md" />
+      {/* Tabs. Was five columns and five skeletons; Settings has six tabs, so the
+          skeleton was a tab short and a column narrow — the row visibly reflowed
+          when the real TabsList replaced it. */}
+      <div className="grid h-auto w-full grid-cols-3 gap-1 rounded-lg bg-muted p-1 lg:w-auto lg:flex">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Skeleton key={i} className="h-9 rounded-md lg:w-28" />
         ))}
       </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Gift, ArrowRight, Sparkles } from 'lucide-react';
+import { X, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -63,46 +63,51 @@ export function ExitIntentPopup() {
           <span className="sr-only">Close</span>
         </button>
 
-        <DialogHeader className="text-center sm:text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Gift className="h-8 w-8 text-primary" />
-          </div>
-          <DialogTitle className="text-2xl">Wait! Don&apos;t Leave Empty-Handed</DialogTitle>
+        {/*
+          Was "Wait! Don't Leave Empty-Handed" over a gift icon, with four
+          benefits bulleted by sparkles. Sparkles standing in for a checkmark is
+          the single most common tell of generated UI, and shouting at someone on
+          their way out is not the tone of a product that holds financial
+          records. This states what is on offer and lets them leave.
+        */}
+        <DialogHeader>
+          <DialogTitle className="text-xl">Before you go</DialogTitle>
           <DialogDescription className="text-base">
             {hasFreeTrial ? (
               <>
-                Start your <span className="font-semibold text-primary">{trialDays}-day free trial</span> and see how much easier shared expenses get when the receipts read themselves.
+                There is a {trialDays}-day free trial, and no charge if you cancel before
+                it ends. Long enough to run a week of real receipts through it.
               </>
             ) : (
               <>
-                Stop losing receipts. Let AI read them, and share the whole picture with your household.
+                It takes one receipt to see whether this is useful to you.
               </>
             )}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           {/* Benefits list */}
-          <div className="space-y-2">
+          <ul className="space-y-2">
             {[
-              'AI-powered receipt scanning',
-              'Share expenses with family & roommates',
-              'Track spending trends automatically',
-              'Never lose a receipt again',
+              'Every receipt read and itemised for you',
+              'Shared with your household as it arrives',
+              'Searchable down to the line item',
+              'Export it all whenever you want',
             ].map((benefit) => (
-              <div key={benefit} className="flex items-center gap-2 text-sm">
-                <Sparkles className="h-4 w-4 text-primary" />
+              <li key={benefit} className="flex items-start gap-2.5 text-sm">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <span>{benefit}</span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
 
           {/* CTA Buttons */}
           <div className="flex flex-col gap-2 pt-2">
             <Link href="/sign-up" onClick={handleDismiss}>
               <Button className="w-full gap-2" size="lg">
-                {hasFreeTrial ? 'Start Free Trial' : 'Get Started Free'}
-                <ArrowRight className="h-4 w-4" />
+                {hasFreeTrial ? `Start the ${trialDays}-day trial` : 'Create an account'}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             </Link>
             <Button

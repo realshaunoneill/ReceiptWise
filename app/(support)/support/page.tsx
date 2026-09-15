@@ -29,11 +29,11 @@ export default function SupportPage() {
                 href="mailto:support@receiptwise.io"
                 className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors group"
               >
-                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/20">
-                  <Mail className="h-5 w-5 text-blue-500 dark:text-blue-400" aria-hidden="true" />
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Mail className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium group-hover:text-blue-500 transition-colors">Email Support</p>
+                  <p className="font-medium transition-colors group-hover:text-primary">Email Support</p>
                   <p className="text-sm text-muted-foreground truncate">support@receiptwise.io</p>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
@@ -43,19 +43,17 @@ export default function SupportPage() {
                 href="mailto:support@receiptwise.io?subject=Feature%20Request"
                 className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors group"
               >
-                <div className="p-2 rounded-full bg-neutral-100 dark:bg-neutral-900/30">
-                  <MessageCircle className="h-5 w-5 text-neutral-800 dark:text-neutral-200" aria-hidden="true" />
+                <div className="p-2 rounded-full bg-primary/10">
+                  <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium group-hover:text-neutral-800 dark:group-hover:text-neutral-200 transition-colors">
+                  <p className="font-medium transition-colors group-hover:text-primary">
                     Feature Requests
                   </p>
                   <p className="text-sm text-muted-foreground">Report bugs or request features</p>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
               </a>
-
-              <div className="absolute -z-10 right-0 bottom-0 top-1/2 left-1/2 bg-linear-to-br from-blue-500/5 via-primary/5 to-transparent blur-3xl" />
             </CardContent>
           </Card>
 

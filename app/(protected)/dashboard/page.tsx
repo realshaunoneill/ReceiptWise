@@ -12,7 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardStats } from '@/lib/hooks/use-dashboard-stats';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { useUser } from '@/lib/hooks/use-user';
-import { Upload, Receipt, BarChart3, ArrowRight, Sparkles, PieChart, Crown, Check, Chrome } from 'lucide-react';
+import { Upload, Receipt, ArrowRight, PieChart, Crown, Check, Chrome } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
 import { useRouter } from 'next/navigation';
 import { UpcomingPayments } from '@/components/subscriptions/upcoming-payments';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
@@ -41,7 +43,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Track your spending and manage your receipts</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Where the money went, and what has come in lately.</p>
           </div>
           <Skeleton className="h-10 w-48" />
         </div>
@@ -83,12 +85,12 @@ export default function DashboardPage() {
 
   const quickStats = stats ? {
     totalReceipts: stats.totalReceipts,
-    totalTransactions: stats.totalReceipts, // Same as receipts for now
+    totalItems: stats.totalItems,
     avgSpending: stats.avgSpending,
     topCategory: stats.topCategory,
   } : {
     totalReceipts: 0,
-    totalTransactions: 0,
+    totalItems: 0,
     avgSpending: 0,
     topCategory: 'No data',
   };
@@ -98,7 +100,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 id="dashboard-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Track your spending and manage your receipts</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Where the money went, and what has come in lately.</p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -140,12 +142,14 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <PieChart className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                      <CardTitle className="text-lg">Spending by Category</CardTitle>
+                      <CardTitle className="text-lg">Spending by category</CardTitle>
                     </div>
                     <Link href="/insights">
+                      {/* Was "✨ View AI Insights". The page is called Insights;
+                          badging the link with sparkles and the word AI advertises
+                          the implementation rather than the destination. */}
                       <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
-                        <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        View AI Insights
+                        All insights
                         <ArrowRight className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </Link>
@@ -159,12 +163,12 @@ export default function DashboardPage() {
                         className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                       >
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="capitalize">
-                            {category.category}
+                          <Badge variant="outline" className={categoryBadgeClasses(category.category)}>
+                            {getCategory(category.category).label}
                           </Badge>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">{category.percentage}%</p>
+                          <p className="amount font-semibold">{category.percentage}%</p>
                         </div>
                       </div>
                     ))}
@@ -181,133 +185,67 @@ export default function DashboardPage() {
 
         {stats?.recentReceipts && stats.recentReceipts.length > 0 && (
           <div>
-            <h2 className="mb-4 text-xl font-semibold">Recent Receipts</h2>
+            <h2 className="mb-4 text-xl font-semibold">Recent receipts</h2>
             <ReceiptList receipts={stats.recentReceipts} />
           </div>
         )}
 
+        {/*
+          Empty state.
+          It used to restate the three-step "1. Upload → 2. AI Processing →
+          3. Track Spending" explainer that the marketing site and the onboarding
+          tour both already give — the third time a new user is told how the
+          product works, on the screen where they want to start using it. It is now
+          one instruction and one button, with the extension tip demoted to a note.
+        */}
         {(!stats || stats.totalReceipts === 0) && (
-          <Card className="border-2 border-dashed">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Receipt className="h-8 w-8 text-primary" aria-hidden="true" />
+          <Card className="border-dashed">
+            <CardHeader className="pb-4">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />
               </div>
-              <CardTitle className="text-2xl text-foreground">Welcome to ReceiptWise!</CardTitle>
+              <CardTitle className="text-xl text-foreground">No receipts yet</CardTitle>
               <CardDescription className="text-base">
-                Start organizing your receipts and tracking your spending
+                {isSubscribed
+                  ? 'Add one and this page fills in — totals, categories and the week’s trend.'
+                  : 'Your dashboard fills in as soon as there is something to read. Uploading needs a subscription.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Upload className="h-5 w-5 text-primary" />
+              {isSubscribed ? (
+                <Button onClick={() => router.push('/receipts')} className="gap-2">
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  Add your first receipt
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+                    {['Unlimited receipts', 'Household sharing', 'Spending insights'].map((item) => (
+                      <span key={item} className="flex items-center gap-1.5 text-muted-foreground">
+                        <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+                        {item}
+                      </span>
+                    ))}
                   </div>
-                  <h3 className="font-semibold mb-1">1. Upload Receipts</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Take a photo or upload an image of your receipt
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Receipt className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-1">2. AI Processing</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Our AI extracts all the details automatically
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-1">3. Track Spending</h3>
-                  <p className="text-sm text-muted-foreground">
-                    View insights and analyze your spending patterns
-                  </p>
-                </div>
-              </div>
-
-              {/* Chrome Extension Tip */}
-              <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                    <Chrome className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                      Pro Tip: Use our Chrome Extension
-                    </h4>
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      Capture receipts from anywhere on the web with a quick screenshot. Install from Settings → Integrations.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Premium Upsell for non-subscribed users */}
-              {!isSubscribed && (
-                <div className="rounded-lg border border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5 p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <Crown className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">Upgrade to Premium</h3>
-                        <Badge variant="secondary" className="text-xs">Recommended</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Unlock the full power of ReceiptWise with AI-powered features
-                      </p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-sm">
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Check className="h-4 w-4 text-primary" />
-                          Unlimited uploads
-                        </span>
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Check className="h-4 w-4 text-primary" />
-                          AI insights
-                        </span>
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Check className="h-4 w-4 text-primary" />
-                          Household sharing
-                        </span>
-                      </div>
-                    </div>
-                    <Button onClick={() => router.push('/upgrade')} className="shrink-0 gap-2">
-                      <Sparkles className="h-4 w-4" />
-                      Learn More
-                    </Button>
-                  </div>
+                  <Button onClick={() => router.push('/upgrade')} className="gap-2">
+                    <Crown className="h-4 w-4" aria-hidden="true" />
+                    See what Premium includes
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
                 </div>
               )}
 
-              <div className="text-center pt-4 border-t">
-                {isSubscribed ? (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Ready to get started? Upload your first receipt now
-                    </p>
-                    <Button onClick={() => router.push('/receipts')} size="lg" className="gap-2">
-                      <Upload className="h-5 w-5" />
-                      Upload Your First Receipt
-                      <ArrowRight className="h-5 w-5" />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Upgrade to Premium to start uploading and tracking your receipts
-                    </p>
-                    <Button onClick={() => router.push('/upgrade')} size="lg" className="gap-2">
-                      <Crown className="h-5 w-5" />
-                      Upgrade to Premium
-                      <ArrowRight className="h-5 w-5" />
-                    </Button>
-                  </>
-                )}
-              </div>
+              {/* Chrome Extension note. Was a hardcoded blue-50/blue-950 panel
+                  labelled "Pro Tip:" — off the palette in both themes. */}
+              <Alert variant="info">
+                <Chrome className="h-4 w-4" aria-hidden="true" />
+                <AlertTitle>Receipts that never get printed</AlertTitle>
+                <AlertDescription>
+                  The Chrome extension clips receipts straight off a web page. Set it up in
+                  Settings → Integrations.
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         )}

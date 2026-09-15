@@ -36,7 +36,9 @@ function BlockedUserPage({ reason }: { reason?: string }) {
         </p>
         <div className="flex flex-col gap-3">
           <Button asChild>
-            <a href="mailto:support@receiptwise.app">
+            {/* Was receiptwise.app; the product's domain is receiptwise.io, so a
+                suspended user's only route back to a human went nowhere. */}
+            <a href="mailto:support@receiptwise.io?subject=Account%20suspended">
               <Mail className="mr-2 h-4 w-4" />
               Contact Support
             </a>

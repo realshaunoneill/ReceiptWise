@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Scan, BarChart3, Users, CheckCircle2, Sparkles } from 'lucide-react';
+import { ScanLine, BarChart3, Users, CheckCircle2 } from 'lucide-react';
 
 export default function SignInPage() {
   return (
@@ -27,52 +27,45 @@ export default function SignInPage() {
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-12 items-center relative">
             {/* Left Side - Benefits */}
             <div className="space-y-8 order-2 lg:order-1">
+              {/* Was preceded by an "✨ AI-powered expense tracking" pill, and the
+                  three feature icons below sat in emerald, blue and orange tiles —
+                  three colours for three items on a page with one accent. */}
               <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-foreground backdrop-blur-sm">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  AI-powered expense tracking
-                </div>
-                <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                  Smart expense tracking made simple
+                <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+                  Welcome back
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground">
-                  Scan a receipt, let AI pull out the detail, and share the whole picture with your household.
+                  Your receipts and your household are where you left them.
                 </p>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="flex gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
-                    <Scan className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
+                  <ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                   <div>
-                    <h3 className="font-semibold text-foreground">AI Receipt Scanning</h3>
+                    <h2 className="font-semibold text-foreground">Receipts read for you</h2>
                     <p className="text-sm text-muted-foreground">
-                      Automatically extract merchant, amount, date, and line items from any receipt
+                      Merchant, amount, date and every line item, off the image.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                    <BarChart3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  </div>
+                  <BarChart3 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                   <div>
-                    <h3 className="font-semibold text-foreground">Spending Analytics</h3>
+                    <h2 className="font-semibold text-foreground">Spending analytics</h2>
                     <p className="text-sm text-muted-foreground">
-                      Visualize spending patterns with beautiful charts and category breakdowns
+                      Category breakdowns and trends over the period you choose.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500/10">
-                    <Users className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                  </div>
+                  <Users className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                   <div>
-                    <h3 className="font-semibold text-foreground">Household Sharing</h3>
+                    <h2 className="font-semibold text-foreground">Household sharing</h2>
                     <p className="text-sm text-muted-foreground">
-                      Share expenses with family members and track household spending together
+                      One receipt pile for everyone who shares the bills.
                     </p>
                   </div>
                 </div>
@@ -80,20 +73,18 @@ export default function SignInPage() {
 
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="p-6">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-foreground">Free trial, cancel any time</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-foreground">Unlimited receipt storage</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-foreground">Advanced analytics and insights</span>
-                    </div>
-                  </div>
+                  <ul className="space-y-3">
+                    {[
+                      'Free trial, cancel any time',
+                      'Unlimited receipt storage',
+                      'Export everything whenever you want',
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                        <span className="text-foreground">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </CardContent>
               </Card>
             </div>
@@ -105,34 +96,43 @@ export default function SignInPage() {
             <div className="order-1 lg:order-2">
               <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-8 sm:p-10">
-                  <div className="mb-8 text-center">
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                      Welcome back
+                  {/* "Welcome back" was here as well as in the h1 to the left of
+                      it — the same greeting twice on one screen. And an "✨ Quick &
+                      Secure Sign In" panel explained how sign-in works directly
+                      above the sign-in form, which explains itself. */}
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                      Sign in
                     </h2>
-                    <p className="mt-2 text-muted-foreground">
-                      Sign in to your account to continue tracking your expenses
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      With Google, or with the email address you signed up with.
                     </p>
                   </div>
 
-                  <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium text-foreground">
-                          Quick & Secure Sign In
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Sign in with Google or create an account with your email. All data is encrypted and secure.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="flex justify-center">
+                    {/*
+                      Clerk ships its own light palette, and only the outer card
+                      was being neutralised — so in dark mode the sign-in form sat
+                      on this page as a white rectangle with black text, the one
+                      element that had not been themed. Clerk's appearance variables
+                      accept any CSS colour value, so pointing them at the same
+                      custom properties the rest of the app uses makes the form
+                      follow the theme (and the typeface) for free.
+                    */}
                     <SignIn
                       appearance={{
+                        variables: {
+                          colorPrimary: 'var(--primary)',
+                          colorBackground: 'var(--card)',
+                          colorText: 'var(--card-foreground)',
+                          colorTextSecondary: 'var(--muted-foreground)',
+                          colorInputBackground: 'var(--background)',
+                          colorInputText: 'var(--foreground)',
+                          colorNeutral: 'var(--foreground)',
+                          colorDanger: 'var(--destructive)',
+                          borderRadius: 'var(--radius)',
+                          fontFamily: 'var(--font-plex-sans)',
+                        },
                         elements: {
                           rootBox: 'w-full max-w-md',
                           card: 'shadow-none border-0 bg-transparent p-0',
@@ -150,24 +150,13 @@ export default function SignInPage() {
                     />
                   </div>
 
-                  <div className="mt-6 space-y-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">
-                        New to ReceiptWise? Create your account in seconds.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                        <span>Free trial</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                        <span>Cancel any time</span>
-                      </div>
-                    </div>
-                  </div>
+                  <p className="mt-6 text-center text-sm text-muted-foreground">
+                    New here?{' '}
+                    <Link href="/sign-up" className="text-primary underline underline-offset-4">
+                      Create an account
+                    </Link>
+                    .
+                  </p>
                 </CardContent>
               </Card>
             </div>

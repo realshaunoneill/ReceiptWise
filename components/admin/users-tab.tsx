@@ -121,7 +121,7 @@ export function UsersTab({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="gap-1">
-              <span className="text-green-500">●</span>
+              <span className="text-success">●</span>
               {users.filter(u => u.subscribed).length} subscribed
             </Badge>
             <Badge variant="outline" className="gap-1">

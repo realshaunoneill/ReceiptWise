@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Crown, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import { X, Crown, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/lib/hooks/use-user';
 
@@ -10,26 +10,31 @@ interface SubscriptionBannerProps {
   page?: string;
 }
 
+/*
+ * Five variants of "Unlock/Enhanced/Premium <Noun Phrase>" with no concrete
+ * content between them. Each now says what the reader gets on the page they are
+ * actually looking at.
+ */
 const pageMessages = {
   dashboard: {
-    title: 'Unlock Advanced Analytics',
-    description: 'Get detailed spending insights, trends, and unlimited receipt storage',
+    title: 'This page fills in with a subscription',
+    description: 'Totals, categories and trends, once there are receipts to read.',
   },
   receipts: {
-    title: 'Store Unlimited Receipts',
-    description: 'Never worry about storage limits with Premium receipt management',
+    title: 'Adding receipts needs a subscription',
+    description: 'Everything already here stays readable.',
   },
   sharing: {
-    title: 'Enhanced Household Sharing',
-    description: 'Create unlimited households and collaborate with more family members',
+    title: 'Households need a subscription',
+    description: 'Share one receipt pile with family, a partner or flatmates.',
   },
   settings: {
-    title: 'Premium Account Features',
-    description: 'Unlock all premium features and priority support',
+    title: 'You are on the free plan',
+    description: 'Read-only access to what is already in your account.',
   },
   default: {
-    title: 'Upgrade to Premium',
-    description: 'Unlock unlimited receipts, advanced analytics, and household sharing',
+    title: 'You are on the free plan',
+    description: 'Unlimited receipts, households and insights come with Premium.',
   },
 };
 
@@ -74,9 +79,8 @@ export function SubscriptionBanner({ page = 'default' }: SubscriptionBannerProps
 
         <div className="flex items-center gap-2 shrink-0">
           <Button onClick={handleSubscribe} size="sm" className="gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Upgrade</span>
-            <ArrowRight className="h-3.5 w-3.5 sm:hidden" />
+            <span className="hidden sm:inline">See Premium</span>
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"

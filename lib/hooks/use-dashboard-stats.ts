@@ -10,6 +10,7 @@ export function useDashboardStats(householdId?: string, personalOnly: boolean = 
     if (!receipts || receipts.length === 0) {
       return {
         totalReceipts: 0,
+        totalItems: 0,
         totalSpent: 0,
         avgSpending: 0,
         topCategory: 'No data',
@@ -51,9 +52,20 @@ export function useDashboardStats(householdId?: string, personalOnly: boolean = 
       )
       .slice(0, 5);
 
+    // The dashboard previously showed the receipt count twice, once labelled
+    // "Items Tracked / Individual purchases", because there was no item total to
+    // show. There is one now.
+    const totalItems = receipts.reduce(
+      (sum: number, receipt: ReceiptWithItems) => sum + (receipt.items?.length ?? 0),
+      0,
+    );
+
     return {
       totalReceipts: receipts.length,
+      totalItems,
       totalSpent,
+      // Total divided by number of receipts: the mean *per receipt*, not per day.
+      // Named `avgSpending` historically; the label in the UI now says what it is.
       avgSpending: receipts.length > 0 ? totalSpent / receipts.length : 0,
       topCategory,
       spendingByCategory,

@@ -138,76 +138,77 @@ export default function SharingPage() {
             <div>
               <h1 id="sharing-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Sharing</h1>
               <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-                Share receipts and expenses with family or roommates
+                Households, and who is in them.
               </p>
             </div>
           </div>
 
-          <Card className="border-2 border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Users className="h-8 w-8 text-primary" aria-hidden="true" />
+          {/* Same paywall shape as /insights and /subscriptions: a centred
+              medallion, a four-tile grid of two-word features, a bordered list, a
+              centred CTA. All three now use the left-aligned, plain-spoken version
+              so the app does not sell itself in a different voice on each page. */}
+          <Card className="border-primary/30">
+            <CardHeader className="pb-4">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                <Users className="h-5 w-5 text-primary" aria-hidden="true" />
               </div>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <CardTitle className="text-2xl text-foreground">Unlock Household Sharing</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-2xl text-foreground">Households are part of Premium</CardTitle>
                 {trialDays > 0 && (
-                  <Badge variant="default" className="text-xs">
-                    {trialDays}-day free trial
-                  </Badge>
+                  <Badge variant="secondary">{trialDays}-day trial</Badge>
                 )}
               </div>
-              <CardDescription className="text-base max-w-lg mx-auto">
-                Create households to share receipts and track expenses together with family, partners, or roommates.
+              <CardDescription className="max-w-xl text-base">
+                A household is a shared receipt pile. Everyone in it adds to the same
+                collection and sees the same totals.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-              {/* Features Grid */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Home className="h-5 w-5 text-primary" aria-hidden="true" />
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    icon: Home,
+                    title: 'One per group',
+                    body: 'The flat, the family, the couple — keep them separate.',
+                  },
+                  {
+                    icon: UserPlus,
+                    title: 'Invite by email',
+                    body: 'They accept and they are in. No account juggling.',
+                  },
+                  {
+                    icon: Share2,
+                    title: 'Shared as it arrives',
+                    body: 'A receipt added on a phone shows up for everyone.',
+                  },
+                  {
+                    icon: Shield,
+                    title: 'Owners and members',
+                    body: 'Control who can invite and who can remove.',
+                  },
+                ].map(({ icon: Icon, title, body }) => (
+                  <div key={title}>
+                    <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                    <h3 className="mt-3 font-semibold text-foreground">{title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{body}</p>
                   </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Create Households</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Organize by family or group
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <UserPlus className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Invite Members</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Add family & roommates
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Share2 className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Share Receipts</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Collaborate on expenses
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Shield className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Manage Access</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Control permissions
-                  </p>
-                </div>
+                ))}
               </div>
 
               {/* Benefits List */}
-              <div className="rounded-lg border bg-card p-6">
-                <h3 className="font-semibold mb-4 text-foreground">What's included with Premium:</h3>
+              <div className="rounded-lg border bg-muted/30 p-6">
+                <h3 className="mb-4 font-semibold text-foreground">Also included</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {['Unlimited household creation', 'Invite unlimited members', 'Share receipts instantly', 'Track shared expenses together', 'Admin & member role management', 'Household-specific insights'].map((feature, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+                  {[
+                    'Unlimited households and members',
+                    'Per-household spending breakdowns',
+                    'Filter any view to one household',
+                    'Unlimited receipts and scanning',
+                    'Subscription tracking',
+                    'CSV and JSON export',
+                  ].map((feature) => (
+                    <div key={feature} className="flex items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                       <span className="text-sm text-foreground">{feature}</span>
                     </div>
                   ))}
@@ -215,20 +216,16 @@ export default function SharingPage() {
               </div>
 
               {/* CTA */}
-              <div className="text-center space-y-4 pt-4 border-t">
-                <Button
-                  onClick={() => router.push('/upgrade')}
-                  size="lg"
-                  className="gap-2 text-base h-12 px-8"
-                >
-                  <Crown className="h-5 w-5" aria-hidden="true" />
-                  {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Upgrade to Premium'}
-                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              <div className="space-y-3 border-t pt-6">
+                <Button onClick={() => router.push('/upgrade')} size="lg" className="gap-2">
+                  <Crown className="h-4 w-4" aria-hidden="true" />
+                  {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   {trialDays > 0
-                    ? `Try free for ${trialDays} days. Cancel anytime, no questions asked.`
-                    : 'Cancel anytime. No long-term contracts.'}
+                    ? `Cancel any time in the ${trialDays} days and you are not charged.`
+                    : 'Cancel any time.'}
                 </p>
               </div>
             </CardContent>

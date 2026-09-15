@@ -2,7 +2,7 @@
 
 import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Upload, Loader2, CheckCircle2, XCircle, X, RefreshCw, Camera, Sparkles, FileImage } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2, XCircle, X, RefreshCw, Camera, Lightbulb, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -318,25 +318,28 @@ export function ReceiptBatchUpload({
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Smart Receipt Upload
+              <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
+              Add receipts
             </CardTitle>
             <CardDescription className="mt-1">
-              Drag, drop, or snap a photo — we&apos;ll handle the rest
+              Drag a stack in, pick files, or take a photo
             </CardDescription>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Tips Section */}
-        <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 text-sm space-y-2">
-          <p className="font-medium text-primary">📸 Tips for best results:</p>
-          <ul className="space-y-1 text-muted-foreground ml-4 list-disc">
-            <li>Make sure the receipt is well-lit and flat</li>
-            <li>Include all text, especially the total and date</li>
-            <li>Crop out unnecessary background</li>
-            <li>Upload multiple receipts at once to save time</li>
+        {/* Tips Section. Was headed with a 📸 emoji. */}
+        <div className="space-y-2 rounded-lg border bg-muted/40 p-4 text-sm">
+          <p className="flex items-center gap-2 font-medium text-foreground">
+            <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
+            For a clean read
+          </p>
+          <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+            <li>Flat and well lit, with the whole receipt in frame</li>
+            <li>The total and the date matter most — don&apos;t crop those off</li>
+            <li>Trim the table, the floor and your thumb out of the shot</li>
+            <li>A whole stack can go in at once</li>
           </ul>
         </div>
 
@@ -369,7 +372,7 @@ export function ReceiptBatchUpload({
                 <div className="rounded-full bg-primary/20 p-4 mb-3 animate-bounce">
                   <FileImage className="h-10 w-10 text-primary" />
                 </div>
-                <span className="text-lg font-semibold text-primary">Drop your receipts here!</span>
+                <span className="text-lg font-semibold text-primary">Drop them here</span>
               </>
             ) : (
               <>
@@ -437,7 +440,7 @@ export function ReceiptBatchUpload({
               <div className="flex items-center gap-4 text-sm">
                 <span className="font-semibold">{uploadItems.length} receipt{uploadItems.length !== 1 ? 's' : ''}</span>
                 {completedCount > 0 && (
-                  <span className="flex items-center gap-1 text-green-600">
+                  <span className="flex items-center gap-1 text-success">
                     <CheckCircle2 className="h-4 w-4" />
                     {completedCount} done
                   </span>
@@ -462,15 +465,16 @@ export function ReceiptBatchUpload({
               )}
             </div>
 
-            {/* Success Celebration */}
+            {/* Was "All receipts processed! 🎉" in a hardcoded green panel behind
+                a sparkles medallion. */}
             {allCompleted && (
-              <div className="flex items-center gap-3 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3 text-green-700 dark:text-green-400">
-                <div className="rounded-full bg-green-500/20 p-2">
-                  <Sparkles className="h-5 w-5" />
-                </div>
+              <div className="flex items-center gap-3 rounded-lg border border-success/25 bg-success/10 px-4 py-3 text-success">
+                <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
                 <div>
-                  <p className="font-medium">All receipts processed! 🎉</p>
-                  <p className="text-sm opacity-80">Your spending data is ready to view</p>
+                  <p className="font-medium">
+                    {completedCount} receipt{completedCount !== 1 ? 's' : ''} read and filed
+                  </p>
+                  <p className="text-sm opacity-80">They are on the timeline below.</p>
                 </div>
               </div>
             )}
@@ -483,7 +487,7 @@ export function ReceiptBatchUpload({
                   className={cn(
                     'flex items-center gap-3 rounded-lg border p-3 transition-all duration-200',
                     item.status === 'failed' && 'bg-destructive/5 border-destructive/20',
-                    item.status === 'completed' && 'bg-green-500/5 border-green-500/20',
+                    item.status === 'completed' && 'border-success/20 bg-success/5',
                     item.status === 'uploading' || item.status === 'processing' ? 'bg-primary/5 border-primary/20' : 'bg-card',
                   )}
                 >
@@ -498,7 +502,7 @@ export function ReceiptBatchUpload({
                       )}
                     />
                     {item.status === 'completed' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-green-500/40">
+                      <div className="absolute inset-0 flex items-center justify-center bg-success/40">
                         <CheckCircle2 className="h-6 w-6 text-white" />
                       </div>
                     )}

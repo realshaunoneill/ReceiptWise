@@ -26,7 +26,9 @@ import { useUser as useUserData } from '@/lib/hooks/use-user';
 import { useOnboarding } from '@/components/onboarding/onboarding-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { PlayCircle, User, CreditCard, Home, Download, AlertTriangle, Settings2, Sparkles, Trash2, Clock, Mail, FileImage, Puzzle, Copy, Plus, Key, Lock } from 'lucide-react';
+import { PlayCircle, User, CreditCard, Home, Download, AlertTriangle, Settings2, SlidersHorizontal, Trash2, Clock, Mail, FileImage, Puzzle, Copy, Plus, Key, Lock } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
@@ -372,9 +374,10 @@ export default function SettingsPage() {
           </div>
         </div>
         {/* Tabs - matches loading.tsx */}
-        <div className="grid w-full grid-cols-5 lg:w-auto lg:flex gap-1 p-1 bg-muted rounded-lg">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-9 rounded-md" />
+        {/* Six tabs, not five — the skeleton was a tab short of the real list. */}
+        <div className="grid w-full grid-cols-3 gap-1 rounded-lg bg-muted p-1 lg:w-auto lg:flex">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-9 rounded-md lg:w-28" />
           ))}
         </div>
         {/* Profile Card - matches loading.tsx */}
@@ -422,29 +425,34 @@ export default function SettingsPage() {
         </div>
 
         <Tabs value={currentTab} onValueChange={(value) => setCurrentTab(value as typeof VALID_TABS[number])} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
+          {/* Six tabs in a five-column grid: the grid was never updated when the
+              Integrations tab was added, so on narrow screens one tab was pushed
+              onto a second row of a container sized for one. Two rows of three
+              below the `lg` breakpoint, a single row above it. */}
+          <TabsList className="grid h-auto w-full grid-cols-3 lg:w-auto lg:grid-cols-none lg:flex">
             <TabsTrigger value="profile" className="gap-2">
-              <User className="h-4 w-4 hidden sm:block" />
+              <User className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Profile
             </TabsTrigger>
             <TabsTrigger value="preferences" className="gap-2">
-              <Sparkles className="h-4 w-4 hidden sm:block" />
+              {/* Was a Sparkles icon, which meant nothing here. */}
+              <SlidersHorizontal className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Preferences
             </TabsTrigger>
             <TabsTrigger value="subscription" className="gap-2">
-              <CreditCard className="h-4 w-4 hidden sm:block" />
+              <CreditCard className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Subscription
             </TabsTrigger>
             <TabsTrigger value="household" className="gap-2">
-              <Home className="h-4 w-4 hidden sm:block" />
+              <Home className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Household
             </TabsTrigger>
             <TabsTrigger value="integrations" className="gap-2">
-              <Puzzle className="h-4 w-4 hidden sm:block" />
+              <Puzzle className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Integrations
             </TabsTrigger>
             <TabsTrigger value="data" className="gap-2">
-              <Download className="h-4 w-4 hidden sm:block" />
+              <Download className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Data
             </TabsTrigger>
           </TabsList>
@@ -521,15 +529,35 @@ export default function SettingsPage() {
           <TabsContent value="preferences" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Display Preferences</CardTitle>
-                <CardDescription>Customize your ReceiptWise experience</CardDescription>
+                <CardTitle>Display</CardTitle>
+                <CardDescription>How amounts and the interface are shown to you</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-8">
+                {/* Theme had no home in Settings at all — the only control was the
+                    icon button in the navigation bar, which is easy to miss and
+                    the first place people look for it is here. */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label>Appearance</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Light, dark, or whatever your system is set to.
+                    </p>
+                  </div>
+                  <ThemeToggle />
+                </div>
+
                 <div className="space-y-3">
-                  <Label htmlFor="currency">Display Currency</Label>
+                  <Label htmlFor="currency">Display currency</Label>
                   <p className="text-sm text-muted-foreground">
-                    Choose the currency used to display amounts throughout the app.
-                    Don&apos;t see your currency? <a href="mailto:support@receiptwise.app" className="text-primary hover:underline">Email us</a> and we&apos;ll add it!
+                    Used for every amount in the app. Receipts keep the currency they were
+                    issued in.{' '}
+                    {/* This link pointed at support@receiptwise.app. The domain is
+                        receiptwise.io everywhere else — 15 other references — so
+                        mail sent from here went nowhere. */}
+                    <a href="mailto:support@receiptwise.io?subject=Currency%20request" className="text-primary hover:underline">
+                      Ask us to add one
+                    </a>{' '}
+                    if yours is missing.
                   </p>
                   <div className="flex gap-3">
                     <Select
@@ -560,20 +588,13 @@ export default function SettingsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Onboarding Tour</CardTitle>
-                <CardDescription>Learn how to use ReceiptWise</CardDescription>
+                <CardTitle>Guided tour</CardTitle>
+                <CardDescription>A walk through the main screens, if you want it again</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Take a guided tour of ReceiptWise's features and learn how to get the most out of the app.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={startOnboarding}
-                  className="gap-2"
-                >
-                  <PlayCircle className="w-4 h-4" />
-                  Start Tour
+              <CardContent>
+                <Button variant="outline" onClick={startOnboarding} className="gap-2">
+                  <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                  Start the tour
                 </Button>
               </CardContent>
             </Card>
@@ -704,8 +725,10 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Create or join a household to share receipts with family members
                   </p>
-                  <Button variant="outline" onClick={() => window.location.href = '/sharing'}>
-                    Go to Sharing
+                  {/* Was `window.location.href`, which threw away the SPA and
+                      reloaded the whole app to reach an internal route. */}
+                  <Button variant="outline" onClick={() => router.push('/sharing')}>
+                    Go to sharing
                   </Button>
                 </CardContent>
               </Card>
@@ -734,45 +757,41 @@ export default function SettingsPage() {
                 {userData?.subscribed ? (
                   <div className="space-y-4">
                     {/* New API Key Dialog */}
+                    {/* Was a hand-rolled green panel with `bg-white dark:bg-gray-900`
+                        on the input — raw colours rather than tokens, so it did not
+                        follow the theme. */}
                     {newApiKey && (
-                      <div className="rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-950/20 p-4 space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="rounded-full bg-green-500/10 p-2">
-                            <Key className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <Alert variant="success">
+                        <Key className="h-4 w-4" aria-hidden="true" />
+                        <AlertTitle>Key created: {newApiKey.name}</AlertTitle>
+                        <AlertDescription className="w-full">
+                          <p>Copy it now. It is not shown again.</p>
+                          <div className="flex w-full gap-2 pt-1">
+                            <Input
+                              value={newApiKey.key}
+                              readOnly
+                              aria-label="New API key"
+                              className="bg-background font-mono text-xs"
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => copyApiKey(newApiKey.key)}
+                              className="shrink-0"
+                            >
+                              <Copy className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Copy API key</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => setNewApiKey(null)}
+                              className="shrink-0"
+                            >
+                              Done
+                            </Button>
                           </div>
-                          <div className="flex-1 space-y-2">
-                            <h4 className="font-semibold text-green-900 dark:text-green-100">
-                              API Key Created: {newApiKey.name}
-                            </h4>
-                            <p className="text-sm text-green-700 dark:text-green-300">
-                              Copy this key now - you won't be able to see it again!
-                            </p>
-                            <div className="flex gap-2">
-                              <Input
-                                value={newApiKey.key}
-                                readOnly
-                                className="font-mono text-xs bg-white dark:bg-gray-900"
-                              />
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => copyApiKey(newApiKey.key)}
-                                className="shrink-0"
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setNewApiKey(null)}
-                            className="shrink-0"
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      </div>
+                        </AlertDescription>
+                      </Alert>
                     )}
 
                     {/* API Keys List */}
@@ -788,9 +807,10 @@ export default function SettingsPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Create New API Key</AlertDialogTitle>
+                              <AlertDialogTitle>Create an API key</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Give your API key a name to help you identify it later (e.g., "Chrome Extension", "Work Laptop").
+                                Name it after where it will live, so you know which one to
+                                revoke later &mdash; &ldquo;Home laptop&rdquo;, &ldquo;Work laptop&rdquo;.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
@@ -859,9 +879,7 @@ export default function SettingsPage() {
                                       Last used {new Date(key.lastUsedAt).toLocaleDateString()}
                                     </span>
                                   )}
-                                  {!key.lastUsedAt && (
-                                    <span className="text-yellow-600 dark:text-yellow-400">Never used</span>
-                                  )}
+                                  {!key.lastUsedAt && <span className="text-warning">Never used</span>}
                                 </div>
                               </div>
                               <AlertDialog>
@@ -877,9 +895,10 @@ export default function SettingsPage() {
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete API Key?</AlertDialogTitle>
+                                    <AlertDialogTitle>Delete this key?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to delete "{key.name}"? Any applications using this key will stop working immediately.
+                                      &ldquo;{key.name}&rdquo; stops working immediately, and anything
+                                      using it will need a new key.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -900,21 +919,26 @@ export default function SettingsPage() {
                       )}
                     </div>
 
-                    <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4 space-y-2">
-                      <div className="flex items-start gap-2">
-                        <Lock className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                            API Key Security & Permissions
-                          </p>
-                          <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                            <li>• <strong>Write-only access:</strong> API keys can only upload receipts, not read or modify existing data</li>
-                            <li>• <strong>Extension use only:</strong> These keys are designed exclusively for the Chrome Extension</li>
-                            <li>• <strong>Keep secret:</strong> Never share your API keys. If compromised, delete and create a new one immediately</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
+                    <Alert variant="info">
+                      <Lock className="h-4 w-4" aria-hidden="true" />
+                      <AlertTitle>What these keys can and cannot do</AlertTitle>
+                      <AlertDescription>
+                        <ul className="list-disc space-y-1 pl-4 text-xs">
+                          <li>
+                            <strong>Write only.</strong> A key can upload receipts. It cannot
+                            read or change anything already in your account.
+                          </li>
+                          <li>
+                            <strong>For the extension.</strong> That is the only client these
+                            are intended for.
+                          </li>
+                          <li>
+                            <strong>Treat it like a password.</strong> If one leaks, delete it
+                            here and create another.
+                          </li>
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed p-4 text-center">
@@ -1017,12 +1041,14 @@ export default function SettingsPage() {
               <CardContent>
                 {isDeletionScheduled ? (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+                    {/* `text-amber-600` had no dark variant, so this went nearly
+                        invisible against the dark surface. */}
+                    <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
                       <div className="flex items-start gap-3">
-                        <Clock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                        <Clock className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
                         <div className="space-y-2">
-                          <p className="font-medium text-amber-700 dark:text-amber-500">
-                            Account Scheduled for Deletion
+                          <p className="font-medium text-warning">
+                            Account scheduled for deletion
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Your account is scheduled to be permanently deleted on{' '}

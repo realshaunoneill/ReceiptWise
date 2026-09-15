@@ -73,7 +73,7 @@ export function Navigation() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <img src="/logo.png" alt="ReceiptWise" className="h-6 w-auto" />
-            <span className="hidden font-bold text-foreground lg:inline">ReceiptWise</span>
+            <span className="hidden font-semibold tracking-tight text-foreground lg:inline">ReceiptWise</span>
           </Link>
 
           {/* Desktop Navigation Skeleton - Centered */}
@@ -104,14 +104,16 @@ export function Navigation() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <img src="/logo.png" alt="ReceiptWise" className="h-6 w-auto" />
-            <span className="font-bold text-foreground">ReceiptWise</span>
+            <span className="font-semibold tracking-tight text-foreground">ReceiptWise</span>
           </Link>
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            {/* Said "Get Started" but pointed at /sign-in — the label promised a
+                sign-up and delivered a sign-in form. */}
             <Link href="/sign-in">
-              <Button size="sm">Get Started</Button>
+              <Button size="sm">Sign in</Button>
             </Link>
           </div>
         </div>

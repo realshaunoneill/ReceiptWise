@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Filter, X, Calendar, DollarSign, Store, Tag, Briefcase, Command, Sparkles } from 'lucide-react';
+import { Search, Filter, X, Calendar, Coins, Store, Tag, Briefcase, Command } from 'lucide-react';
+import { CATEGORY_FILTER_OPTIONS } from '@/lib/utils/categories';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -130,15 +131,15 @@ export function ReceiptSearchFilters({
     setShowSearchTips(false);
   };
 
-  // Quick search suggestions
-  const quickSearchSuggestions = [
-    { label: 'Groceries', icon: '🛒' },
-    { label: 'Restaurant', icon: '🍽️' },
-    { label: 'Gas', icon: '⛽' },
-    { label: 'Coffee', icon: '☕' },
-    { label: 'Amazon', icon: '📦' },
-    { label: 'Walmart', icon: '🏪' },
-  ];
+  /*
+   * Quick searches.
+   *
+   * These were emoji chips for "Amazon" and "Walmart" — a US high street, in a
+   * product that prices in euro and defaults to en-IE. Merchant names also only
+   * match if that shop happens to be in your receipts, so a first-time user got
+   * six chips that all returned nothing. Categories always match something.
+   */
+  const quickSearchSuggestions = ['Groceries', 'Dining', 'Coffee', 'Fuel', 'Shopping'];
 
   return (
     <div className="space-y-3">
@@ -165,26 +166,22 @@ export function ReceiptSearchFilters({
           {/* Search suggestions dropdown */}
           {showSearchTips && !searchValue && (
             <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover p-2 shadow-md">
-              <p className="text-xs text-muted-foreground mb-2 px-2">Quick searches</p>
+              <p className="mb-2 px-2 text-xs text-muted-foreground">Quick searches</p>
               <div className="flex flex-wrap gap-1">
                 {quickSearchSuggestions.map((suggestion) => (
                   <button
-                    key={suggestion.label}
+                    key={suggestion}
                     type="button"
-                    className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs text-accent-foreground hover:bg-accent/80 transition-colors"
-                    onMouseDown={() => handleQuickSearch(suggestion.label)}
+                    className="rounded-full border bg-muted px-3 py-1 text-xs text-foreground transition-colors hover:bg-muted/60"
+                    onMouseDown={() => handleQuickSearch(suggestion)}
                   >
-                    <span>{suggestion.icon}</span>
-                    {suggestion.label}
+                    {suggestion}
                   </button>
                 ))}
               </div>
-              <div className="mt-2 pt-2 border-t px-2">
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" />
-                  Tip: Search by merchant name, category, or specific items
-                </p>
-              </div>
+              <p className="mt-2 border-t px-2 pt-2 text-xs text-muted-foreground">
+                Searches merchant names, categories and individual line items.
+              </p>
             </div>
           )}
         </div>
@@ -197,7 +194,7 @@ export function ReceiptSearchFilters({
             onClick={handleSearchAllToggle}
             className="whitespace-nowrap"
           >
-            {filters.searchAllHouseholds ? '✓ Searching all' : 'Search all households'}
+            {filters.searchAllHouseholds ? 'Searching all households' : 'Search all households'}
           </Button>
         )}
 
@@ -219,9 +216,9 @@ export function ReceiptSearchFilters({
           </SheetTrigger>
         <SheetContent className="w-full overflow-y-auto px-6 sm:max-w-lg" side="right">
           <SheetHeader className="space-y-2 pb-4">
-            <SheetTitle className="text-xl font-semibold">Filter Receipts</SheetTitle>
+            <SheetTitle className="text-xl font-semibold">Filter receipts</SheetTitle>
             <SheetDescription className="text-sm">
-              Apply filters to narrow down your receipt search
+              Narrow the timeline down by category, shop, amount or date.
             </SheetDescription>
           </SheetHeader>
 
@@ -244,16 +241,22 @@ export function ReceiptSearchFilters({
                 <SelectTrigger id="category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
+                {/*
+                  This list was hand-written and had drifted from the categories
+                  the scanner actually assigns. It offered "Restaurant" and
+                  "Retail", neither of which is in the extraction vocabulary — the
+                  query is an ILIKE on the stored category, so both returned zero
+                  receipts every time — while omitting dining, coffee, fuel,
+                  pharmacy, travel, clothing, electronics and home entirely. It is
+                  now generated from the same table the badges read.
+                */}
                 <SelectContent>
                   <SelectItem value="all">All categories</SelectItem>
-                  <SelectItem value="groceries">Groceries</SelectItem>
-                  <SelectItem value="restaurant">Restaurant</SelectItem>
-                  <SelectItem value="retail">Retail</SelectItem>
-                  <SelectItem value="entertainment">Entertainment</SelectItem>
-                  <SelectItem value="transportation">Transportation</SelectItem>
-                  <SelectItem value="utilities">Utilities</SelectItem>
-                  <SelectItem value="healthcare">Healthcare</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {CATEGORY_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -266,7 +269,7 @@ export function ReceiptSearchFilters({
               </Label>
               <Input
                 id="merchant"
-                placeholder="e.g., Walmart, Target..."
+                placeholder="Part of a shop name"
                 value={localFilters.merchant || ''}
                 onChange={(e) =>
                   setLocalFilters({
@@ -279,9 +282,10 @@ export function ReceiptSearchFilters({
 
             {/* Amount Range */}
             <div className="space-y-2">
+              {/* Was a DollarSign in a product whose default currency is EUR. */}
               <Label className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Amount Range
+                <Coins className="h-4 w-4" aria-hidden="true" />
+                Amount range
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -379,7 +383,7 @@ export function ReceiptSearchFilters({
 
             {/* Sort Options */}
             <div className="space-y-2">
-              <Label>Sort By</Label>
+              <Label>Sort by</Label>
               <div className="grid grid-cols-2 gap-2">
                 <Select
                   value={localFilters.sortBy || 'date'}
@@ -422,11 +426,11 @@ export function ReceiptSearchFilters({
                 className="flex-1"
                 onClick={handleClearAll}
               >
-                <X className="mr-2 h-4 w-4" />
-                Clear All
+                <X className="h-4 w-4" aria-hidden="true" />
+                Clear all
               </Button>
               <Button className="flex-1" onClick={handleApplyFilters}>
-                Apply Filters
+                Apply filters
               </Button>
             </div>
           </div>
@@ -467,11 +471,11 @@ export function ReceiptSearchFilters({
                   <span className="text-sm">
                     {totalResults !== undefined ? (
                       <>
-                        Found <span className="font-semibold">{totalResults}</span> receipt{totalResults !== 1 ? 's' : ''} matching "<span className="font-medium">{filters.search}</span>"
+                        <span className="amount font-semibold">{totalResults}</span> receipt{totalResults !== 1 ? 's' : ''} matching &ldquo;<span className="font-medium">{filters.search}</span>&rdquo;
                         {filters.searchAllHouseholds && <span className="text-muted-foreground"> across all households</span>}
                       </>
                     ) : (
-                      <>Searching for "<span className="font-medium">{filters.search}</span>"</>
+                      <>Searching for &ldquo;<span className="font-medium">{filters.search}</span>&rdquo;</>
                     )}
                   </span>
                 </>
@@ -493,24 +497,13 @@ export function ReceiptSearchFilters({
         </div>
       )}
 
-      {/* Search Tips - only show when not searching */}
-      {!filters.search && (
-        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 mt-0.5">
-              <Search className="h-3 w-3 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground mb-1">
-                Search by merchant, category, or product
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Try <span className="font-medium text-foreground">"Coke"</span>, <span className="font-medium text-foreground">"Walmart"</span>, or <span className="font-medium text-foreground">"groceries"</span> to find matching receipts
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/*
+        A permanent tinted "how to search" panel used to sit here whenever the
+        box was empty, repeating advice the focus dropdown above already gives —
+        so the hint occupied space on the receipts page forever, for everyone,
+        including people who have used the search a hundred times. The dropdown
+        on focus is the right place for it.
+      */}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Crown, Check, Sparkles, ArrowRight } from 'lucide-react';
+import { Crown, Check, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,13 +15,13 @@ interface SubscriptionUpsellProps {
 }
 
 export function SubscriptionUpsell({
-  title = 'Unlock Premium Features',
-  description = 'Get the most out of ReceiptWise with our Premium plan',
+  title = 'This is part of Premium',
+  description = 'One subscription covers everything the app can do',
   features = [
-    'Unlimited receipt uploads',
-    'Advanced analytics and insights',
-    'Household sharing',
-    'AI-powered spending analysis',
+    'Unlimited receipts, all of them read for you',
+    'Unlimited households',
+    'Spending analytics and insights',
+    'Subscription tracking',
     'Priority support',
   ],
   className = '',
@@ -47,9 +47,9 @@ export function SubscriptionUpsell({
             <p className="text-xs text-muted-foreground">{description}</p>
           </div>
         </div>
-        <Button onClick={handleUpgrade} size="sm" className="gap-1.5 shrink-0">
-          <Sparkles className="h-3.5 w-3.5" />
-          Upgrade
+        <Button onClick={handleUpgrade} size="sm" className="shrink-0 gap-1.5">
+          See Premium
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
     );
@@ -68,9 +68,9 @@ export function SubscriptionUpsell({
               <p className="text-sm text-muted-foreground">{description}</p>
             </div>
           </div>
-          <Button onClick={handleUpgrade} size="sm" className="gap-1.5 shrink-0">
-            <Sparkles className="h-3.5 w-3.5" />
-            Upgrade
+          <Button onClick={handleUpgrade} size="sm" className="shrink-0 gap-1.5">
+            See Premium
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
         </CardContent>
       </Card>
@@ -86,9 +86,7 @@ export function SubscriptionUpsell({
         <div className="flex items-center justify-center gap-2 mb-1">
           <CardTitle className="text-xl">{title}</CardTitle>
           {trialDays > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {trialDays}-day free trial
-            </Badge>
+            <Badge variant="secondary">{trialDays}-day trial</Badge>
           )}
         </div>
         <CardDescription>{description}</CardDescription>
@@ -107,13 +105,15 @@ export function SubscriptionUpsell({
         </div>
 
         <div className="flex flex-col items-center gap-2 pt-2">
-          <Button onClick={handleUpgrade} className="w-full sm:w-auto gap-2">
-            <Sparkles className="h-4 w-4" />
-            {trialDays > 0 ? 'Start Free Trial' : 'Upgrade to Premium'}
-            <ArrowRight className="h-4 w-4" />
+          <Button onClick={handleUpgrade} className="w-full gap-2 sm:w-auto">
+            <Crown className="h-4 w-4" aria-hidden="true" />
+            {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
           {trialDays > 0 && (
-            <p className="text-xs text-muted-foreground">Cancel anytime during the trial</p>
+            <p className="text-xs text-muted-foreground">
+              Cancel during the trial and nothing is charged.
+            </p>
           )}
         </div>
       </CardContent>

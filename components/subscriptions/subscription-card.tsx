@@ -131,9 +131,9 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
 
         {/* Missing Payments Alert */}
         {subscription.missingPayments !== undefined && subscription.missingPayments > 0 && (
-          <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg border-t mt-3">
-            <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-500 shrink-0" />
-            <span className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/25 bg-warning/10 p-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <span className="text-sm font-medium text-warning">
               {subscription.missingPayments} missing {subscription.missingPayments === 1 ? 'receipt' : 'receipts'}
             </span>
           </div>

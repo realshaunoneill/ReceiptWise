@@ -99,7 +99,7 @@ export function ReceiptFinancialBreakdown({ receipt }: ReceiptFinancialBreakdown
               <Separator className="my-1.5" />
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Discount</span>
-                <span className="text-sm font-medium text-green-600">
+                <span className="amount text-sm font-medium text-success">
                   -{receipt.currency} {String(ocrData?.discount || '')}
                 </span>
               </div>

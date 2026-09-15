@@ -1,13 +1,15 @@
 'use client';
 
-import { Store, MapPin, Info, Calendar, Clock, CreditCard, Hash, Receipt as ReceiptIcon, Tag, Building2, AlertCircle, RefreshCw, CheckCircle, Share2, Lock, Home, Upload, AlertTriangle } from 'lucide-react';
+import { Store, MapPin, Info, Calendar, Clock, CreditCard, Hash, Receipt as ReceiptIcon, Building2, AlertCircle, RefreshCw, Share2, Lock, Home, Upload, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ReceiptAssignmentDialog } from '@/components/receipts/receipt-assignment-dialog';
 import { DeleteReceiptButton } from './delete-receipt-button';
 import { BusinessExpenseDialog } from './business-expense-dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { formatCategory, capitalizeText } from '@/lib/utils/format-category';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { capitalizeText } from '@/lib/utils/format-category';
+import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
+import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -38,6 +40,8 @@ export function ReceiptHeader({
   onRetrySuccess,
 }: ReceiptHeaderProps) {
   const [isRetrying, setIsRetrying] = useState(false);
+  const category = getCategory(receipt.category);
+  const CategoryIcon = category.icon;
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -65,54 +69,24 @@ export function ReceiptHeader({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return (
-          <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        );
-      case 'processing':
-        return (
-          <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-            <Clock className="h-3 w-3 mr-1" />
-            Processing - Wait a minute, if it doesn't complete contact support
-          </Badge>
-        );
-      case 'failed':
-        return (
-          <Badge variant="secondary" className="bg-red-500/10 text-red-700 dark:text-red-400">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Failed - Please contact support
-          </Badge>
-        );
-      case 'pending':
-        return (
-          <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-            <Clock className="h-3 w-3 mr-1" />
-            Processing - Wait a minute, if it doesn't complete contact support
-          </Badge>
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <div>
-      {/* Warning for non-receipt uploads */}
+      {/* Warning for non-receipt uploads. Was another hand-rolled yellow panel
+          (`bg-yellow-50 dark:bg-yellow-950/20`); the Alert warning variant now
+          carries it, so it matches every other notice in the app. */}
       {receipt.isReceipt === false && (
-        <Alert className="mb-4 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-800">
-          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-          <AlertDescription className="text-yellow-800 dark:text-yellow-300">
-            <strong>Not a Receipt:</strong> This image doesn't appear to be a receipt, invoice, or purchase-related document.
-            It may be a screenshot, photo, or other type of content. Receipt data extraction may be incomplete or inaccurate.
+        <Alert variant="warning" className="mb-4">
+          <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+          <AlertTitle>This doesn&apos;t look like a receipt</AlertTitle>
+          <AlertDescription>
+            It may be a screenshot or a photo of something else. Anything extracted below
+            is likely to be incomplete or wrong.
           </AlertDescription>
         </Alert>
       )}
-      
+
+
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
@@ -129,7 +103,7 @@ export function ReceiptHeader({
                   Enhanced
                 </Badge>
               ) : null}
-              {receipt.processingStatus && getStatusBadge(receipt.processingStatus)}
+              {receipt.processingStatus && <ReceiptStatusBadge status={receipt.processingStatus} />}
             </div>
             {receipt.location && (
               <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
@@ -140,9 +114,12 @@ export function ReceiptHeader({
             {/* Category and Merchant Type */}
             <div className="flex flex-wrap gap-2 mt-2">
               {receipt.category && (
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Tag className="h-3 w-3" />
-                  {formatCategory(receipt.category)}
+                /* Third place a category badge was rendered, and the third
+                   different look: plain grey outline here, coloured in the list
+                   and the timeline. All three read the shared table now. */
+                <Badge variant="outline" className={categoryBadgeClasses(receipt.category)}>
+                  <CategoryIcon className="h-3 w-3" aria-hidden="true" />
+                  {category.label}
                 </Badge>
               )}
               {(() => {
@@ -173,7 +150,7 @@ export function ReceiptHeader({
           </Badge>
         )}
         {receipt.isBusinessExpense && !isReceiptOwner && (
-          <Badge variant="secondary" className="flex items-center gap-2 w-fit bg-blue-500/10 text-blue-700 dark:text-blue-400">
+          <Badge variant="outline" className="flex w-fit items-center gap-2 border-info/30 bg-info/10 text-info">
             <Building2 className="h-3 w-3" />
             Business Expense
             {receipt.taxDeductible && <span className="ml-1">• Tax Deductible</span>}
@@ -183,8 +160,8 @@ export function ReceiptHeader({
 
       {/* Processing Error Message */}
       {receipt.processingStatus === 'failed' && receipt.processingError && (
-        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-          <p className="text-sm text-red-700 dark:text-red-400">
+        <div className="mt-4 rounded-md border border-destructive/20 bg-destructive/10 p-3">
+          <p className="text-sm text-destructive">
             <AlertCircle className="h-4 w-4 inline mr-2" />
             <strong>Processing Error:</strong> {receipt.processingError}
           </p>

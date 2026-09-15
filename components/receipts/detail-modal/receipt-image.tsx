@@ -47,7 +47,7 @@ export function ReceiptImage({ imageUrl }: ReceiptImageProps) {
               <img
                 src={imageUrl}
                 alt="Receipt"
-                className="max-w-full max-h-full h-auto object-contain rounded-lg shadow-2xl border border-border/50 bg-white dark:bg-gray-900"
+                className="max-w-full max-h-full h-auto object-contain rounded-lg shadow-2xl border border-border/50 bg-card"
                 draggable={false}
               />
             </div>

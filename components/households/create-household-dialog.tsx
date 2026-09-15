@@ -3,7 +3,7 @@
 import type React from 'react';
 
 import { useState } from 'react';
-import { Plus, Loader2, Home, Users, Sparkles } from 'lucide-react';
+import { Plus, Loader2, Home, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -107,10 +107,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-3 space-y-2">
-              <p className="text-xs font-medium flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                What you can do:
-              </p>
+              <p className="text-xs font-medium">Once it exists</p>
               <ul className="text-xs text-muted-foreground space-y-1 ml-5">
                 <li className="flex items-center gap-1.5">
                   <Users className="h-3 w-3" />

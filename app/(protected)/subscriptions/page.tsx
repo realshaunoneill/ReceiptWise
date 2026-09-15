@@ -13,7 +13,7 @@ import { UpcomingSubscriptionCard } from '@/components/subscriptions/upcoming-su
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Calendar, AlertCircle, Crown, Check, CreditCard, Bell, PieChart, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { Clock, Calendar, AlertCircle, Crown, Check, CreditCard, PieChart, ArrowRight, Loader2 } from 'lucide-react';
 import { addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 
@@ -178,93 +178,100 @@ function SubscriptionsPageContent() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
               <h1 id="subscriptions-title" className="text-3xl font-bold text-foreground">Subscriptions</h1>
-              <p className="text-muted-foreground">Track and manage your recurring expenses</p>
+              <p className="text-muted-foreground">Recurring payments, what they cost, and what is due next.</p>
             </div>
           </div>
 
-          {/* Premium Upsell Card */}
-          <Card className="border-2 border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Crown className="h-8 w-8 text-primary" />
+          {/*
+            Premium upsell.
+
+            This promised "Payment Reminders — never miss a due date" and, in the
+            list below it, "Payment due date reminders". Nothing in this codebase
+            sends anything: there is no mail provider, no push, no scheduled
+            notification of any kind. What the product does is *show* what is due
+            next when you open the page, which is a different promise and is the
+            one now being made. "Smart insights" and "never miss a payment again"
+            have gone the same way.
+          */}
+          <Card className="border-primary/30">
+            <CardHeader className="pb-4">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                <Crown className="h-5 w-5 text-primary" aria-hidden="true" />
               </div>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <CardTitle className="text-2xl text-foreground">Unlock Subscription Tracking</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-2xl text-foreground">Subscription tracking is part of Premium</CardTitle>
                 {trialDays > 0 && (
-                  <Badge variant="default" className="text-xs">
-                    {trialDays}-day free trial
-                  </Badge>
+                  <Badge variant="secondary">{trialDays}-day trial</Badge>
                 )}
               </div>
-              <CardDescription className="text-base max-w-lg mx-auto">
-                Never miss a payment again. Track all your recurring expenses in one place and get smart insights on your subscriptions.
+              <CardDescription className="max-w-xl text-base">
+                Every recurring payment in one list, with what it costs you a month and a
+                year, and what is due next.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-              {/* Features Grid */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                  <CreditCard className="h-5 w-5 text-primary" aria-hidden="true" />
-                </div>
-                <h3 className="font-semibold mb-1 text-foreground">Track Subscriptions</h3>
-                <p className="text-sm text-muted-foreground">
-                  Add all your recurring payments
-                </p>
-              </div>
-              <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                  <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
-                </div>
-                <h3 className="font-semibold mb-1 text-foreground">Payment Reminders</h3>
-                <p className="text-sm text-muted-foreground">
-                  Never miss a due date
-                </p>
-              </div>
-              <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                  <PieChart className="h-5 w-5 text-primary" aria-hidden="true" />
-                </div>
-                <h3 className="font-semibold mb-1 text-foreground">Cost Analysis</h3>
-                <p className="text-sm text-muted-foreground">
-                  See monthly & yearly totals
-                </p>
-              </div>
-              <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                  <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
-                </div>
-                <h3 className="font-semibold mb-1 text-foreground">Receipt Matching</h3>
-                <p className="text-sm text-muted-foreground">
-                  Link receipts to subscriptions
-                </p>
-              </div>
-            </div>              {/* Benefits List */}
-            <div className="rounded-lg border bg-card p-6">
-              <h3 className="font-semibold mb-4 text-foreground">What's included with Premium:</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {['Unlimited subscription tracking', 'Payment due date reminders', 'Monthly & yearly cost overview', 'Missing payment detection', 'Receipt-to-subscription linking', 'Pause & resume subscriptions'].map((feature, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
-                    <span className="text-sm text-foreground">{feature}</span>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    icon: CreditCard,
+                    title: 'One list',
+                    body: 'Every recurring payment, however you pay it.',
+                  },
+                  {
+                    icon: Calendar,
+                    title: 'What is due next',
+                    body: 'Upcoming payments, shown when you open the page.',
+                  },
+                  {
+                    icon: PieChart,
+                    title: 'What it adds up to',
+                    body: 'Monthly and yearly totals across the household.',
+                  },
+                  {
+                    icon: Check,
+                    title: 'Matched to receipts',
+                    body: 'Link the receipt that proves a payment went out.',
+                  },
+                ].map(({ icon: Icon, title, body }) => (
+                  <div key={title}>
+                    <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                    <h3 className="mt-3 font-semibold text-foreground">{title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{body}</p>
                   </div>
                 ))}
               </div>
-            </div>              {/* CTA */}
-              <div className="text-center space-y-4 pt-4 border-t">
-                <Button
-                  onClick={() => router.push('/upgrade')}
-                  size="lg"
-                  className="gap-2 text-base h-12 px-8"
-                >
-                  <Sparkles className="h-5 w-5" />
-                  {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Upgrade to Premium'}
-                  <ArrowRight className="h-5 w-5" />
+
+              {/* Benefits List */}
+              <div className="rounded-lg border bg-muted/30 p-6">
+                <h3 className="mb-4 font-semibold text-foreground">Also included</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    'Unlimited subscriptions',
+                    'Shared across the household',
+                    'Missing payment detection',
+                    'Pause and resume',
+                    'Unlimited receipts and scanning',
+                    'CSV and JSON export',
+                  ].map((feature) => (
+                    <div key={feature} className="flex items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span className="text-sm text-foreground">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className="space-y-3 border-t pt-6">
+                <Button onClick={() => router.push('/upgrade')} size="lg" className="gap-2">
+                  <Crown className="h-4 w-4" aria-hidden="true" />
+                  {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   {trialDays > 0
-                    ? `Try free for ${trialDays} days. Cancel anytime, no questions asked.`
-                    : 'Cancel anytime. No long-term contracts.'}
+                    ? `Cancel any time in the ${trialDays} days and you are not charged.`
+                    : 'Cancel any time.'}
                 </p>
               </div>
             </CardContent>
@@ -279,7 +286,7 @@ function SubscriptionsPageContent() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
           <h1 id="subscriptions-main-title" className="text-3xl font-bold text-foreground">Subscriptions</h1>
-          <p className="text-muted-foreground">Track and manage your recurring expenses</p>
+          <p className="text-muted-foreground">Recurring payments, what they cost, and what is due next.</p>
         </div>
         <CreateSubscriptionDialog />
       </div>
@@ -315,15 +322,15 @@ function SubscriptionsPageContent() {
 
       {/* Missing Payments Filter Banner */}
       {showMissingOnly && subscriptionsWithMissing.length > 0 && (
-        <div className="mb-6 rounded-lg border border-orange-500/50 bg-orange-500/5 p-4">
+        <div className="mb-6 rounded-lg border border-warning/40 bg-warning/8 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-orange-600" />
+              <AlertCircle className="h-5 w-5 text-warning" aria-hidden="true" />
               <div>
-                <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+                <h3 className="font-semibold text-warning">
                   Subscriptions Missing Receipts
                 </h3>
-                <p className="text-sm text-orange-700 dark:text-orange-300">
+                <p className="text-sm text-muted-foreground">
                   {subscriptionsWithMissing.length} subscription{subscriptionsWithMissing.length !== 1 ? 's' : ''} with {missingPaymentsCount} missing payment{missingPaymentsCount !== 1 ? 's' : ''}
                 </p>
               </div>

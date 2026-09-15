@@ -213,7 +213,7 @@ export function HouseholdMembersList({
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge
                     variant={member.role === 'admin' ? 'default' : 'secondary'}
-                    className={member.role === 'admin' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20' : ''}
+                    className={member.role === 'admin' ? 'bg-primary/10 text-primary hover:bg-primary/20' : ''}
                   >
                     {member.role === 'admin' ? (
                       <>
@@ -275,7 +275,7 @@ export function HouseholdMembersList({
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="shrink-0 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                    <Badge variant="outline" className="shrink-0 border-primary/30 text-primary">
                       Pending
                     </Badge>
                   </div>

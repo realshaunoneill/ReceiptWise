@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
@@ -12,7 +12,29 @@ import { PostHogProvider } from '@/lib/providers/posthog-provider';
 import { Toaster } from 'sonner';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+/*
+ * IBM Plex, not Inter.
+ *
+ * Inter is the default sans of every generated dashboard, and a receipt tracker
+ * that looks generated is a receipt tracker people don't trust with their bank
+ * statements. Plex Sans has actual voice in its letterforms and, more usefully,
+ * ships true tabular figures — which matters when the whole product is columns
+ * of money. Plex Mono carries receipt numbers, API keys and IDs, and echoes the
+ * thermal-printer type of the paper receipts being scanned.
+ */
+const plexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-plex-sans',
+  display: 'swap',
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-plex-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'ReceiptWise - Family Expense & Receipt Tracker',
@@ -80,7 +102,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
-        <body className={`${inter.className} antialiased`}>
+        <body className={`${plexSans.variable} ${plexMono.variable} font-sans antialiased`}>
           <NuqsAdapter>
             <QueryProvider>
               <PostHogProvider>

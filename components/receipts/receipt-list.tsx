@@ -1,12 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { ReceiptIcon, Calendar, Store, Users, AlertCircle, RefreshCw, Clock, CheckCircle, Briefcase, AlertTriangle, ImageOff } from 'lucide-react';
+import { ReceiptIcon, Calendar, Store, Users, RefreshCw, Briefcase, AlertTriangle, ImageOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ReceiptDetailModal } from '@/components/receipts/receipt-detail-modal';
-import { formatCategory } from '@/lib/utils/format-category';
+import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
+import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
+import { useCurrency } from '@/lib/hooks/use-currency';
+import { cn } from '@/lib/utils';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 import { toast } from 'sonner';
 
@@ -16,22 +19,11 @@ interface ReceiptListProps {
   onRetry?: () => void;
 }
 
-const categoryColors: Record<string, string> = {
-  groceries: 'bg-green-500/10 text-green-700 dark:text-green-400',
-  dining: 'bg-orange-500/10 text-orange-700 dark:text-orange-400',
-  transportation: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
-  shopping: 'bg-purple-500/10 text-purple-700 dark:text-purple-400',
-  utilities: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
-  entertainment: 'bg-pink-500/10 text-pink-700 dark:text-pink-400',
-  healthcare: 'bg-red-500/10 text-red-700 dark:text-red-400',
-  travel: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400',
-  other: 'bg-gray-500/10 text-gray-700 dark:text-gray-400',
-};
-
 export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListProps) {
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptWithItems | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const { format: formatCurrency } = useCurrency();
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -52,7 +44,7 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
         throw new Error(data.message || 'Failed to retry processing');
       }
 
-      toast.success('Receipt processed successfully!');
+      toast.success('Receipt processed');
 
       // Call the onRetry callback to refresh the list
       if (onRetry) {
@@ -65,40 +57,6 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return (
-          <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        );
-      case 'processing':
-        return (
-          <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-            <Clock className="h-3 w-3 mr-1" />
-            Processing - Wait a minute, if it doesn't complete contact support
-          </Badge>
-        );
-      case 'failed':
-        return (
-          <Badge variant="secondary" className="bg-red-500/10 text-red-700 dark:text-red-400">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Failed - Please contact support
-          </Badge>
-        );
-      case 'pending':
-        return (
-          <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-            <Clock className="h-3 w-3 mr-1" />
-            Processing - Wait a minute, if it doesn't complete contact support
-          </Badge>
-        );
-      default:
-        return null;
-    }
-  };
 
   const handleReceiptClick = (receipt: ReceiptWithItems) => {
     if (onReceiptClick) {
@@ -135,11 +93,12 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
               <div
                 key={receipt.id}
                 onClick={() => handleReceiptClick(receipt)}
-                className={`flex flex-col gap-3 rounded-lg border p-3 transition-colors cursor-pointer sm:flex-row sm:items-center sm:gap-4 sm:p-4 ${
-                  isNotReceipt 
-                    ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-800 hover:bg-yellow-100 dark:hover:bg-yellow-950/30' 
-                    : 'bg-card hover:bg-muted/50'
-                }`}
+                className={cn(
+                  'flex cursor-pointer flex-col gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center sm:gap-4 sm:p-4',
+                  isNotReceipt
+                    ? 'border-warning/40 bg-warning/8 hover:bg-warning/12'
+                    : 'bg-card hover:bg-muted/50',
+                )}
               >
                 {/* Receipt Image Thumbnail */}
                 <div className="shrink-0">
@@ -152,8 +111,8 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                           className="h-full w-full object-cover"
                         />
                         {isNotReceipt && (
-                          <div className="absolute inset-0 bg-yellow-500/20 flex items-center justify-center">
-                            <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-warning/25">
+                            <AlertTriangle className="h-6 w-6 text-warning" aria-hidden="true" />
                           </div>
                         )}
                       </>
@@ -174,16 +133,19 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                         {receipt.merchantName || 'Unknown Merchant'}
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-foreground sm:whitespace-nowrap">
-                      {receipt.currency || '$'} {receipt.totalAmount || '0.00'}
+                    {/* Was `{receipt.currency || '$'} {receipt.totalAmount}` —
+                        the ISO code in place of a symbol, and a dollar fallback
+                        in a product that defaults to euro. */}
+                    <span className="amount text-lg font-semibold text-foreground sm:whitespace-nowrap">
+                      {formatCurrency(parseFloat(receipt.totalAmount || '0'))}
                     </span>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:gap-3">
                     {isNotReceipt && (
-                      <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-800 dark:text-yellow-300 border-yellow-400 dark:border-yellow-700">
-                        <ImageOff className="h-3 w-3 mr-1" />
-                        Not a Receipt
+                      <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning">
+                        <ImageOff className="h-3 w-3" aria-hidden="true" />
+                        Not a receipt
                       </Badge>
                     )}
                     {receipt.transactionDate && (
@@ -193,27 +155,33 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                         <span className="sm:hidden">{formatDate(receipt.transactionDate)}</span>
                       </div>
                     )}
-                    {receipt.processingStatus && getStatusBadge(receipt.processingStatus)}
+                    {receipt.processingStatus && <ReceiptStatusBadge status={receipt.processingStatus} />}
                     {receipt.category && (
-                      <Badge variant="secondary" className={categoryColors[receipt.category] || categoryColors.other}>
-                        {formatCategory(receipt.category)}
+                      /* Looked up with the raw string before, so a capitalised
+                         category from the scanner silently fell through to the
+                         grey "other" style here while the timeline coloured it
+                         correctly. `getCategory` normalises the key. */
+                      <Badge variant="outline" className={categoryBadgeClasses(receipt.category)}>
+                        {getCategory(receipt.category).label}
                       </Badge>
                     )}
                     {receipt.paymentMethod && (
-                      <span className="capitalize">{receipt.paymentMethod.replace('_', ' ')}</span>
+                      <span className="capitalize">{receipt.paymentMethod.replace(/_/g, ' ')}</span>
                     )}
                     {receipt.items && receipt.items.length > 0 && (
-                      <span>{receipt.items.length} items</span>
+                      <span>
+                        {receipt.items.length} item{receipt.items.length !== 1 ? 's' : ''}
+                      </span>
                     )}
                     {receipt.householdId && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Users className="h-3 w-3 mr-1" />
+                      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                        <Users className="h-3 w-3" aria-hidden="true" />
                         Shared
                       </Badge>
                     )}
                     {receipt.isBusinessExpense && (
-                      <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                        <Briefcase className="h-3 w-3 mr-1" />
+                      <Badge variant="outline" className="border-info/30 bg-info/10 text-info">
+                        <Briefcase className="h-3 w-3" aria-hidden="true" />
                         Business
                       </Badge>
                     )}
@@ -226,31 +194,33 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
 
                   {/* Retry Button for Failed Receipts */}
                   {receipt.processingStatus === 'failed' && (
-                    <div className="mt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => handleRetry(receipt.id, e)}
-                        disabled={retryingId === receipt.id}
-                        className="text-xs"
-                      >
-                        {retryingId === receipt.id ? (
-                          <>
-                            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                            Retrying...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            Retry Processing
-                          </>
-                        )}
-                      </Button>
+                    <div className="mt-2 space-y-1.5">
                       {receipt.processingError && (
-                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                          {receipt.processingError}
-                        </p>
+                        <p className="text-xs text-destructive">{receipt.processingError}</p>
                       )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => handleRetry(receipt.id, e)}
+                          disabled={retryingId === receipt.id}
+                        >
+                          {retryingId === receipt.id ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+                              Retrying
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                              Try again
+                            </>
+                          )}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Still failing? Email support and we&apos;ll look at it.
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>

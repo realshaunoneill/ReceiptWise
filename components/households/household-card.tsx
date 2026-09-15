@@ -66,7 +66,7 @@ export function HouseholdCard({ household, currentUserId, isSubscribed = false, 
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold text-foreground truncate">{household.name}</h3>
                 {household.isAdmin && (
-                  <Badge variant="secondary" className="gap-1 shrink-0 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20">
+                  <Badge variant="outline" className="shrink-0 gap-1 border-primary/30 bg-primary/10 text-primary">
                     <Crown className="h-3 w-3" />
                     Admin
                   </Badge>

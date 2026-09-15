@@ -101,14 +101,21 @@ export function PricingCard() {
   }
 
   return (
-    <Card className="max-w-md mx-auto border-2 border-primary/50 shadow-lg relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-      <CardHeader className="text-center pb-4 relative">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mx-auto mb-3">
-          <Crown className="w-6 h-6 text-primary" />
+    <Card className="relative mx-auto max-w-md overflow-hidden border-2 border-primary/50">
+      {/* Torn top edge, echoing the paper this app is built around. Replaces a
+          floating blurred circle in the corner. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-1.5 bg-[repeating-linear-gradient(90deg,var(--primary)_0_6px,transparent_6px_12px)] opacity-60"
+      />
+      <CardHeader className="relative pb-4 text-center">
+        <div className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+          <Crown className="h-5 w-5 text-primary" aria-hidden="true" />
         </div>
-        <CardTitle className="text-2xl sm:text-3xl font-bold text-foreground">Premium Plan</CardTitle>
-        <CardDescription className="text-base">Everything you need to manage your expenses</CardDescription>
+        <CardTitle className="text-2xl font-semibold text-foreground sm:text-3xl">Premium</CardTitle>
+        <CardDescription className="text-base">
+          The whole app. There is only one plan.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 relative">
         {/* Billing Toggle */}
@@ -141,42 +148,45 @@ export function PricingCard() {
         )}
 
         {/* Pricing Display */}
-        <div className="text-center py-2">
+        <div className="py-2 text-center">
           <div className="flex items-baseline justify-center gap-2">
-            <span className="text-4xl sm:text-5xl font-bold text-foreground">
+            <span className="amount text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
               {selectedInterval === 'annual' && annualMonthlyEquivalent
                 ? annualMonthlyEquivalent
                 : monthlyPrice}
             </span>
-            <span className="text-muted-foreground">/ month</span>
+            <span className="text-muted-foreground">a month</span>
           </div>
           {selectedInterval === 'annual' && annualPrice && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {annualPrice} billed annually
+            <p className="amount mt-2 text-sm text-muted-foreground">
+              {annualPrice} billed once a year
             </p>
           )}
           {trialDays > 0 && (
-            <Badge variant="default" className="mt-4">
-              {trialDays}-day free trial
+            <Badge variant="secondary" className="mt-4">
+              First {trialDays} days free
             </Badge>
           )}
         </div>
 
         {/* Benefits for annual plan */}
         {selectedInterval === 'annual' && pricing?.annual && (
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+          /* "2 months completely free" was stated flatly, whatever the two Stripe
+             prices happen to be — the saving is computed a few lines up and was
+             already being shown as a badge on the Annual toggle. */
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
             <ul className="space-y-2 text-sm">
-              <li className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-primary shrink-0" />
-                <span>2 months completely free</span>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>{savingsPercentage}% cheaper than paying by the month</span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-primary shrink-0" />
-                <span>Lock in your price for a full year</span>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>This price is held for the year</span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-primary shrink-0" />
-                <span>Best value for families & households</span>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>One payment to think about instead of twelve</span>
               </li>
             </ul>
           </div>
@@ -186,22 +196,22 @@ export function PricingCard() {
           onClick={handleUpgrade}
           disabled={upgradeMutation.isPending || !pricing}
           size="lg"
-          className="w-full text-lg h-12"
+          className="h-12 w-full text-base"
         >
           {upgradeMutation.isPending ? (
-            'Processing...'
+            'One moment…'
           ) : (
             <>
-              {trialDays > 0 ? 'Start Free Trial' : 'Upgrade Now'}
-              <ArrowRight className="w-5 h-5 ml-2" />
+              {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'Subscribe'}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </>
           )}
         </Button>
 
-        <p className="text-xs text-center text-muted-foreground">
+        <p className="text-center text-xs text-muted-foreground">
           {trialDays > 0
-            ? `Try Premium free for ${trialDays} days. Cancel anytime.`
-            : 'Cancel anytime. No long-term contracts.'}
+            ? 'Card details are needed to begin. Cancel during the trial and nothing is charged.'
+            : 'Cancel any time.'}
         </p>
       </CardContent>
     </Card>

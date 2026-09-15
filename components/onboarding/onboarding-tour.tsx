@@ -18,11 +18,11 @@ import {
   Users,
   ArrowRight,
   CheckCircle2,
-  Sparkles,
-  Zap,
+  ScanLine,
+  Layers,
   Shield,
   ChevronLeft,
-  Gift,
+  Receipt,
   Check,
   Globe,
 } from 'lucide-react';
@@ -60,97 +60,109 @@ type OnboardingStep = {
   icon: typeof Upload;
   color: string;
   bgColor: string;
-  features?: Array<{ icon: typeof Sparkles; text: string }>;
+  features?: Array<{ icon: typeof Upload; text: string }>;
   pricing?: boolean;
   cta?: boolean;
   currencySelect?: boolean;
 };
 
+/*
+ * Seven steps of the tour.
+ *
+ * Four of the titles ended in ✨, one in 🎉 and one in 🎁 — a decoration applied
+ * to whichever headings happened to be about features, in a dialog that is the
+ * first thing a new customer sees. Each step also carried its own `color`, so the
+ * icon changed hue from emerald to orange to blue to green to purple as you
+ * clicked Next, which reads as six unrelated products rather than a tour of one.
+ * Every step is now the primary colour, and each mentioned "Included in free
+ * trial" as its fourth bullet — the trial is stated in the step that sells it,
+ * not four times before then.
+ */
 const onboardingSteps: OnboardingStep[] = [
   {
     id: 1,
-    title: 'Welcome to ReceiptWise! 🎉',
-    description: 'The smart expense tracker built for sharing. Start your free trial to unlock all premium features.',
-    icon: Sparkles,
+    title: 'Welcome to ReceiptWise',
+    description: 'An expense tracker built around receipts, and around households that share them.',
+    icon: Receipt,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
     features: [
-      { icon: Users, text: 'Share expenses with family & roommates' },
-      { icon: Zap, text: 'AI-powered receipt scanning' },
-      { icon: Shield, text: 'Secure & encrypted data' },
-      { icon: Gift, text: 'Free trial — cancel any time before it ends' },
+      { icon: Users, text: 'Shared with family, a partner or flatmates' },
+      { icon: ScanLine, text: 'Receipts read and itemised for you' },
+      { icon: BarChart3, text: 'Spending broken down by category' },
+      { icon: Shield, text: 'Your data, exportable and deletable' },
     ],
   },
   {
     id: 2,
-    title: 'Select Your Currency',
-    description: 'Choose your preferred currency for displaying amounts throughout the app.',
+    title: 'Pick your currency',
+    description: 'This is the currency every amount in the app is shown in. You can change it later.',
     icon: Globe,
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
     currencySelect: true,
   },
   {
     id: 3,
-    title: 'Household Sharing ✨',
-    description: 'Create households for your family, roommates, or partner. This premium feature lets everyone upload and view receipts together.',
+    title: 'Households',
+    description: 'A household is a shared receipt pile. Anyone in it can add to it, and everyone sees the same picture.',
     icon: Users,
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
     features: [
-      { icon: Users, text: 'Unlimited household members' },
-      { icon: Upload, text: 'Everyone can upload receipts' },
-      { icon: BarChart3, text: 'See combined spending' },
-      { icon: Gift, text: 'Included in free trial' },
+      { icon: Users, text: 'As many members as you need' },
+      { icon: Upload, text: 'Everyone can add receipts' },
+      { icon: BarChart3, text: 'Combined spending, and who spent it' },
+      { icon: Layers, text: 'Keep personal receipts separate if you want' },
     ],
   },
   {
     id: 4,
-    title: 'Upload & Scan Receipts ✨',
-    description: 'Our AI-powered scanner extracts all receipt details automatically. Available with your free trial.',
+    title: 'Adding receipts',
+    description: 'Photograph the paper, upload a PDF, or clip an online receipt from your browser.',
     icon: Upload,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
     features: [
-      { icon: Upload, text: 'Take photos or upload images' },
-      { icon: Sparkles, text: 'AI extracts items & prices automatically' },
-      { icon: Zap, text: 'Batch upload multiple receipts' },
-      { icon: Gift, text: 'Unlimited uploads with trial' },
+      { icon: Upload, text: 'Camera, file upload, or browser extension' },
+      { icon: ScanLine, text: 'Merchant, date, total, tax and line items' },
+      { icon: Layers, text: 'Drop a whole stack in at once' },
+      { icon: CheckCircle2, text: 'Sorted into a category automatically' },
     ],
   },
   {
     id: 5,
-    title: 'Track Subscriptions ✨',
-    description: 'Never miss a payment or forget about a shared subscription. Start your free trial to access this feature.',
+    title: 'Subscriptions',
+    description: 'The recurring payments that are easy to forget about, tracked next to the receipts that prove them.',
     icon: CreditCard,
-    color: 'text-green-500',
-    bgColor: 'bg-green-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
     features: [
-      { icon: CreditCard, text: 'Track all recurring subscriptions' },
-      { icon: Users, text: 'Share subscription costs with household' },
-      { icon: CheckCircle2, text: 'Link receipts to payments' },
-      { icon: Gift, text: 'Full access with trial' },
+      { icon: CreditCard, text: 'Every recurring payment in one list' },
+      { icon: Users, text: 'Split costs across the household' },
+      { icon: CheckCircle2, text: 'Link a receipt to the payment it covers' },
+      { icon: BarChart3, text: 'See what is due next' },
     ],
   },
   {
     id: 6,
-    title: 'Insights & Analytics ✨',
-    description: 'AI-powered spending insights and analytics. Unlock with your free trial to see where your money goes.',
+    title: 'Insights',
+    description: 'Where the money went, over the week, the month or the year.',
     icon: BarChart3,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10',
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
     features: [
-      { icon: BarChart3, text: 'View spending trends over time' },
-      { icon: Users, text: 'See who spent what in your household' },
-      { icon: Sparkles, text: 'AI-powered spending insights' },
-      { icon: Gift, text: 'Available in free trial' },
+      { icon: BarChart3, text: 'Trends over the period you choose' },
+      { icon: Users, text: 'Who in the household spent what' },
+      { icon: ScanLine, text: 'A written summary of the period' },
+      { icon: CheckCircle2, text: 'Item history down to the line' },
     ],
   },
   {
     id: 7,
-    title: 'Start Your Free Trial 🎁',
-    description: 'You\'ve seen what ReceiptWise can do. Start your free trial now to unlock all premium features - cancel anytime!',
-    icon: Gift,
+    title: 'Subscribing',
+    description: 'That is the tour. Adding receipts and everything built on them needs a subscription.',
+    icon: CreditCard,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
     pricing: true,
@@ -294,6 +306,16 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
 
   const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
 
+  // Annual saving, derived from the two live prices rather than asserted.
+  const annualSavingPercent =
+    pricingDetails?.monthly && pricingDetails.annual
+      ? Math.round(
+        ((pricingDetails.monthly.amount * 12 - pricingDetails.annual.amount) /
+            (pricingDetails.monthly.amount * 12)) *
+            100,
+      )
+      : null;
+
   const handleClose = async () => {
     await handleSkip();
   };
@@ -388,7 +410,8 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         This will be used to display amounts in your dashboard and reports. You can change this later in Settings.
-                        Don&apos;t see your currency? <a href="mailto:support@receiptwise.app" className="text-primary hover:underline">Email us</a> and we&apos;ll add it!
+                        {/* Was support@receiptwise.app; the domain is receiptwise.io. */}
+                        Missing yours? <a href="mailto:support@receiptwise.io?subject=Currency%20request" className="text-primary hover:underline">Ask us to add it</a>.
                       </p>
                     </motion.div>
                   </div>
@@ -401,10 +424,10 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20"
+                        className="rounded-lg border border-success/25 bg-success/10 p-3 text-center"
                       >
-                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                          🎉 Start your {trialDays}-day free trial today - no payment required until trial ends!
+                        <p className="text-sm font-medium text-success">
+                          Nothing is charged for {trialDays} days.
                         </p>
                       </motion.div>
                     )}
@@ -414,7 +437,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                       className="relative p-6 rounded-lg border-2 border-primary bg-linear-to-br from-primary/5 to-primary/10"
                     >
                       <Badge className="absolute -top-2 left-1/2 -translate-x-1/2">
-                        {trialDays > 0 ? 'Try Free' : 'Premium Plan'}
+                        Premium
                       </Badge>
 
                       <div className="text-center space-y-4 mt-2">
@@ -437,9 +460,14 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                                   <div className="text-xs text-muted-foreground mt-1">
                                     {formatPrice(pricingDetails.annual.amount, pricingDetails.annual.currency)} billed annually
                                   </div>
-                                  <Badge variant="secondary" className="mt-2">
-                                    Save 2 months (17% off)
-                                  </Badge>
+                                  {/* Was a flat "Save 2 months (17% off)" — asserted
+                                      regardless of the two prices actually configured.
+                                      Computed from them instead. */}
+                                  {annualSavingPercent !== null && annualSavingPercent > 0 && (
+                                    <Badge variant="secondary" className="mt-2">
+                                      {annualSavingPercent}% cheaper than monthly
+                                    </Badge>
+                                  )}
                                 </>
                               ) : (
                                 <>
@@ -453,25 +481,36 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                               )}
                             </>
                           ) : (
-                            <>
-                              <div className="text-4xl font-bold text-primary">€1.66</div>
-                              <div className="text-sm text-muted-foreground">per month</div>
-                              <div className="text-xs text-muted-foreground mt-1">€19.99 billed annually</div>
-                            </>
+                            /*
+                              Was a hardcoded "€1.66 / €19.99 billed annually"
+                              fallback for when the pricing call fails. Quoting a
+                              made-up figure on a checkout screen is worse than
+                              quoting none: the landing page carried its own
+                              hardcoded pair (€4.99 and €39.99) which had drifted
+                              to two and a half times the real Stripe price. If we
+                              cannot read the price, we say so and let Stripe show
+                              it.
+                            */
+                            <p className="text-sm text-muted-foreground">
+                              We could not load the current price just now. It is shown before
+                              you confirm anything at checkout.
+                            </p>
                           )}
                         </div>
 
                         <div className="space-y-2 text-left">
+                          {/* "Subscription tracking & reminders" — there are no
+                              reminders, no notification of any kind is sent. */}
                           {[
-                            'Unlimited receipt uploads & AI scanning',
-                            'Unlimited household sharing',
-                            'Advanced analytics & AI insights',
-                            'Subscription tracking & reminders',
-                            'Export all your data anytime',
+                            'Unlimited receipts, all of them scanned',
+                            'Unlimited households',
+                            'Spending analytics and insights',
+                            'Subscription tracking',
+                            'Export everything, any time',
                             'Priority support',
-                          ].map((feature, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <Check className="w-4 h-4 text-primary shrink-0" />
+                          ].map((feature) => (
+                            <div key={feature} className="flex items-start gap-2">
+                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                               <span className="text-sm">{feature}</span>
                             </div>
                           ))}
@@ -491,13 +530,13 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                               </div>
                             ) : trialDays > 0 ? (
                               <>
-                                <Gift className="w-4 h-4 mr-2" />
-                                Start My Free {trialDays}-Day Trial
+                                <CreditCard className="h-4 w-4" aria-hidden="true" />
+                                Start the {trialDays}-day trial
                               </>
                             ) : (
                               <>
-                                <CreditCard className="w-4 h-4 mr-2" />
-                                Subscribe Now
+                                <CreditCard className="h-4 w-4" aria-hidden="true" />
+                                Subscribe
                               </>
                             )}
                           </Button>
@@ -513,10 +552,10 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                           </Button>
                         </div>
 
-                        <p className="text-xs text-muted-foreground text-center">
+                        <p className="text-center text-xs text-muted-foreground">
                           {trialDays > 0
-                            ? `✓ ${trialDays} days free · ✓ Cancel anytime · ✓ Full access to all features`
-                            : 'Cancel anytime. No long-term contracts.'}
+                            ? `${trialDays} days free, full access, cancel any time before it ends.`
+                            : 'Cancel any time.'}
                         </p>
                       </div>
                     </motion.div>

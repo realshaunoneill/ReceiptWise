@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertCircle, TrendingUp, Calendar, DollarSign, Receipt } from 'lucide-react';
+// Coins, not DollarSign: this product prices and defaults to euro.
+import { AlertCircle, TrendingUp, Calendar, Coins, Receipt } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/lib/hooks/use-currency';
@@ -17,18 +18,24 @@ type StatCardProps = {
   label: string;
   value: string | number;
   icon: React.ReactNode;
-  iconColor: string;
   alert?: boolean;
   onClick?: () => void;
 };
 
-function StatCard({ label, value, icon, iconColor, alert, onClick }: StatCardProps) {
+/*
+ * The four tiles each took an `iconColor` — blue, green, purple, orange — for
+ * four figures about one subscription list. The only tile whose colour carried
+ * information was the last one, where amber means "some payments have no receipt
+ * attached", and that is now driven by `alert` rather than by a hardcoded hue
+ * passed in alongside it.
+ */
+function StatCard({ label, value, icon, alert, onClick }: StatCardProps) {
   const CardWrapper = onClick ? 'button' : 'div';
 
   return (
     <Card className={cn(
-      'transition-all duration-300 hover:shadow-lg',
-      alert && 'border-yellow-500/50',
+      'transition-colors',
+      alert && 'border-warning/50',
       onClick && 'cursor-pointer hover:border-primary',
     )}>
       <CardContent className="p-6">
@@ -43,11 +50,14 @@ function StatCard({ label, value, icon, iconColor, alert, onClick }: StatCardPro
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">{label}</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold tracking-tight">{value}</p>
-                {alert && <AlertCircle className="w-5 h-5 text-yellow-500" />}
+                <p className="amount text-3xl font-semibold tracking-tight">{value}</p>
+                {alert && <AlertCircle className="h-5 w-5 text-warning" aria-hidden="true" />}
               </div>
             </div>
-            <div className={cn('p-3 rounded-xl bg-muted', iconColor)}>
+            <div className={cn(
+              'rounded-xl bg-muted p-3',
+              alert ? 'text-warning' : 'text-muted-foreground',
+            )}>
               {icon}
             </div>
           </div>
@@ -71,29 +81,25 @@ export function SubscriptionStats({
       <StatCard
         label="Active Subscriptions"
         value={activeCount}
-        icon={<TrendingUp className="w-5 h-5" />}
-        iconColor="text-blue-600 dark:text-blue-400"
+        icon={<TrendingUp className="h-5 w-5" />}
       />
 
       <StatCard
         label="Monthly Cost"
         value={formatCurrency(monthlyTotal)}
-        icon={<Calendar className="w-5 h-5" />}
-        iconColor="text-green-600 dark:text-green-400"
+        icon={<Calendar className="h-5 w-5" />}
       />
 
       <StatCard
         label="Yearly Cost"
         value={formatCurrency(yearlyTotal)}
-        icon={<DollarSign className="w-5 h-5" />}
-        iconColor="text-purple-600 dark:text-purple-400"
+        icon={<Coins className="h-5 w-5" />}
       />
 
       <StatCard
         label="Missing Receipts"
         value={missingPayments}
-        icon={<Receipt className="w-5 h-5" />}
-        iconColor="text-orange-600 dark:text-orange-400"
+        icon={<Receipt className="h-5 w-5" />}
         alert={missingPayments > 0}
         onClick={missingPayments > 0 ? onMissingPaymentsClick : undefined}
       />

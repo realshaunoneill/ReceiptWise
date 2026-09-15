@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Crown, Sparkles, ArrowRight, Upload, Users, BarChart3, Check, Loader2 } from 'lucide-react';
+import { Crown, ArrowRight, Upload, Users, BarChart3, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -136,13 +136,15 @@ export function SubscriptionGate({
           </div>
 
           <div className="flex flex-col items-center gap-2 pt-2">
-            <Button onClick={handleSubscribe} className="w-full sm:w-auto gap-2">
-              <Sparkles className="h-4 w-4" />
-              {trialDays > 0 ? 'Start Free Trial' : 'Upgrade to Premium'}
-              <ArrowRight className="h-4 w-4" />
+            <Button onClick={handleSubscribe} className="w-full gap-2 sm:w-auto">
+              <Crown className="h-4 w-4" aria-hidden="true" />
+              {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
             {trialDays > 0 && (
-              <p className="text-xs text-muted-foreground">Cancel anytime during the trial</p>
+              <p className="text-xs text-muted-foreground">
+                Cancel during the trial and nothing is charged.
+              </p>
             )}
           </div>
         </CardContent>

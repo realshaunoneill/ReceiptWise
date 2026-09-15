@@ -1,9 +1,9 @@
 'use client';
 
-import { Calendar, MapPin, Clock, CreditCard, Users, ChevronRight, Receipt as ReceiptIcon, TrendingUp } from 'lucide-react';
+import { Calendar, MapPin, Clock, CreditCard, Users, ChevronRight, Receipt as ReceiptIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatCategory } from '@/lib/utils/format-category';
+import { categoryBadgeClasses, categoryTextClasses, getCategory } from '@/lib/utils/categories';
 import { format, parseISO, isToday, isYesterday, isThisWeek, isThisMonth, startOfDay } from 'date-fns';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 import { useCurrency } from '@/lib/hooks/use-currency';
@@ -13,34 +13,6 @@ interface ReceiptTimelineProps {
   receipts: ReceiptWithItems[];
   onReceiptClick: (receipt: ReceiptWithItems) => void;
 }
-
-const categoryColors: Record<string, string> = {
-  groceries: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
-  dining: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
-  transportation: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
-  shopping: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20',
-  utilities: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20',
-  entertainment: 'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20',
-  healthcare: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
-  travel: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20',
-  gas: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
-  coffee: 'bg-amber-600/10 text-amber-800 dark:text-amber-300 border-amber-600/20',
-  other: 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20',
-};
-
-const categoryIcons: Record<string, string> = {
-  groceries: '🛒',
-  dining: '🍽️',
-  transportation: '🚗',
-  shopping: '🛍️',
-  utilities: '💡',
-  entertainment: '🎬',
-  healthcare: '💊',
-  travel: '✈️',
-  gas: '⛽',
-  coffee: '☕',
-  other: '📄',
-};
 
 function getDateLabel(date: Date): string {
   if (isToday(date)) return 'Today';
@@ -131,27 +103,24 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
     <div className="space-y-6">
       {groupedReceipts.map((group) => (
         <div key={group.date.toISOString()} className="relative">
-          {/* Date header */}
-          <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b mb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border-2 border-primary">
-                  <Calendar className="h-5 w-5 text-primary" />
-                </div>
+          {/* Date header. The day total was previously flagged with a
+              TrendingUp arrow, which reads as "spending is up" — it is just a
+              count, and one day's total trends nowhere. */}
+          <div className="sticky top-0 z-10 -mx-4 mb-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="flex items-baseline justify-between gap-4">
+              <div className="flex items-baseline gap-3">
+                <Calendar className="h-4 w-4 shrink-0 translate-y-0.5 text-muted-foreground" aria-hidden="true" />
                 <div>
-                  <h3 className="font-bold text-lg">{group.label}</h3>
+                  <h3 className="text-base font-semibold text-foreground">{group.label}</h3>
                   <p className="text-xs text-muted-foreground">{group.subtitle}</p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    {group.receipts.length} receipt{group.receipts.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <p className="text-lg font-bold text-foreground">
+                <p className="amount text-base font-semibold text-foreground">
                   {formatCurrency(group.totalSpent)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {group.receipts.length} receipt{group.receipts.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
@@ -160,9 +129,8 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
           {/* Receipt cards for this date */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {group.receipts.map((receipt) => {
-              const categoryKey = receipt.category?.toLowerCase() || 'other';
-              const categoryClass = categoryColors[categoryKey] || categoryColors.other;
-              const categoryIcon = categoryIcons[categoryKey] || categoryIcons.other;
+              const category = getCategory(receipt.category);
+              const CategoryIcon = category.icon;
 
               const isProcessing = receipt.processingStatus === 'pending' || receipt.processingStatus === 'processing';
               const isFailed = receipt.processingStatus === 'failed';
@@ -172,9 +140,11 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                   key={receipt.id}
                   onClick={() => onReceiptClick(receipt)}
                   className={cn(
-                    'group cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-1 overflow-hidden',
-                    isFailed && 'border-red-500/50 bg-red-500/5',
-                    isProcessing && 'border-yellow-500/50 bg-yellow-500/5',
+                    // The 1px lift on hover made whole grids of cards jump as the
+                    // pointer crossed them. Border and shadow are enough feedback.
+                    'group cursor-pointer overflow-hidden transition-colors hover:border-primary/40',
+                    isFailed && 'border-destructive/40 bg-destructive/5',
+                    isProcessing && 'border-warning/40 bg-warning/5',
                   )}
                 >
                   <CardContent className="p-0">
@@ -190,8 +160,14 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center text-2xl">
-                              {categoryIcon}
+                            /* Was an emoji per category (🛒 🍽️ ⛽ ...). Emoji
+                               render differently on every platform, cannot be
+                               recoloured, and undercut a financial record. */
+                            <div className="flex h-full w-full items-center justify-center">
+                              <CategoryIcon
+                                className={cn('h-6 w-6', categoryTextClasses(receipt.category))}
+                                aria-hidden="true"
+                              />
                             </div>
                           )}
                         </div>
@@ -214,9 +190,16 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
 
-                        {/* Amount */}
-                        <p className="text-xl font-bold mt-2">
-                          {receipt.currency || '€'}{receipt.totalAmount || '0.00'}
+                        {/*
+                          Amount. This read `{receipt.currency || '€'}{amount}`,
+                          which printed the ISO *code* jammed against the figure —
+                          "EUR12.50" — and fell back to a euro sign regardless of
+                          the user's chosen currency. The day total directly above
+                          it was already going through the formatter, so a single
+                          card could show "EUR12.50" under a "€45.00" heading.
+                        */}
+                        <p className="amount mt-2 text-xl font-semibold">
+                          {formatCurrency(parseFloat(receipt.totalAmount || '0'))}
                         </p>
                       </div>
                     </div>
@@ -225,44 +208,45 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                     <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5">
                       {/* Status badges */}
                       {isProcessing && (
-                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30 text-xs">
-                          <Clock className="h-3 w-3 mr-1" />
+                        <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
+                          <Clock className="h-3 w-3" aria-hidden="true" />
                           Processing
                         </Badge>
                       )}
                       {isFailed && (
-                        <Badge variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30 text-xs">
+                        <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
                           Failed
                         </Badge>
                       )}
 
                       {/* Category badge */}
                       {receipt.category && !isProcessing && !isFailed && (
-                        <Badge variant="outline" className={cn('text-xs', categoryClass)}>
-                          {formatCategory(receipt.category)}
+                        <Badge variant="outline" className={categoryBadgeClasses(receipt.category)}>
+                          <CategoryIcon className="h-3 w-3" aria-hidden="true" />
+                          {category.label}
                         </Badge>
                       )}
 
                       {/* Time badge */}
                       {receipt.transactionDate && (
-                        <Badge variant="outline" className="text-xs bg-muted/50">
-                          <Clock className="h-3 w-3 mr-1" />
+                        <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
+                          <Clock className="h-3 w-3" aria-hidden="true" />
                           {format(parseISO(receipt.transactionDate), 'h:mm a')}
                         </Badge>
                       )}
 
                       {/* Payment method */}
                       {receipt.paymentMethod && (
-                        <Badge variant="outline" className="text-xs bg-muted/50">
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          {receipt.paymentMethod}
+                        <Badge variant="outline" className="bg-muted/50 capitalize text-muted-foreground">
+                          <CreditCard className="h-3 w-3" aria-hidden="true" />
+                          {receipt.paymentMethod.replace(/_/g, ' ')}
                         </Badge>
                       )}
 
                       {/* Household indicator */}
                       {receipt.householdId && (
-                        <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
-                          <Users className="h-3 w-3 mr-1" />
+                        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                          <Users className="h-3 w-3" aria-hidden="true" />
                           Shared
                         </Badge>
                       )}

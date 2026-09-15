@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSpendingSummary } from '@/hooks/use-spending-summary';
-import { Loader2, Sparkles, RefreshCw, TrendingUp, ShoppingBag, Store } from 'lucide-react';
+import { Loader2, FileText, RefreshCw, TrendingUp, ShoppingBag, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface SpendingSummaryCardProps {
@@ -30,12 +30,16 @@ export function SpendingSummaryCard({ householdId, autoLoad = false }: SpendingS
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
+            {/* "AI Spending Insights" promising "personalized insights" — the
+                title named the technology and the description promised
+                personalisation the feature does not do. It writes a summary of a
+                period you choose, so that is what it is called. */}
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              AI Spending Insights
+              <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
+              Spending summary
             </CardTitle>
             <CardDescription>
-              Get personalized insights about your spending patterns
+              A written read on the period you pick
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -65,8 +69,8 @@ export function SpendingSummaryCard({ householdId, autoLoad = false }: SpendingS
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate
+                  <FileText className="h-4 w-4" aria-hidden="true" />
+                  Write summary
                 </>
               )}
             </Button>
@@ -76,8 +80,8 @@ export function SpendingSummaryCard({ householdId, autoLoad = false }: SpendingS
       <CardContent>
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin mb-4" />
-            <p className="text-sm">Analyzing your spending patterns...</p>
+            <Loader2 className="mb-4 h-8 w-8 animate-spin" />
+            <p className="text-sm">Reading through your receipts…</p>
           </div>
         )}
 
@@ -171,9 +175,11 @@ export function SpendingSummaryCard({ householdId, autoLoad = false }: SpendingS
         )}
 
         {!summary && !isLoading && !error && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-20" />
-            <p className="text-sm">Click "Generate" to get AI-powered insights</p>
+          <div className="py-12 text-center text-muted-foreground">
+            <FileText className="mx-auto mb-4 h-10 w-10 opacity-20" aria-hidden="true" />
+            <p className="text-sm">
+              Pick a period and choose <span className="font-medium">Write summary</span>.
+            </p>
           </div>
         )}
       </CardContent>

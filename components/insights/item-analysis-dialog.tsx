@@ -292,7 +292,7 @@ export function ItemAnalysisDialog({
 
                       return (
                         <>
-                          <div className={`text-2xl font-bold ${isStable ? 'text-muted-foreground' : isIncreasing ? 'text-red-600' : 'text-green-600'}`}>
+                          <div className={`amount text-2xl font-semibold ${isStable ? 'text-muted-foreground' : isIncreasing ? 'text-destructive' : 'text-success'}`}>
                             {isStable ? '~' : isIncreasing ? '↑' : '↓'} {Math.abs(percentChange).toFixed(1)}%
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">

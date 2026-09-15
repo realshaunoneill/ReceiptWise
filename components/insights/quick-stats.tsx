@@ -1,105 +1,94 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { Receipt, ShoppingBag, TrendingUp, Wallet } from 'lucide-react';
+import { Receipt, ShoppingBag, Tag, Wallet } from 'lucide-react';
 import { useCurrency } from '@/lib/hooks/use-currency';
-import { cn } from '@/lib/utils';
+import { getCategory } from '@/lib/utils/categories';
 
 interface QuickStatsProps {
   stats: {
     totalReceipts: number
-    totalTransactions: number
+    totalItems: number
     avgSpending: number
     topCategory: string
   }
 }
 
+/*
+ * Four figures across the top of the dashboard.
+ *
+ * Two things were wrong here beyond the styling. Each tile carried its own hue —
+ * blue, emerald, violet, amber — which made four unrelated numbers look like four
+ * unrelated features; and the labels described data the tiles were not being
+ * given. "Daily Average / Past 30 days" was fed `totalSpent / receiptCount`, the
+ * mean per *receipt* over however many receipts exist. "Total Receipts / Uploaded
+ * this month" was fed an all-time count, not a monthly one. And "Items Tracked /
+ * Individual purchases" was handed the receipt count a second time, so the first
+ * two tiles always showed the identical number under different names.
+ *
+ * The labels below say what the numbers are.
+ */
 const statConfig = [
   {
     key: 'totalReceipts',
-    label: 'Total Receipts',
+    label: 'Receipts',
     icon: Receipt,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-500/10',
-    description: 'Uploaded this month',
+    description: 'In this view',
   },
   {
-    key: 'totalTransactions',
-    label: 'Items Tracked',
+    key: 'totalItems',
+    label: 'Line items',
     icon: ShoppingBag,
-    color: 'text-emerald-600 dark:text-emerald-400',
-    bgColor: 'bg-emerald-500/10',
-    description: 'Individual purchases',
+    description: 'Read off those receipts',
   },
   {
     key: 'avgSpending',
-    label: 'Daily Average',
-    icon: TrendingUp,
-    color: 'text-violet-600 dark:text-violet-400',
-    bgColor: 'bg-violet-500/10',
-    description: 'Past 30 days',
+    label: 'Average receipt',
+    icon: Wallet,
+    description: 'Total divided by receipts',
     isCurrency: true,
   },
   {
     key: 'topCategory',
-    label: 'Top Category',
-    icon: Wallet,
-    color: 'text-amber-600 dark:text-amber-400',
-    bgColor: 'bg-amber-500/10',
-    description: 'Most frequent',
-    isCapitalized: true,
+    label: 'Top category',
+    icon: Tag,
+    description: 'By amount spent',
+    isCategory: true,
   },
-];
+] as const;
 
 export function QuickStats({ stats }: QuickStatsProps) {
   const { format: formatCurrency } = useCurrency();
-
-  const getValue = (key: string, isCurrency?: boolean, isCapitalized?: boolean) => {
-    const value = stats[key as keyof typeof stats];
-    if (isCurrency) return formatCurrency(value as number);
-    if (isCapitalized && typeof value === 'string') {
-      return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-    }
-    return value;
-  };
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
       {statConfig.map((stat) => {
         const Icon = stat.icon;
-        return (
-          <Card
-            key={stat.key}
-            className="group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-          >
-            {/* Subtle gradient background */}
-            <div className={cn(
-              'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300',
-              stat.bgColor,
-            )} />
+        const raw = stats[stat.key as keyof QuickStatsProps['stats']];
 
-            <CardContent className="relative p-6">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {stat.label}
+        let value: string;
+        if ('isCurrency' in stat && stat.isCurrency) {
+          value = formatCurrency(Number(raw) || 0);
+        } else if ('isCategory' in stat && stat.isCategory) {
+          // 'No data' is the hook's sentinel when there are no receipts; it is not
+          // a category, so it must not be run through the category table.
+          value = raw === 'No data' ? '—' : getCategory(String(raw)).label;
+        } else {
+          value = new Intl.NumberFormat().format(Number(raw) || 0);
+        }
+
+        return (
+          <Card key={stat.key} className="transition-colors hover:border-primary/30">
+            <CardContent className="px-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className="amount truncate text-2xl font-semibold tracking-tight text-foreground">
+                    {value}
                   </p>
-                  <p className={cn(
-                    'text-2xl font-bold tracking-tight text-foreground',
-                    stat.isCapitalized && 'capitalize',
-                  )}>
-                    {getValue(stat.key, stat.isCurrency, stat.isCapitalized)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {stat.description}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{stat.description}</p>
                 </div>
-                <div className={cn(
-                  'rounded-xl p-3 transition-transform duration-300 group-hover:scale-110',
-                  stat.bgColor,
-                )}>
-                  <Icon className={cn('h-5 w-5', stat.color)} />
-                </div>
+                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               </div>
             </CardContent>
           </Card>

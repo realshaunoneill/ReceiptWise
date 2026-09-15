@@ -39,37 +39,33 @@ export default function PaymentFailedPage() {
   return (
     <main className="container mx-auto max-w-4xl space-y-6 p-4 sm:p-6" aria-labelledby="payment-failed-title">
         <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
-          {/* Error Icon */}
-          <div className="relative w-24 h-24" aria-hidden="true">
-            <div className="absolute inset-0 rounded-full bg-red-100 dark:bg-red-900/30 animate-pulse"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <AlertTriangle className="w-16 h-16 text-red-600 dark:text-red-500" />
-            </div>
+          {/* Was a permanently pulsing red halo behind the triangle, and the card
+              below was hardcoded red-on-red in both themes. A declined card is a
+              routine, fixable event; the page should not read like an alarm. */}
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10" aria-hidden="true">
+            <AlertTriangle className="h-7 w-7 text-destructive" />
           </div>
 
           {/* Error Message */}
-          <div className="text-center space-y-2">
-            <h1 id="payment-failed-title" className="text-3xl font-bold text-foreground">
-              Payment Failed
+          <div className="space-y-2 text-center">
+            <h1 id="payment-failed-title" className="text-3xl font-semibold tracking-tight text-foreground">
+              That payment didn&apos;t go through
             </h1>
             <p className="text-lg text-muted-foreground">
-              We were unable to process your payment
+              Nothing has been charged, and you can try again whenever you like.
             </p>
           </div>
 
           {/* Error Card */}
-          <Card className="w-full max-w-2xl border-red-200 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900">
+          <Card className="w-full max-w-2xl">
             <CardHeader>
-              <CardTitle className="text-red-800 dark:text-red-400">
-                What happened?
-              </CardTitle>
-              <CardDescription className="text-red-700 dark:text-red-300">
-                Your payment could not be completed. This can happen for several reasons.
+              <CardTitle>Why this usually happens</CardTitle>
+              <CardDescription>
+                Almost always one of these, and almost always fixable on a second attempt.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Common reasons for payment failure:</p>
                 <Accordion type="single" collapsible className="w-full">
                   {commonErrorReasons.map((reason, index) => (
                     <AccordionItem key={index} value={`item-${index}`}>
@@ -92,7 +88,7 @@ export default function PaymentFailedPage() {
               size="lg"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Try Again
+              Try again
             </Button>
             <Button
               asChild
@@ -102,7 +98,7 @@ export default function PaymentFailedPage() {
             >
               <Link href="/dashboard">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Back to Dashboard
+                Back to dashboard
               </Link>
             </Button>
           </div>
@@ -112,7 +108,7 @@ export default function PaymentFailedPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <HelpCircle className="h-5 w-5" aria-hidden="true" />
-                Need Help?
+                If it keeps failing
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -120,15 +116,15 @@ export default function PaymentFailedPage() {
                 <div className="flex items-start gap-3 p-3 rounded-lg border">
                   <CreditCard className="h-5 w-5 text-primary mt-0.5" aria-hidden="true" />
                   <div>
-                    <p className="font-medium text-sm">Update Payment Method</p>
-                    <p className="text-xs text-muted-foreground">Try using a different card or payment method</p>
+                    <p className="text-sm font-medium">Try a different card</p>
+                    <p className="text-xs text-muted-foreground">Often the fastest fix</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg border">
                   <Mail className="h-5 w-5 text-primary mt-0.5" aria-hidden="true" />
                   <div>
-                    <p className="font-medium text-sm">Contact Support</p>
-                    <p className="text-xs text-muted-foreground">We're here to help resolve any issues</p>
+                    <p className="text-sm font-medium">Ask us</p>
+                    <p className="text-xs text-muted-foreground">A person reads support email</p>
                   </div>
                 </div>
               </div>

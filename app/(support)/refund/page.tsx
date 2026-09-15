@@ -36,8 +36,8 @@ export default function RefundPage() {
             <CardContent className="space-y-4">
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/20 mt-1 shrink-0">
-                    <RefreshCcw className="h-5 w-5 text-blue-500 dark:text-blue-400" aria-hidden="true" />
+                  <div className="p-2 rounded-full bg-primary/10 mt-1 shrink-0">
+                    <RefreshCcw className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="font-medium">Pro-Rated Refunds</h3>
@@ -48,8 +48,8 @@ export default function RefundPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/20 mt-1 shrink-0">
-                    <AlertCircle className="h-5 w-5 text-amber-500 dark:text-amber-400" aria-hidden="true" />
+                  <div className="p-2 rounded-full bg-primary/10 mt-1 shrink-0">
+                    <AlertCircle className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="font-medium">Technical Issues</h3>
@@ -60,8 +60,8 @@ export default function RefundPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/20 mt-1 shrink-0">
-                    <Clock className="h-5 w-5 text-green-500 dark:text-green-400" aria-hidden="true" />
+                  <div className="p-2 rounded-full bg-primary/10 mt-1 shrink-0">
+                    <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="font-medium">Processing Time</h3>
@@ -72,8 +72,8 @@ export default function RefundPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/20 mt-1 shrink-0">
-                    <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" aria-hidden="true" />
+                  <div className="p-2 rounded-full bg-primary/10 mt-1 shrink-0">
+                    <XCircle className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="font-medium">Cancellation Anytime</h3>
@@ -83,8 +83,6 @@ export default function RefundPage() {
                   </div>
                 </div>
               </div>
-
-              <div className="absolute -z-10 right-0 bottom-0 top-1/2 left-1/2 bg-linear-to-br from-blue-500/5 via-amber-500/5 to-transparent blur-3xl" />
             </CardContent>
           </Card>
 
@@ -157,11 +155,11 @@ export default function RefundPage() {
                 href="mailto:support@receiptwise.io?subject=Refund%20Request"
                 className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors group"
               >
-                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/20 shrink-0">
-                  <Mail className="h-5 w-5 text-blue-500 dark:text-blue-400" aria-hidden="true" />
+                <div className="p-2 rounded-full bg-primary/10 shrink-0">
+                  <Mail className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium group-hover:text-blue-500 transition-colors">Email Support</p>
+                  <p className="font-medium transition-colors group-hover:text-primary">Email Support</p>
                   <p className="text-sm text-muted-foreground truncate">support@receiptwise.io</p>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />

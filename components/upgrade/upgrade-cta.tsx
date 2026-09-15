@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 
@@ -46,36 +46,37 @@ export function UpgradeCTA() {
   };
 
   return (
-    <Card className="border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5">
-      <CardContent className="pt-8 pb-8">
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-2">
-            <Sparkles className="w-6 h-6 text-primary" />
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Ready to get started?</h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
+    /* Was a sparkles medallion over "Ready to get started?" — the second
+       identically-shaped CTA on the page, decorated rather than written. */
+    <Card className="border-primary/25 bg-primary/5">
+      <CardContent className="flex flex-col items-start gap-6 py-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="max-w-xl">
+          <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
             {pricingDetails.trial > 0
-              ? `Start your ${pricingDetails.trial}-day free trial and unlock every ReceiptWise Premium feature`
-              : 'Unlock every ReceiptWise Premium feature and take control of your spending'}
+              ? 'Try it on this week’s receipts'
+              : 'Ready when you are'}
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            {pricingDetails.trial > 0
+              ? `${pricingDetails.trial} days, no charge if you cancel before they are up. Long enough to know whether it earns its keep.`
+              : 'Billed monthly or annually, cancel any time.'}
           </p>
-          <div className="pt-2">
-            <Button
-              onClick={handleUpgrade}
-              disabled={upgradeMutation.isPending}
-              size="lg"
-              className="text-base sm:text-lg h-12 px-8"
-            >
-              {upgradeMutation.isPending ? (
-                'Processing...'
-              ) : (
-                <>
-                  {pricingDetails.trial > 0 ? 'Start Free Trial' : 'Upgrade Now'}
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </>
-              )}
-            </Button>
-          </div>
         </div>
+        <Button
+          onClick={handleUpgrade}
+          disabled={upgradeMutation.isPending}
+          size="lg"
+          className="shrink-0 gap-2"
+        >
+          {upgradeMutation.isPending ? (
+            'One moment…'
+          ) : (
+            <>
+              {pricingDetails.trial > 0 ? 'Start the trial' : 'Subscribe'}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );

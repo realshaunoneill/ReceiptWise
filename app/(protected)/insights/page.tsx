@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Sparkles, TrendingUp, Search, CreditCard, Crown, Check, PieChart, Brain, ArrowRight } from 'lucide-react';
+import { TrendingUp, Search, CreditCard, Crown, Check, PieChart, ScanLine, ArrowRight, LineChart } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 
@@ -34,10 +34,10 @@ export default function InsightsPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 id="insights-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Spending Insights
+              Insights
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              AI-powered analysis of your spending patterns and top purchases
+              What you spend on, what you buy most, and what the subscriptions cost.
             </p>
           </div>
 
@@ -131,92 +131,82 @@ export default function InsightsPage() {
                   ))}
                 </CardContent>
               </Card>
-              {/* Item Search Card */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-5 w-5 rounded-full" />
-                    <Skeleton className="h-6 w-36" />
-                  </div>
-                  <Skeleton className="h-4 w-72" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Skeleton className="h-10 w-full" />
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 2, 3, 4].map((i) => (
-                      <Skeleton key={i} className="h-8 w-20 rounded-full" />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Item search moved to its own tab, so Overview is two panels. */}
             </div>
           </div>
         ) : !isSubscribed ? (
-          <Card className="border-2 border-primary/20 bg-linear-to-br from-primary/5 via-transparent to-primary/5">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Sparkles className="h-8 w-8 text-primary" aria-hidden="true" />
+          /*
+            Upsell for unsubscribed users.
+
+            The old version was headed "Unlock AI-Powered Insights" over a
+            sparkles medallion, and promised "hidden patterns", "intelligent
+            analytics" and "personalized recommendations" — the last of which the
+            product does not do at all. Overclaiming on the paywall is the worst
+            possible place to do it: it is the page people read immediately before
+            deciding whether to trust you with a card number.
+          */
+          <Card className="border-primary/30">
+            <CardHeader className="pb-4">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                <LineChart className="h-5 w-5 text-primary" aria-hidden="true" />
               </div>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <CardTitle className="text-2xl text-foreground">Unlock AI-Powered Insights</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-2xl text-foreground">Insights are part of Premium</CardTitle>
                 {trialDays > 0 && (
-                  <Badge variant="default" className="text-xs">
-                    {trialDays}-day free trial
-                  </Badge>
+                  <Badge variant="secondary">{trialDays}-day trial</Badge>
                 )}
               </div>
-              <CardDescription className="text-base max-w-lg mx-auto">
-                Discover hidden patterns in your spending with intelligent analytics and personalized recommendations.
+              <CardDescription className="max-w-xl text-base">
+                Once there are receipts to read, this page breaks down where the money went
+                and what you buy most often.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-              {/* Features Grid */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Brain className="h-5 w-5 text-primary" aria-hidden="true" />
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    icon: ScanLine,
+                    title: 'Written summary',
+                    body: 'A plain-language read on the period you pick.',
+                  },
+                  {
+                    icon: TrendingUp,
+                    title: 'Trends',
+                    body: 'Week, month or year, so you can see the direction.',
+                  },
+                  {
+                    icon: PieChart,
+                    title: 'Categories',
+                    body: 'Which categories the total is actually made of.',
+                  },
+                  {
+                    icon: Search,
+                    title: 'Item history',
+                    body: 'Every time you bought a thing, and what it cost.',
+                  },
+                ].map(({ icon: Icon, title, body }) => (
+                  <div key={title}>
+                    <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                    <h3 className="mt-3 font-semibold text-foreground">{title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{body}</p>
                   </div>
-                  <h3 className="font-semibold mb-1 text-foreground">AI Summaries</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Smart spending analysis
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Trend Analysis</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Track spending over time
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <PieChart className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Category Breakdown</h3>
-                  <p className="text-sm text-muted-foreground">
-                    See where money goes
-                  </p>
-                </div>
-                <div className="flex flex-col items-center text-center p-4 rounded-lg bg-muted/50">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 mb-3">
-                    <Search className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <h3 className="font-semibold mb-1 text-foreground">Item Search</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Find any purchase fast
-                  </p>
-                </div>
+                ))}
               </div>
 
               {/* Benefits List */}
-              <div className="rounded-lg border bg-card p-6">
-                <h3 className="font-semibold mb-4 text-foreground">What you'll discover:</h3>
+              <div className="rounded-lg border bg-muted/30 p-6">
+                <h3 className="mb-4 font-semibold text-foreground">Also included</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {['AI-powered spending summaries', 'Top items and purchase trends', 'Advanced item search and analysis', 'Subscription cost overview', 'Category spending breakdown', 'Household expense filtering'].map((feature, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+                  {[
+                    'Unlimited receipts and scanning',
+                    'Unlimited households',
+                    'Subscription tracking',
+                    'Filter by household or personal',
+                    'CSV and JSON export',
+                    'Priority support',
+                  ].map((feature) => (
+                    <div key={feature} className="flex items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                       <span className="text-sm text-foreground">{feature}</span>
                     </div>
                   ))}
@@ -224,64 +214,61 @@ export default function InsightsPage() {
               </div>
 
               {/* CTA */}
-              <div className="text-center space-y-4 pt-4 border-t">
-                <Button
-                  onClick={() => router.push('/upgrade')}
-                  size="lg"
-                  className="gap-2 text-base h-12 px-8"
-                >
-                  <Crown className="h-5 w-5" aria-hidden="true" />
-                  {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Upgrade to Premium'}
-                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              <div className="space-y-3 border-t pt-6">
+                <Button onClick={() => router.push('/upgrade')} size="lg" className="gap-2">
+                  <Crown className="h-4 w-4" aria-hidden="true" />
+                  {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   {trialDays > 0
-                    ? `Try free for ${trialDays} days. Cancel anytime, no questions asked.`
-                    : 'Cancel anytime. No long-term contracts.'}
+                    ? `Cancel any time in the ${trialDays} days and you are not charged.`
+                    : 'Cancel any time.'}
                 </p>
               </div>
             </CardContent>
           </Card>
         ) : (
+          /*
+            Three tabs, each panel appearing in exactly one of them.
+
+            There were four tabs before and every panel was in two of them: the
+            spending summary sat in both Overview and "AI Summary", the top-items
+            list in both Overview and "Top Items", the item search in two, the
+            subscription strip in two. Switching tabs largely re-showed what you
+            were already looking at, so the tabs taught the user nothing about
+            where anything lives. The "AI Summary" tab is gone — the summary is
+            one of the things Overview is for, and naming a tab after the
+            technology behind it was never useful to the person reading it.
+          */
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+            <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
               <TabsTrigger value="overview" className="gap-2">
-                <TrendingUp className="h-4 w-4 hidden sm:block" />
+                <TrendingUp className="hidden h-4 w-4 sm:block" aria-hidden="true" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="ai-summary" className="gap-2">
-                <Sparkles className="h-4 w-4 hidden sm:block" />
-                AI Summary
-              </TabsTrigger>
-              <TabsTrigger value="top-items" className="gap-2">
-                <Search className="h-4 w-4 hidden sm:block" />
-                Top Items
+              <TabsTrigger value="items" className="gap-2">
+                <Search className="hidden h-4 w-4 sm:block" aria-hidden="true" />
+                Items
               </TabsTrigger>
               <TabsTrigger value="subscriptions" className="gap-2">
-                <CreditCard className="h-4 w-4 hidden sm:block" />
+                <CreditCard className="hidden h-4 w-4 sm:block" aria-hidden="true" />
                 Subscriptions
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6 mt-6">
-              <SubscriptionInsights />
+            <TabsContent value="overview" className="mt-6 space-y-6">
               <div className="grid gap-6 lg:grid-cols-2">
                 <SpendingSummaryCard householdId={actualHouseholdId} autoLoad />
                 <TopItemsList householdId={actualHouseholdId} autoLoad />
               </div>
             </TabsContent>
 
-            <TabsContent value="ai-summary" className="space-y-6 mt-6">
-              <SpendingSummaryCard householdId={actualHouseholdId} autoLoad />
+            <TabsContent value="items" className="mt-6 space-y-6">
               <ItemSearchAnalysis householdId={actualHouseholdId} />
             </TabsContent>
 
-            <TabsContent value="top-items" className="space-y-6 mt-6">
-              <TopItemsList householdId={actualHouseholdId} autoLoad />
-              <ItemSearchAnalysis householdId={actualHouseholdId} />
-            </TabsContent>
-
-            <TabsContent value="subscriptions" className="space-y-6 mt-6">
+            <TabsContent value="subscriptions" className="mt-6 space-y-6">
               <SubscriptionInsights />
             </TabsContent>
           </Tabs>
