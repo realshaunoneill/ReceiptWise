@@ -1,8 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/invite(.*)', // Invitation links: shows who invited you, then routes through sign-in
   '/',
   '/support',
   '/terms',
@@ -27,11 +29,31 @@ const isPublicRoute = createRouteMatcher([
   '/ingest(.*)', // PostHog analytics
 ]);
 
-export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
+const isApiRoute = createRouteMatcher(['/api(.*)', '/trpc(.*)']);
+
+export default clerkMiddleware(
+  async (auth, request) => {
+    if (isPublicRoute(request)) return;
+
+    // API callers get a JSON 401. auth.protect() would redirect them to the sign-in page, and a
+    // client fetch() that follows it gets HTML where it expects JSON.
+    if (isApiRoute(request)) {
+      const { userId } = await auth();
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      return;
+    }
+
     await auth.protect();
-  }
-});
+  },
+  {
+    // Without these, auth.protect() sends signed-out visitors to Clerk's hosted
+    // accounts.receiptwise.io pages rather than the app's own /sign-in.
+    signInUrl: '/sign-in',
+    signUpUrl: '/sign-up',
+  },
+);
 
 export const config = {
   matcher: [

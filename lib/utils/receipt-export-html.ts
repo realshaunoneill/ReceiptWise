@@ -23,6 +23,32 @@ export interface ExportData {
   receipts?: ExportReceipt[];
 }
 
+/**
+ * Escape text for HTML. Every receipt field here is model output from an arbitrary image (or
+ * user input), and it was interpolated raw — a merchant name like `<img src=x onerror=…>`
+ * would run script when the exported file was opened.
+ */
+function esc(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Only http(s) image URLs make it into src; anything else (javascript:, data:) is dropped. */
+function safeImageUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function generateReceiptExportHtml(data: ExportData): string {
   const receipts = data.receipts || [];
   const totalSpent = receipts
@@ -35,24 +61,27 @@ export function generateReceiptExportHtml(data: ExportData): string {
       <div class="empty-state-icon">📄</div>
       <p>No receipts to export</p>
     </div>`
-    : receipts.map(receipt => `
+    : receipts.map(receipt => {
+      const currency = esc(receipt.currency);
+      const imageUrl = safeImageUrl(receipt.imageUrl);
+      return `
     <div class="receipt">
       <div class="receipt-image">
-        ${receipt.imageUrl
-          ? `<img src="${receipt.imageUrl}" alt="Receipt from ${receipt.merchantName || 'Unknown'}" loading="lazy" />`
+        ${imageUrl
+          ? `<img src="${esc(imageUrl)}" alt="Receipt from ${esc(receipt.merchantName || 'Unknown')}" loading="lazy" />`
           : '<div class="no-image"><span style="font-size: 32px;">🧾</span><span>No image</span></div>'
         }
       </div>
       <div class="receipt-details">
         <div class="receipt-header">
-          <span class="merchant">${receipt.merchantName || 'Unknown Merchant'}</span>
-          <span class="amount">${receipt.currency || ''} ${receipt.totalAmount || '0.00'}</span>
+          <span class="merchant">${esc(receipt.merchantName || 'Unknown Merchant')}</span>
+          <span class="amount">${currency} ${esc(receipt.totalAmount || '0.00')}</span>
         </div>
         <div class="meta">
-          ${receipt.transactionDate ? `<span class="meta-item">📅 ${receipt.transactionDate}</span>` : ''}
-          ${receipt.category ? `<span class="badge badge-category">${receipt.category}</span>` : ''}
-          ${receipt.paymentMethod ? `<span class="meta-item">💳 ${receipt.paymentMethod}</span>` : ''}
-          ${receipt.location ? `<span class="meta-item">📍 ${receipt.location}</span>` : ''}
+          ${receipt.transactionDate ? `<span class="meta-item">📅 ${esc(receipt.transactionDate)}</span>` : ''}
+          ${receipt.category ? `<span class="badge badge-category">${esc(receipt.category)}</span>` : ''}
+          ${receipt.paymentMethod ? `<span class="meta-item">💳 ${esc(receipt.paymentMethod)}</span>` : ''}
+          ${receipt.location ? `<span class="meta-item">📍 ${esc(receipt.location)}</span>` : ''}
           ${receipt.isBusinessExpense ? '<span class="badge badge-business">💼 Business</span>' : ''}
         </div>
         ${receipt.items && receipt.items.length > 0 ? `
@@ -60,20 +89,21 @@ export function generateReceiptExportHtml(data: ExportData): string {
           <div class="items-title">Items (${receipt.items.length})</div>
           ${receipt.items.map(item => `
           <div class="item">
-            <span class="item-name">${item.name}${item.quantity ? `<span class="item-qty">× ${item.quantity}</span>` : ''}</span>
-            <span class="item-price">${receipt.currency || ''} ${item.totalPrice || item.price || ''}</span>
+            <span class="item-name">${esc(item.name)}${item.quantity ? `<span class="item-qty">× ${esc(item.quantity)}</span>` : ''}</span>
+            <span class="item-price">${currency} ${esc(item.totalPrice || item.price || '')}</span>
           </div>
           `).join('')}
         </div>
         ` : ''}
         <div class="totals">
-          ${receipt.subtotal ? `<div class="total-row"><span>Subtotal</span><span>${receipt.currency || ''} ${receipt.subtotal}</span></div>` : ''}
-          ${receipt.tax ? `<div class="total-row"><span>Tax</span><span>${receipt.currency || ''} ${receipt.tax}</span></div>` : ''}
-          ${receipt.serviceCharge ? `<div class="total-row"><span>Service Charge</span><span>${receipt.currency || ''} ${receipt.serviceCharge}</span></div>` : ''}
-          <div class="total-row grand"><span>Total</span><span>${receipt.currency || ''} ${receipt.totalAmount || '0.00'}</span></div>
+          ${receipt.subtotal ? `<div class="total-row"><span>Subtotal</span><span>${currency} ${esc(receipt.subtotal)}</span></div>` : ''}
+          ${receipt.tax ? `<div class="total-row"><span>Tax</span><span>${currency} ${esc(receipt.tax)}</span></div>` : ''}
+          ${receipt.serviceCharge ? `<div class="total-row"><span>Service Charge</span><span>${currency} ${esc(receipt.serviceCharge)}</span></div>` : ''}
+          <div class="total-row grand"><span>Total</span><span>${currency} ${esc(receipt.totalAmount || '0.00')}</span></div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+    }).join('');
 
   return `<!DOCTYPE html>
 <html lang="en">

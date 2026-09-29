@@ -20,7 +20,7 @@ import { ReceiptFinancialBreakdown } from './detail-modal/receipt-financial-brea
 import { ReceiptImage } from './detail-modal/receipt-image';
 import { LinkedSubscription } from './detail-modal/linked-subscription';
 import { ReportIssueButton } from './detail-modal/report-issue-button';
-import type { ReceiptWithItems, OCRData, MemberWithUser } from '@/lib/types/api-responses';
+import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 
 interface ReceiptDetailModalProps {
   receipt: ReceiptWithItems | null;
@@ -76,8 +76,10 @@ export function ReceiptDetailModal({
     // User is the owner
     receipt.userId === currentUser.id ||
     // Or user is household admin (for removing from household only)
-    (receipt.householdId && household?.members?.some((m: MemberWithUser) =>
-      m.user_id === currentUser.id && m.role === 'owner',
+    // /api/households/[id] returns camelCase members ({ userId, role, ... }). This compared
+    // `m.user_id`, which is always undefined, so a household owner never got this permission.
+    (receipt.householdId && household?.members?.some((m: { userId: string; role: string }) =>
+      m.userId === currentUser.id && m.role === 'owner',
     ))
   );
 
@@ -208,13 +210,16 @@ export function ReceiptDetailModal({
               <div className="shrink-0 border-t mb-4 md:mb-0">
                 <ReceiptFinancialBreakdown receipt={receipt} />
 
-                {/* Report Issue Button */}
-                <div className="px-4 pb-4 flex justify-center">
-                  <ReportIssueButton
-                    receiptId={receipt.id}
-                    onRetrySuccess={handleRetrySuccess}
-                  />
-                </div>
+                {/* Report Issue Button — owner only: re-analysis is owner-only on the server,
+                    so for a household member it could only ever fail. */}
+                {isReceiptOwner && (
+                  <div className="px-4 pb-4 flex justify-center">
+                    <ReportIssueButton
+                      receiptId={receipt.id}
+                      onRetrySuccess={handleRetrySuccess}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

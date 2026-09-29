@@ -29,15 +29,14 @@ export type HouseholdWithMembers = Household & {
   isDefault?: boolean;
 };
 
-// Member with user info
+// Member with user info — the shape HouseholdService.getHouseholdMembers returns. This type
+// used to describe snake_case fields (user_id, joined_at) the API never sent, which is how the
+// sharing page and the receipt modal both failed to recognise the household owner.
 export type MemberWithUser = {
-  id: string;
-  user_id: string;
-  full_name: string;
+  userId: string;
   email: string;
-  avatar_url?: string;
   role: 'owner' | 'member';
-  joined_at: string;
+  joinedAt: string;
 };
 
 // OCR Item from OpenAI response

@@ -72,7 +72,7 @@ export function Navigation() {
         <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo.png" alt="ReceiptWise" className="h-6 w-auto" />
+            <img src="/logo-mark.png" alt="ReceiptWise" width={24} height={24} className="h-6 w-6" />
             <span className="hidden font-semibold tracking-tight text-foreground lg:inline">ReceiptWise</span>
           </Link>
 
@@ -103,7 +103,7 @@ export function Navigation() {
         <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo.png" alt="ReceiptWise" className="h-6 w-auto" />
+            <img src="/logo-mark.png" alt="ReceiptWise" width={24} height={24} className="h-6 w-6" />
             <span className="font-semibold tracking-tight text-foreground">ReceiptWise</span>
           </Link>
 
@@ -112,9 +112,9 @@ export function Navigation() {
             <ThemeToggle />
             {/* Said "Get Started" but pointed at /sign-in — the label promised a
                 sign-up and delivered a sign-in form. */}
-            <Link href="/sign-in">
-              <Button size="sm">Sign in</Button>
-            </Link>
+            <Button asChild size="sm">
+              <Link href="/sign-in">Sign in</Link>
+            </Button>
           </div>
         </div>
       </nav>
@@ -126,7 +126,7 @@ export function Navigation() {
       <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <img src="/logo.png" alt="ReceiptWise" className="h-6 w-auto" />
+          <img src="/logo-mark.png" alt="ReceiptWise" width={24} height={24} className="h-6 w-6" />
           <span className="hidden font-bold text-foreground lg:inline">ReceiptWise</span>
         </Link>
 

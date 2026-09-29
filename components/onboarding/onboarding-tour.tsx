@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from '@/lib/utils/currency';
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 type PricingDetails = {
   monthly: {
@@ -287,7 +288,9 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+        // The API returns a user-facing message (e.g. "You already have a subscription").
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to start checkout. Please try again.');
       }
 
       const data = await response.json();
@@ -299,12 +302,12 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      toast.error('Failed to start checkout. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.');
       setIsProcessing(false);
     }
   };
 
-  const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
+  const trialDays = useTrialDays();
 
   // Annual saving, derived from the two live prices rather than asserted.
   const annualSavingPercent =
@@ -507,7 +510,6 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                             'Spending analytics and insights',
                             'Subscription tracking',
                             'Export everything, any time',
-                            'Priority support',
                           ].map((feature) => (
                             <div key={feature} className="flex items-start gap-2">
                               <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />

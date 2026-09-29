@@ -9,7 +9,10 @@ export default tseslint.config(
       'build/**',
       'dist/**',
       '.vercel/**',
+      '.claude/**',
       'next-env.d.ts',
+      // Plain Node (CommonJS) build script for the extension's icons, not app code.
+      'chrome-extension/scripts/**',
     ],
   },
   ...tseslint.configs.recommended,

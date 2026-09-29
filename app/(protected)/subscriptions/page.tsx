@@ -16,12 +16,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, Calendar, AlertCircle, Crown, Check, CreditCard, PieChart, ArrowRight, Loader2 } from 'lucide-react';
 import { addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 type Status = 'active' | 'paused' | 'cancelled' | undefined;
 
-const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
-
 function SubscriptionsPageContent() {
+  const trialDays = useTrialDays();
   const [statusFilter, setStatusFilter] = useState<Status>('active');
   const { data: subscriptions, isLoading } = useSubscriptions(undefined, statusFilter, true);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
@@ -45,8 +45,9 @@ function SubscriptionsPageContent() {
   // Calculate stats
   const activeSubscriptions = subscriptions?.filter(s => s.status === 'active') || [];
 
-  // Get upcoming payments
+  // Get upcoming payments. Billing dates are midnight UTC, so count from the start of today.
   const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
   const futureDate = addDays(now, 7);
 
   // Get next 3 upcoming payments (showing all upcoming, highlighting those within 7 days)

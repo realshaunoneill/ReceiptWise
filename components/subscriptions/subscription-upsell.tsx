@@ -5,6 +5,7 @@ import { Crown, Check, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 interface SubscriptionUpsellProps {
   title?: string;
@@ -22,7 +23,6 @@ export function SubscriptionUpsell({
     'Unlimited households',
     'Spending analytics and insights',
     'Subscription tracking',
-    'Priority support',
   ],
   className = '',
   variant = 'default',
@@ -33,9 +33,7 @@ export function SubscriptionUpsell({
     router.push('/upgrade');
   };
 
-  const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
-    ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS)
-    : 0;
+  const trialDays = useTrialDays();
 
   if (variant === 'minimal') {
     return (

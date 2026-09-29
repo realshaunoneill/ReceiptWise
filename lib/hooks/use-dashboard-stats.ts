@@ -1,81 +1,65 @@
+import { useQuery } from '@tanstack/react-query';
 import { useRecentReceipts } from './use-receipts';
-import type { ReceiptWithItems } from '@/lib/types/api-responses';
-import { useMemo } from 'react';
+
+export interface ReceiptStats {
+  totalReceipts: number;
+  totalItems: number;
+  totalSpent: number;
+  avgSpending: number;
+  spendingByCategory: Array<{ category: string; amount: number; percentage: number }>;
+  points?: Array<{ date: string; amount: number; category: string | null }>;
+}
+
+/**
+ * Server-computed receipt totals (see /api/receipts/stats).
+ *
+ * The query key sits under ['receipts'] so every existing
+ * invalidateQueries({ queryKey: ['receipts'] }) after an upload, retry or delete refreshes it too.
+ */
+export function useReceiptStats(
+  householdId?: string,
+  personalOnly: boolean = false,
+  from?: string,
+) {
+  return useQuery({
+    queryKey: ['receipts', 'stats', householdId ?? null, personalOnly, from ?? null],
+    queryFn: async (): Promise<ReceiptStats> => {
+      const params = new URLSearchParams();
+      if (householdId) params.append('householdId', householdId);
+      if (personalOnly) params.append('personalOnly', 'true');
+      if (from) params.append('from', from);
+      const response = await fetch(`/api/receipts/stats?${params}`);
+      if (!response.ok) {
+        throw new Error('Failed to load receipt stats');
+      }
+      return response.json();
+    },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
 
 export function useDashboardStats(householdId?: string, personalOnly: boolean = false) {
-  const { receipts, isLoading: receiptsLoading } = useRecentReceipts(householdId, 100, personalOnly); // Get more for stats
+  // Totals come from the server: computing them here from the first 100 receipts made every
+  // figure wrong past 100, and counted pending, failed and not-a-receipt uploads as €0.00 spends.
+  const { data, isLoading: statsLoading } = useReceiptStats(householdId, personalOnly);
+  // The list below the tiles still shows the latest uploads, whatever their status.
+  const { receipts: recentReceipts, isLoading: receiptsLoading } = useRecentReceipts(householdId, 5, personalOnly);
 
-  // Memoize the stats calculation to avoid recalculating on every render
-  const stats = useMemo(() => {
-    if (!receipts || receipts.length === 0) {
-      return {
-        totalReceipts: 0,
-        totalItems: 0,
-        totalSpent: 0,
-        avgSpending: 0,
-        topCategory: 'No data',
-        spendingByCategory: [],
-        recentReceipts: [],
-      };
-    }
-
-    // Calculate total spent
-    const totalSpent = receipts.reduce((sum: number, receipt: ReceiptWithItems) => {
-      return sum + (parseFloat(receipt.totalAmount || '0') || 0);
-    }, 0);
-
-    // Calculate spending by category
-    const categoryTotals: Record<string, number> = {};
-    receipts.forEach((receipt: ReceiptWithItems) => {
-      const category = receipt.category || 'other';
-      categoryTotals[category] = (categoryTotals[category] || 0) + (parseFloat(receipt.totalAmount || '0') || 0);
-    });
-
-    // Convert to array and calculate percentages
-    const spendingByCategory = Object.entries(categoryTotals)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        percentage: totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount);
-
-    // Find top category
-    const topCategory = spendingByCategory.length > 0
-      ? spendingByCategory[0].category
-      : 'No data';
-
-    // Get recent receipts (last 5)
-    const recentReceipts = [...receipts]
-      .sort((a: ReceiptWithItems, b: ReceiptWithItems) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
-      .slice(0, 5);
-
-    // The dashboard previously showed the receipt count twice, once labelled
-    // "Items Tracked / Individual purchases", because there was no item total to
-    // show. There is one now.
-    const totalItems = receipts.reduce(
-      (sum: number, receipt: ReceiptWithItems) => sum + (receipt.items?.length ?? 0),
-      0,
-    );
-
-    return {
-      totalReceipts: receipts.length,
-      totalItems,
-      totalSpent,
-      // Total divided by number of receipts: the mean *per receipt*, not per day.
-      // Named `avgSpending` historically; the label in the UI now says what it is.
-      avgSpending: receipts.length > 0 ? totalSpent / receipts.length : 0,
-      topCategory,
-      spendingByCategory,
-      recentReceipts,
-    };
-  }, [receipts]);
+  const stats = {
+    totalReceipts: data?.totalReceipts ?? 0,
+    totalItems: data?.totalItems ?? 0,
+    totalSpent: data?.totalSpent ?? 0,
+    // Total divided by number of receipts: the mean *per receipt*, not per day.
+    avgSpending: data?.avgSpending ?? 0,
+    topCategory: data?.spendingByCategory[0]?.category ?? 'No data',
+    spendingByCategory: data?.spendingByCategory ?? [],
+    recentReceipts,
+  };
 
   return {
     stats,
-    isLoading: receiptsLoading,
+    isLoading: statsLoading || receiptsLoading,
     error: null,
   };
 }

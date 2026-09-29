@@ -43,7 +43,10 @@ export const householdUsers = pgTable('household_users', {
 export const receipts = pgTable('receipts', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  householdId: uuid('household_id').references(() => households.id, { onDelete: 'cascade' }),
+  // 'set null', not 'cascade': a receipt belongs to the person who uploaded it. Deleting a
+  // household used to hard-delete every member's receipts (and their line items) along with it;
+  // now they fall back to each owner's personal view.
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
   imageUrl: text('image_url').notNull(),
   merchantName: text('merchant_name'),
   totalAmount: text('total_amount'),
@@ -70,7 +73,14 @@ export const receipts = pgTable('receipts', {
   deletedAt: timestamp('deleted_at'), // Soft delete timestamp
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  // Every list, search and insights query filters on owner or household plus deletedAt;
+  // the table previously had no index beyond its primary key.
+  userIdDeletedAtIdx: index('receipts_user_id_deleted_at_idx').on(table.userId, table.deletedAt),
+  householdIdDeletedAtIdx: index('receipts_household_id_deleted_at_idx').on(table.householdId, table.deletedAt),
+  // Serves the stuck-processing sweeper.
+  processingStatusUpdatedAtIdx: index('receipts_processing_status_updated_at_idx').on(table.processingStatus, table.updatedAt),
+}));
 
 // Receipt Items Table
 export const receiptItems = pgTable('receipt_items', {
@@ -85,7 +95,9 @@ export const receiptItems = pgTable('receipt_items', {
   description: text('description'),
   modifiers: jsonb('modifiers'), // Array of { name, price, type }
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  receiptIdIdx: index('receipt_items_receipt_id_idx').on(table.receiptId),
+}));
 
 // Household Invitations Table
 export const householdInvitations = pgTable('household_invitations', {
@@ -105,7 +117,10 @@ export const apiKeys = pgTable('api_keys', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull().default('Chrome Extension'),
+  // SHA-256 hex digest of the key, never the key itself — the plaintext is shown once at creation.
   key: text('key').notNull().unique(),
+  // First characters of the plaintext key, so the settings page can tell keys apart.
+  keyPrefix: text('key_prefix'),
   lastUsedAt: timestamp('last_used_at'),
   expiresAt: timestamp('expires_at'), // NULL for non-expiring keys
   isRevoked: boolean('is_revoked').notNull().default(false),
@@ -158,7 +173,9 @@ export type NewInsightsCache = typeof insightsCache.$inferInsert;
 export const subscriptions = pgTable('subscriptions', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  householdId: uuid('household_id').references(() => households.id, { onDelete: 'cascade' }),
+  // 'set null' for the same reason as receipts.householdId: deleting a household must not
+  // delete the subscriptions its members track.
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
 
   // Subscription Details
   name: text('name').notNull(),

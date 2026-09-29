@@ -1,15 +1,28 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { households, householdUsers, householdInvitations, users } from '@/lib/db/schema';
-import { HouseholdService } from '@/lib/services/household-service';
-import { getAuthenticatedUser } from '@/lib/auth-helpers';
-import { eq, and } from 'drizzle-orm';
+import { households } from '@/lib/db/schema';
+import { buildInviteUrl, HouseholdError, HouseholdService } from '@/lib/services/household-service';
+import {
+  getAuthenticatedUser,
+  getHouseholdMembership,
+  requireNoPendingDeletion,
+  requireSubscription,
+} from '@/lib/auth-helpers';
+import { eq } from 'drizzle-orm';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';
 
-// Send invitation
+const NO_STORE = { 'Cache-Control': 'private, no-store' };
+
+/**
+ * POST /api/households/:id/invitations
+ *
+ * Create an invitation (owner only) and return its shareable link. There is no email
+ * provider, so the owner sends the link themselves; someone who already has an account on the
+ * invited address also sees it in their notifications.
+ */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -20,53 +33,56 @@ export async function POST(
     if (authResult instanceof NextResponse) return authResult;
     const { user } = authResult;
 
+    // Household management is part of Premium; the UI already hid Invite from
+    // non-subscribers, this makes the rule hold server-side too.
+    const subscriptionCheck = await requireSubscription(user);
+    if (subscriptionCheck) return subscriptionCheck;
+    const deletionCheck = requireNoPendingDeletion(user);
+    if (deletionCheck) return deletionCheck;
+
     const { id: householdId } = await params;
-    const { email } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const email = typeof body.email === 'string' ? body.email : '';
 
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 },
-      );
-    }
+    const invitation = await HouseholdService.createInvitation(householdId, email, user.id);
 
-    // Use the service to create the invitation
-    const invitation = await HouseholdService.createInvitation(
-      householdId,
-      email,
-      user.id,
-    );
-
-    // Get household info for the response
     const [household] = await db
-      .select()
+      .select({ name: households.name })
       .from(households)
       .where(eq(households.id, householdId))
       .limit(1);
 
-    submitLogEvent('invitation', `Invitation created for ${email}`, correlationId, {
+    submitLogEvent('invitation', 'Invitation created', correlationId, {
       householdId,
       invitationId: invitation.id,
-      invitedEmail: email,
     });
 
     return NextResponse.json({
       id: invitation.id,
       householdName: household?.name,
-      invitedEmail: email,
-      status: 'pending',
+      invitedEmail: invitation.invitedEmail,
+      status: invitation.status,
       expiresAt: invitation.expiresAt,
-    });
+      inviteUrl: buildInviteUrl(invitation.token),
+    }, { status: 201, headers: NO_STORE });
   } catch (error) {
-    submitLogEvent('invitation', `Error sending invitation: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
+    if (error instanceof HouseholdError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    submitLogEvent('invitation', `Error creating invitation: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to send invitation' },
+      { error: 'Failed to create invitation' },
       { status: 500 },
     );
   }
 }
 
-// Get invitations for household
+/**
+ * GET /api/households/:id/invitations
+ *
+ * Pending, unexpired invitations for a household (members only). Only the owner gets the
+ * invite links — a link is the authorisation to join, so members don't get to hand them out.
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -79,18 +95,7 @@ export async function GET(
 
     const { id: householdId } = await params;
 
-    // Check if user is member of household
-    const [membership] = await db
-      .select()
-      .from(householdUsers)
-      .where(
-        and(
-          eq(householdUsers.householdId, householdId),
-          eq(householdUsers.userId, user.id),
-        ),
-      )
-      .limit(1);
-
+    const membership = await getHouseholdMembership(householdId, user.id);
     if (!membership) {
       return NextResponse.json(
         { error: 'Not authorized to view invitations' },
@@ -98,21 +103,16 @@ export async function GET(
       );
     }
 
-    // Get all invitations for this household
-    const invitations = await db
-      .select({
-        id: householdInvitations.id,
-        invitedEmail: householdInvitations.invitedEmail,
-        status: householdInvitations.status,
-        createdAt: householdInvitations.createdAt,
-        expiresAt: householdInvitations.expiresAt,
-        invitedByEmail: users.email,
-      })
-      .from(householdInvitations)
-      .leftJoin(users, eq(householdInvitations.invitedByUserId, users.id))
-      .where(eq(householdInvitations.householdId, householdId));
+    const isOwner = membership.role === 'owner';
+    const invitations = await HouseholdService.getPendingInvitations(householdId);
 
-    return NextResponse.json(invitations);
+    return NextResponse.json(
+      invitations.map(({ token, ...invitation }) => ({
+        ...invitation,
+        ...(isOwner && { inviteUrl: buildInviteUrl(token) }),
+      })),
+      { headers: NO_STORE },
+    );
   } catch (error) {
     submitLogEvent('invitation', `Error fetching invitations: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(

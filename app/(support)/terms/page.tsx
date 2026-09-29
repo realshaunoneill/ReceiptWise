@@ -3,6 +3,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/navigation';
 
+// Same derivation as createCheckoutSession in lib/stripe.ts, so the terms never describe a trial
+// that checkout would not grant.
+const TRIAL_DAYS = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
+  ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS, 10)
+  : 0;
+const HAS_TRIAL = TRIAL_DAYS > 0 && !Number.isNaN(TRIAL_DAYS);
+
 export default function TermsPage() {
   return (
     <>
@@ -11,7 +18,7 @@ export default function TermsPage() {
         <div>
           <h1 id="terms-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Terms of Service</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: December 6, 2025
+            Last updated: September 29, 2026
           </p>
         </div>
 
@@ -62,20 +69,35 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>
-              <strong>Free Tier:</strong> The Service offers a free tier with limited features and receipt storage.
+              <strong>One plan:</strong> ReceiptWise has a single paid plan, Premium, billed monthly or annually at
+              the price shown on the pricing page when you subscribe. There is no free tier. Prices include any
+              VAT that applies.
             </p>
+            {HAS_TRIAL && (
+              <p>
+                <strong>Free trial:</strong> New subscribers get a {TRIAL_DAYS}-day free trial. Card details are
+                needed to start it. If you do not cancel before the trial ends, your subscription continues
+                automatically and you are charged the monthly or annual price you chose. The trial is available
+                once per customer.
+              </p>
+            )}
             <p>
-              <strong>Premium Subscription:</strong> Premium features require a paid subscription. Subscriptions are
-              billed on a recurring basis (monthly or annually) and will automatically renew unless cancelled.
+              <strong>Renewal:</strong> Subscriptions renew automatically at the end of each billing period until
+              you cancel.
             </p>
             <p>
               <strong>Payment Processing:</strong> All payments are processed securely through Stripe. We do not
               store your credit card information.
             </p>
             <p>
-              <strong>Cancellation:</strong> You may cancel your subscription at any time through the billing portal
-              in your account settings. Upon cancellation, you will retain access to premium features until the end
-              of your current billing period.
+              <strong>Cancellation:</strong> You may cancel at any time through the billing portal in Settings.
+              Cancellation takes effect at the end of the current billing period (or the trial), and you keep access
+              until then.
+            </p>
+            <p>
+              <strong>Refunds and your right to withdraw:</strong> see our{' '}
+              <a href="/refund" className="text-primary hover:underline">Refund Policy</a>, which includes the
+              14-day right of withdrawal that consumers in the EU and UK have.
             </p>
           </CardContent>
         </Card>
@@ -110,6 +132,7 @@ export default function TermsPage() {
               <li>Use automated systems to access the Service without our permission</li>
               <li>Interfere with or disrupt the Service or servers</li>
               <li>Impersonate any person or entity</li>
+              <li>Upload in bulk or by script beyond normal personal and household use; receipt processing is rate-limited to keep the service available to everyone</li>
             </ul>
           </CardContent>
         </Card>
@@ -154,7 +177,7 @@ export default function TermsPage() {
               data.
             </p>
             <p>
-              Household administrators are responsible for managing member access and permissions.
+              The household owner is responsible for who they invite, and can remove members.
             </p>
           </CardContent>
         </Card>
@@ -193,6 +216,10 @@ export default function TermsPage() {
               special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred
               directly or indirectly, or any loss of data, use, goodwill, or other intangible losses.
             </p>
+            <p>
+              Nothing in these Terms excludes or limits liability that cannot be excluded or limited by law, or
+              affects your statutory rights as a consumer.
+            </p>
           </CardContent>
         </Card>
 
@@ -203,8 +230,9 @@ export default function TermsPage() {
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>
               We may terminate or suspend your account and access to the Service immediately, without prior notice,
-              for conduct that we believe violates these Terms or is harmful to other users, us, or third parties,
-              or for any other reason.
+              for conduct that we believe violates these Terms or is harmful to other users, us, or third parties.
+              If we close your account for any other reason, we will give you reasonable notice where we can and
+              refund any unused part of a period you have paid for.
             </p>
             <p>
               Upon termination, your right to use the Service will immediately cease. You may delete your account
@@ -219,9 +247,9 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>
-              We reserve the right to modify these terms at any time. If we make material changes, we will notify
-              you by email or through a notice on the Service. Your continued use of the Service after such
-              modifications constitutes your acceptance of the updated terms.
+              We may modify these terms. If we make material changes, we will show a notice in the Service before
+              they take effect. If you do not agree to the changes, you can cancel before they apply; continuing to
+              use the Service after that means you accept them.
             </p>
           </CardContent>
         </Card>
@@ -232,8 +260,9 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>
-              These Terms shall be governed by and construed in accordance with the laws of the jurisdiction in
-              which ReceiptWise operates, without regard to its conflict of law provisions.
+              These Terms are governed by the laws of Ireland, and the Irish courts have jurisdiction. If you are a
+              consumer living elsewhere in the EU or in the UK, you also keep the protection of the mandatory
+              consumer laws of your country, and you can bring proceedings in your local courts.
             </p>
           </CardContent>
         </Card>

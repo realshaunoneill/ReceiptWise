@@ -13,11 +13,14 @@ import { Check, Minus } from 'lucide-react';
  * "Priority Support" previously listed the free column as "Community support".
  * There is no community — no forum, no Discord, nothing — so that row promised a
  * support channel that does not exist. It says what free users actually get.
+ *
+ * The first column was headed "Free", which read as a free plan. There is no free plan —
+ * one paid plan with a trial — so it describes an account without a subscription.
  */
 const features = [
   {
     title: 'Receipts',
-    description: 'Photograph, upload or clip a receipt and have it read for you.',
+    description: 'Photograph or upload a receipt and have it read for you.',
     free: 'Read what you already added',
     premium: 'Unlimited',
   },
@@ -48,20 +51,21 @@ const features = [
   {
     title: 'Export',
     description: 'Take everything out as CSV, JSON, or HTML with the images.',
-    free: null,
+    // Export is not gated, and should not be: taking your data out is a right (GDPR Art. 20).
+    free: 'Any time',
     premium: 'Any time',
   },
   {
     title: 'Chrome extension',
-    description: 'Clip online receipts that never get printed.',
+    description: 'Clip online receipts that never get printed. Coming to the Chrome Web Store.',
     free: null,
-    premium: 'Included',
+    premium: 'When it launches',
   },
   {
     title: 'Support',
     description: 'Email us and a person reads it.',
     free: 'Email support',
-    premium: 'Prioritised',
+    premium: 'Email support',
   },
 ];
 
@@ -86,7 +90,7 @@ export function ComparisonTable() {
                   Feature
                 </th>
                 <th scope="col" className="px-4 py-3 text-sm font-medium text-muted-foreground">
-                  Free
+                  Without Premium
                 </th>
                 <th scope="col" className="px-4 py-3 text-sm font-semibold text-primary">
                   Premium

@@ -15,10 +15,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, Search, CreditCard, Crown, Check, PieChart, ScanLine, ArrowRight, LineChart } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
-
-const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 export default function InsightsPage() {
+  const trialDays = useTrialDays();
   const router = useRouter();
   const { isLoading, isSubscribed } = useUser();
   const { data: households = [] } = useHouseholds();
@@ -202,8 +202,6 @@ export default function InsightsPage() {
                     'Unlimited households',
                     'Subscription tracking',
                     'Filter by household or personal',
-                    'CSV and JSON export',
-                    'Priority support',
                   ].map((feature) => (
                     <div key={feature} className="flex items-center gap-2">
                       <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />

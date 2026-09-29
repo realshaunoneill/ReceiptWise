@@ -58,6 +58,37 @@ export async function GET(req: NextRequest) {
       )
       .orderBy(receipts.transactionDate);
 
+    // Line items for every exported receipt. They were only included in the
+    // receipts-with-images variant, so the "all data" export — the one offered for data
+    // portability — silently left out every line item.
+    const receiptIds = userReceipts.map(r => r.id);
+    const allItems = receiptIds.length > 0 ? await db
+      .select({
+        receiptId: receiptItems.receiptId,
+        name: receiptItems.name,
+        quantity: receiptItems.quantity,
+        unitPrice: receiptItems.unitPrice,
+        price: receiptItems.price,
+        totalPrice: receiptItems.totalPrice,
+        category: receiptItems.category,
+        description: receiptItems.description,
+        modifiers: receiptItems.modifiers,
+      })
+      .from(receiptItems)
+      .where(inArray(receiptItems.receiptId, receiptIds))
+      : [];
+
+    const itemsByReceipt = new Map<string, typeof allItems>();
+    for (const item of allItems) {
+      const list = itemsByReceipt.get(item.receiptId) || [];
+      list.push(item);
+      itemsByReceipt.set(item.receiptId, list);
+    }
+    const receiptsWithItems = userReceipts.map(receipt => ({
+      ...receipt,
+      items: itemsByReceipt.get(receipt.id) || [],
+    }));
+
     // Fetch user's subscriptions with payments
     const userSubscriptions = await db
       .select({
@@ -131,36 +162,18 @@ export async function GET(req: NextRequest) {
       };
 
       if (type === 'receipts-with-images') {
-        // Fetch receipt items for all receipts
-        const receiptIds = userReceipts.map(r => r.id);
-        const allItems = receiptIds.length > 0 ? await db
-          .select({
-            receiptId: receiptItems.receiptId,
-            name: receiptItems.name,
-            quantity: receiptItems.quantity,
-            price: receiptItems.price,
-            totalPrice: receiptItems.totalPrice,
-            category: receiptItems.category,
-          })
-          .from(receiptItems)
-          .where(inArray(receiptItems.receiptId, receiptIds))
-          : [];
-
-        // Combine receipts with their items
-        exportData.receipts = userReceipts.map(receipt => ({
-          ...receipt,
-          items: allItems.filter(item => item.receiptId === receipt.id),
-        }));
+        exportData.receipts = receiptsWithItems;
 
         return NextResponse.json(exportData, {
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'private, no-store',
           },
         });
       }
 
       if (type === 'receipts' || type === 'all') {
-        exportData.receipts = userReceipts;
+        exportData.receipts = receiptsWithItems;
       }
 
       if (type === 'subscriptions' || type === 'all') {
@@ -177,96 +190,126 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(exportData, {
         headers: {
           'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="smartspend-export-${new Date().toISOString().split('T')[0]}.json"`,
+          'Content-Disposition': `attachment; filename="receiptwise-export-${new Date().toISOString().split('T')[0]}.json"`,
+          'Cache-Control': 'private, no-store',
         },
       });
     } else {
-      // CSV format
+      // CSV format. Every field goes through csvField — previously only a few were escaped, so
+      // a comma in a category or payment method shifted every column after it.
+      const row = (fields: unknown[]) => fields.map(csvField).join(',') + '\n';
+      const day = (date: Date | null | undefined) => date?.toISOString().split('T')[0] || '';
       let csvContent = '';
 
       if (type === 'receipts' || type === 'all') {
         csvContent += 'RECEIPTS\n';
-        csvContent += 'Merchant,Amount,Currency,Date,Category,Payment Method,Location,Tax,Subtotal,Receipt Number,Business Expense,Business Category,Tax Deductible,Created At\n';
+        csvContent += row(['Receipt ID', 'Merchant', 'Amount', 'Currency', 'Date', 'Category', 'Payment Method', 'Location', 'Tax', 'Subtotal', 'Service Charge', 'Receipt Number', 'Business Expense', 'Business Category', 'Business Notes', 'Tax Deductible', 'Created At']);
 
         userReceipts.forEach(receipt => {
-          csvContent += [
-            escapeCSV(receipt.merchantName || ''),
-            receipt.totalAmount || '',
-            receipt.currency || '',
-            receipt.transactionDate || '',
-            receipt.category || '',
-            receipt.paymentMethod || '',
-            escapeCSV(receipt.location || ''),
-            receipt.tax || '',
-            receipt.subtotal || '',
-            receipt.receiptNumber || '',
+          csvContent += row([
+            receipt.id,
+            receipt.merchantName,
+            receipt.totalAmount,
+            receipt.currency,
+            receipt.transactionDate,
+            receipt.category,
+            receipt.paymentMethod,
+            receipt.location,
+            receipt.tax,
+            receipt.subtotal,
+            receipt.serviceCharge,
+            receipt.receiptNumber,
             receipt.isBusinessExpense ? 'Yes' : 'No',
-            receipt.businessCategory || '',
+            receipt.businessCategory,
+            receipt.businessNotes,
             receipt.taxDeductible ? 'Yes' : 'No',
-            receipt.createdAt?.toISOString() || '',
-          ].join(',') + '\n';
+            receipt.createdAt?.toISOString(),
+          ]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'RECEIPT ITEMS\n';
+        csvContent += row(['Receipt ID', 'Merchant', 'Date', 'Item', 'Quantity', 'Unit Price', 'Total Price', 'Category', 'Description']);
+
+        userReceipts.forEach(receipt => {
+          (itemsByReceipt.get(receipt.id) || []).forEach(item => {
+            csvContent += row([
+              receipt.id,
+              receipt.merchantName,
+              receipt.transactionDate,
+              item.name,
+              item.quantity,
+              item.unitPrice,
+              item.totalPrice ?? item.price,
+              item.category,
+              item.description,
+            ]);
+          });
         });
         csvContent += '\n';
       }
 
       if (type === 'subscriptions' || type === 'all') {
         csvContent += 'SUBSCRIPTIONS\n';
-        csvContent += 'Name,Description,Amount,Currency,Billing Frequency,Billing Day,Status,Start Date,Next Billing,Last Payment,Business Expense,Website,Created At\n';
+        csvContent += row(['Name', 'Description', 'Category', 'Amount', 'Currency', 'Billing Frequency', 'Billing Day', 'Status', 'Start Date', 'Next Billing', 'Last Payment', 'Business Expense', 'Website', 'Notes', 'Created At']);
 
         userSubscriptions.forEach(sub => {
-          csvContent += [
-            escapeCSV(sub.name),
-            escapeCSV(sub.description || ''),
+          csvContent += row([
+            sub.name,
+            sub.description,
+            sub.category,
             sub.amount,
             sub.currency,
             sub.billingFrequency,
             sub.billingDay,
             sub.status,
-            sub.startDate?.toISOString().split('T')[0] || '',
-            sub.nextBillingDate?.toISOString().split('T')[0] || '',
-            sub.lastPaymentDate?.toISOString().split('T')[0] || '',
+            day(sub.startDate),
+            day(sub.nextBillingDate),
+            day(sub.lastPaymentDate),
             sub.isBusinessExpense ? 'Yes' : 'No',
-            sub.website || '',
-            sub.createdAt?.toISOString() || '',
-          ].join(',') + '\n';
+            sub.website,
+            sub.notes,
+            sub.createdAt?.toISOString(),
+          ]);
         });
         csvContent += '\n';
 
         csvContent += 'SUBSCRIPTION PAYMENTS\n';
-        csvContent += 'Subscription,Expected Date,Expected Amount,Status,Actual Date,Actual Amount,Notes\n';
+        csvContent += row(['Subscription', 'Expected Date', 'Expected Amount', 'Status', 'Actual Date', 'Actual Amount', 'Notes']);
 
         payments.forEach(payment => {
           const sub = userSubscriptions.find(s => s.id === payment.subscriptionId);
-          csvContent += [
-            escapeCSV(sub?.name || ''),
-            payment.expectedDate?.toISOString().split('T')[0] || '',
+          csvContent += row([
+            sub?.name,
+            day(payment.expectedDate),
             payment.expectedAmount,
             payment.status,
-            payment.actualDate?.toISOString().split('T')[0] || '',
-            payment.actualAmount || '',
-            escapeCSV(payment.notes || ''),
-          ].join(',') + '\n';
+            day(payment.actualDate),
+            payment.actualAmount,
+            payment.notes,
+          ]);
         });
         csvContent += '\n';
       }
 
       if (type === 'all') {
         csvContent += 'HOUSEHOLDS\n';
-        csvContent += 'Household Name,Role,Joined At\n';
+        csvContent += row(['Household Name', 'Role', 'Joined At']);
 
         userHouseholds.forEach(household => {
-          csvContent += [
-            escapeCSV(household.householdName),
+          csvContent += row([
+            household.householdName,
             household.role,
-            household.joinedAt?.toISOString() || '',
-          ].join(',') + '\n';
+            household.joinedAt?.toISOString(),
+          ]);
         });
       }
 
       return new NextResponse(csvContent, {
         headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="smartspend-export-${new Date().toISOString().split('T')[0]}.csv"`,
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="receiptwise-export-${new Date().toISOString().split('T')[0]}.csv"`,
+          'Cache-Control': 'private, no-store',
         },
       });
     }
@@ -280,11 +323,24 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Escape CSV values to handle commas, quotes, and newlines
+ * Render one CSV field.
+ *
+ * Quotes anything containing a comma, quote or line break. Also neutralises spreadsheet formula
+ * injection: merchant names, item names and notes come from OCR of arbitrary images (or from
+ * the user), and a cell starting with =, +, -, @, tab or CR is executed as a formula by Excel
+ * and Sheets. Those get a leading apostrophe so they display as text. Plain negative numbers
+ * are left alone so amounts stay numeric.
  */
-function escapeCSV(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
+function csvField(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  let text = String(value);
+
+  if (/^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text)) {
+    text = `'${text}`;
   }
-  return value;
+
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
 }

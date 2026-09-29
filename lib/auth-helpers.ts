@@ -10,13 +10,21 @@ import type { User, Receipt } from '@/lib/db/schema';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 
 /**
- * Get user email from Clerk
+ * Get the user's primary, verified email from Clerk.
+ *
+ * `users.email` is used as an identity key — invitations are matched on it, and Stripe customers
+ * are re-associated by it — so it must only ever hold an address Clerk has verified. It is
+ * lower-cased so that matching an invitation typed as "Megan@Gmail.com" works.
  */
 export async function getClerkUserEmail(clerkId: string, correlationId?: CorrelationId): Promise<string | null> {
   try {
     const client = await clerkClient();
     const user = await client.users.getUser(clerkId);
-    return user.emailAddresses[0]?.emailAddress ?? null;
+    const primary = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId);
+    const verified = [primary, ...user.emailAddresses].find(
+      (e) => e && e.verification?.status === 'verified',
+    );
+    return verified?.emailAddress.trim().toLowerCase() ?? null;
   } catch (error) {
     submitLogEvent('auth', `Error fetching Clerk user: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId || randomUUID() as CorrelationId, { clerkId }, true);
     return null;
@@ -165,23 +173,72 @@ export async function requireHouseholdMembership(
 }
 
 /**
- * Verify receipt ownership or admin
- * Returns null if authorized, or NextResponse error if not
+ * Require READ access to a receipt: the owner, a member of the household the receipt is
+ * assigned to, or an admin.
+ *
+ * Household members are included deliberately. /api/receipts already lists a household's
+ * receipts to every member, so gating the detail fetch on ownership alone made a shared
+ * receipt visible in the list but 403 on open — the detail modal then silently fell back to
+ * stale list data, and retry/refresh appeared to do nothing.
+ *
+ * This is read-only permission. Mutations stay owner-only — see requireReceiptOwner.
+ *
+ * Returns null if authorized, or a NextResponse error if not.
  */
 export async function requireReceiptAccess(
   receipt: Receipt,
   user: User,
   correlationId: CorrelationId,
 ) {
-  const isAdmin = await UserService.isAdmin(user.id);
-  if (receipt.userId !== user.id && !isAdmin) {
-    submitLogEvent('receipt', 'Unauthorized receipt access attempt', correlationId, { userId: user.id, receiptId: receipt.id }, true);
-    return NextResponse.json(
-      { error: "You don't have permission to access this receipt" },
-      { status: 403 },
-    );
+  // Owner is the common case; resolve it without extra queries.
+  if (receipt.userId === user.id) {
+    return null;
   }
-  return null;
+
+  if (receipt.householdId) {
+    const membership = await getHouseholdMembership(receipt.householdId, user.id);
+    if (membership) {
+      return null;
+    }
+  }
+
+  if (await UserService.isAdmin(user.id)) {
+    return null;
+  }
+
+  submitLogEvent('receipt', 'Unauthorized receipt access attempt', correlationId, { userId: user.id, receiptId: receipt.id }, true);
+  return NextResponse.json(
+    { error: "You don't have permission to access this receipt" },
+    { status: 403 },
+  );
+}
+
+/**
+ * Require OWNERSHIP of a receipt (or admin) for destructive or mutating operations.
+ *
+ * Kept separate from requireReceiptAccess so that widening read access to household members
+ * never silently grants them the ability to delete each other's receipts.
+ *
+ * Returns null if authorized, or a NextResponse error if not.
+ */
+export async function requireReceiptOwner(
+  receipt: Receipt,
+  user: User,
+  correlationId: CorrelationId,
+) {
+  if (receipt.userId === user.id) {
+    return null;
+  }
+
+  if (await UserService.isAdmin(user.id)) {
+    return null;
+  }
+
+  submitLogEvent('receipt', 'Unauthorized receipt modification attempt', correlationId, { userId: user.id, receiptId: receipt.id }, true);
+  return NextResponse.json(
+    { error: "You don't have permission to modify this receipt" },
+    { status: 403 },
+  );
 }
 
 /**
@@ -205,6 +262,9 @@ export function filterReceiptForSubscription(receipt: Receipt | ReceiptWithItems
     transactionDate: receipt.transactionDate,
     category: receipt.category,
     processingStatus: receipt.processingStatus,
+    // Kept so a failed receipt still says why, and a non-receipt image is still flagged.
+    processingError: receipt.processingError,
+    isReceipt: receipt.isReceipt,
     createdAt: receipt.createdAt,
     updatedAt: receipt.updatedAt,
   };

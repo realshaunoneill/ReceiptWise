@@ -11,13 +11,14 @@ import { capitalizeText } from '@/lib/utils/format-category';
 import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
+import { canRetryReceipt, isStuckProcessing } from '@/lib/utils/receipt-status';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 interface HouseholdInfo {
   id: string;
   name: string;
-  members?: Array<{ user_id: string; role: string; email: string }>;
+  members?: Array<{ userId: string; role: string; email: string }>;
 }
 
 interface ReceiptHeaderProps {
@@ -168,8 +169,17 @@ export function ReceiptHeader({
         </div>
       )}
 
-      {/* Retry Button for Failed Receipts */}
-      {receipt.processingStatus === 'failed' && isReceiptOwner && (
+      {isStuckProcessing(receipt) && (
+        <div className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3">
+          <p className="text-sm text-warning">
+            <AlertCircle className="h-4 w-4 inline mr-2" aria-hidden="true" />
+            Reading this receipt hasn&apos;t finished.{isReceiptOwner ? ' Try again below.' : ''}
+          </p>
+        </div>
+      )}
+
+      {/* Retry for failed receipts, and for ones whose processing never finished */}
+      {canRetryReceipt(receipt) && isReceiptOwner && (
         <div className="mt-4">
           <Button
             onClick={handleRetry}

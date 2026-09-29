@@ -174,7 +174,7 @@ export default function SettingsPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `smartspend-export-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : 'csv'}`;
+      a.download = `receiptwise-export-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : 'csv'}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -614,10 +614,11 @@ export default function SettingsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-foreground">
-                            {userData?.subscribed ? 'Premium Plan' : 'Free Plan'}
+                            {userData?.subscribed ? 'Premium Plan' : 'No subscription'}
                           </p>
+                          {/* There is no free plan — only Premium, with a trial. */}
                           <Badge variant={userData?.subscribed ? 'default' : 'secondary'}>
-                            {userData?.subscribed ? 'Premium' : 'Free'}
+                            {userData?.subscribed ? 'Premium' : 'Inactive'}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
@@ -659,10 +660,6 @@ export default function SettingsPage() {
                         <li className="flex items-center gap-2">
                           <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                           Household sharing & collaboration
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                          Priority support
                         </li>
                       </ul>
                     </div>
@@ -741,14 +738,15 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>Chrome Extension</CardTitle>
                 <CardDescription>
-                  Capture receipts from anywhere on the web with our browser extension
+                  Capture receipts from anywhere on the web. The extension is on its way to the
+                  Chrome Web Store; until it is listed, keys created here are ready for when it arrives.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-lg bg-muted/50 p-4 space-y-3">
                   <h4 className="font-medium text-sm">How it works</h4>
                   <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
-                    <li>Install the ReceiptWise Clipper extension from the Chrome Web Store</li>
+                    <li>Install the ReceiptWise Clipper extension from the Chrome Web Store once it is listed</li>
                     <li>Create an API key below and copy it into the extension</li>
                     <li>Use the snipping tool to capture receipts from any webpage</li>
                   </ol>

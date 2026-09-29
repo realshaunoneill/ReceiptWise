@@ -8,11 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight, Check, Crown } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 type BillingInterval = 'monthly' | 'annual';
 
 export function PricingCard() {
   const [selectedInterval, setSelectedInterval] = useState<BillingInterval>('annual');
+  const trialDays = useTrialDays();
 
   // Fetch pricing details from API
   const { data: pricing, isLoading } = useQuery({
@@ -37,14 +39,15 @@ export function PricingCard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+        // The API returns a user-facing message (e.g. "You already have a subscription").
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to start checkout. Please try again.');
       }
 
       return response.json();
     },
     onSuccess: (data) => {
       if (data.url) {
-        const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
         if (trialDays > 0) {
           toast.success(`Starting your ${trialDays}-day free trial...`);
         }
@@ -53,7 +56,7 @@ export function PricingCard() {
     },
     onError: (error) => {
       console.error('Error creating checkout session:', error);
-      toast.error('Failed to start checkout. Please try again.');
+      toast.error(error.message);
     },
   });
 
@@ -78,7 +81,6 @@ export function PricingCard() {
   const monthlyPrice = pricing?.monthly ? formatPrice(pricing.monthly.amount, pricing.monthly.currency) : null;
   const annualPrice = pricing?.annual ? formatPrice(pricing.annual.amount, pricing.annual.currency) : null;
   const annualMonthlyEquivalent = pricing?.annual ? formatPrice(pricing.annual.amount / 12, pricing.annual.currency) : null;
-  const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
 
   // Calculate savings percentage
   const savingsPercentage = pricing?.monthly && pricing?.annual

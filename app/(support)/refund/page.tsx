@@ -14,7 +14,7 @@ export default function RefundPage() {
           <div>
             <h1 id="refund-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Refund Policy</h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              Learn about our refund process and subscription management
+              Last updated: September 29, 2026
             </p>
           </div>
           <Link
@@ -40,9 +40,10 @@ export default function RefundPage() {
                     <RefreshCcw className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
-                    <h3 className="font-medium">Pro-Rated Refunds</h3>
+                    <h3 className="font-medium">14 days to change your mind</h3>
                     <p className="text-sm text-muted-foreground">
-                      We offer pro-rated refunds for unused subscription time within 7 days of purchase or renewal.
+                      Ask within 14 days of being charged and we refund that payment in full. This covers the
+                      right of withdrawal consumers have in the EU and UK, and we apply it to everyone.
                     </p>
                   </div>
                 </div>
@@ -78,7 +79,7 @@ export default function RefundPage() {
                   <div>
                     <h3 className="font-medium">Cancellation Anytime</h3>
                     <p className="text-sm text-muted-foreground">
-                      You can cancel your subscription anytime through the billing portal. No refund needed.
+                      Cancel any time in the billing portal. Cancelling during the free trial means you are never charged.
                     </p>
                   </div>
                 </div>
@@ -90,7 +91,7 @@ export default function RefundPage() {
           <Card className="relative overflow-hidden">
             <CardHeader>
               <CardTitle>Manage Your Subscription</CardTitle>
-              <CardDescription>Cancel or modify your subscription easily</CardDescription>
+              <CardDescription>Cancel or change your plan yourself</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 bg-muted/50 rounded-lg space-y-3">
@@ -101,7 +102,7 @@ export default function RefundPage() {
                 <ul className="text-sm text-muted-foreground space-y-2">
                   <li className="flex items-start gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                    <span>Cancel or pause your subscription</span>
+                    <span>Cancel your subscription</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
@@ -218,8 +219,9 @@ export default function RefundPage() {
               </p>
               <ul className="list-disc pl-4 space-y-2">
                 <li>
-                  <strong>7-Day Window:</strong> Refund requests must be submitted within 7 days of subscription
-                  purchase or renewal. Refunds will be pro-rated based on the unused portion of your subscription.
+                  <strong>14-Day Window:</strong> Ask within 14 days of a charge — the first payment after your trial,
+                  or a renewal — and that payment is refunded in full. After 14 days, cancelling stops the next
+                  renewal, and you keep access until the end of the period you paid for.
                 </li>
                 <li>
                   <strong>Cancellation vs Refund:</strong> You can cancel your subscription at any time without

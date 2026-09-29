@@ -1,12 +1,82 @@
-'use server';
-
 import Stripe from 'stripe';
 import { UserService } from './services/user-service';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { getAppUrl } from '@/lib/app-url';
+
+/*
+ * This module used to start with 'use server', which turns every exported async function into
+ * a Server Action — a POST endpoint callable by anyone with its action ID, with no auth check —
+ * the moment any client component imported it. Only route handlers and server components use
+ * it, so it is a plain server module.
+ */
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-12-15.clover',
 });
+
+/** Stripe search-query literal for an email, with quotes and backslashes escaped. */
+function emailSearchQuery(email: string): string {
+  return `email:'${email.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/**
+ * Statuses that grant access. `past_due` is included on purpose: Stripe is still retrying the
+ * card, and cutting someone off on the first failed renewal of a €1.99 plan loses more
+ * customers than it protects. If the retries run out Stripe moves the subscription to
+ * `canceled` or `unpaid`, and access ends then.
+ */
+const ENTITLED_STATUSES: Stripe.Subscription.Status[] = ['active', 'trialing', 'past_due'];
+
+/**
+ * The subscription that decides a customer's access: the first entitled one, else the most
+ * recent. Listing only the newest (`limit: 1`) let an abandoned or expired subscription created
+ * after a live one mark a paying customer as unsubscribed.
+ */
+function pickSubscription(subscriptions: Stripe.Subscription[]): Stripe.Subscription | undefined {
+  return subscriptions.find((sub) => ENTITLED_STATUSES.includes(sub.status)) ?? subscriptions[0];
+}
+
+/**
+ * The customer's live (entitled) subscription, if any. Used to refuse a second checkout, which
+ * would otherwise bill the customer twice.
+ */
+export async function getLiveSubscription(customerId: string): Promise<Stripe.Subscription | null> {
+  const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 20 });
+  return subscriptions.data.find((sub) => ENTITLED_STATUSES.includes(sub.status)) ?? null;
+}
+
+/**
+ * The free trial is for first-time subscribers only. It used to be attached to every checkout,
+ * so cancelling and re-subscribing granted a fresh trial each time.
+ */
+async function hasHadSubscription(customerId: string): Promise<boolean> {
+  const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 1 });
+  return subscriptions.data.length > 0;
+}
+
+/** Trial length configured for the product, or 0 when trials are off. */
+function configuredTrialDays(): number {
+  const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
+    ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS, 10)
+    : 0;
+  return trialDays > 0 && !isNaN(trialDays) ? trialDays : 0;
+}
+
+/**
+ * Trial days this customer would get at checkout: the configured length for someone who has
+ * never subscribed, else 0. The in-app upgrade prompts read this so they never promise a returning
+ * customer a trial that checkout will not grant.
+ */
+export async function getTrialDaysForCustomer(customerId: string | null | undefined): Promise<number> {
+  const trialDays = configuredTrialDays();
+  if (!trialDays || !customerId) return trialDays;
+  try {
+    return (await hasHadSubscription(customerId)) ? 0 : trialDays;
+  } catch {
+    // Customer deleted in Stripe: checkout will create a fresh one, which is eligible.
+    return trialDays;
+  }
+}
 
 /**
  * Creates a Stripe customer for a user with comprehensive metadata
@@ -23,7 +93,7 @@ async function createStripeCustomer(
 
     // Check if customer already exists in Stripe by email
     const existingCustomer = await stripe.customers.search({
-      query: `email:'${email}'`,
+      query: emailSearchQuery(email),
     });
 
     if (existingCustomer.data.length > 0) {
@@ -98,7 +168,10 @@ export async function getOrCreateStripeCustomer(
 /**
  * Creates a Stripe checkout session for a subscription
  * Automatically handles customer creation if needed
- * Supports free trial based on NEXT_PUBLIC_STRIPE_TRIAL_DAYS environment variable
+ * Grants the NEXT_PUBLIC_STRIPE_TRIAL_DAYS free trial to first-time subscribers only
+ *
+ * Success and cancel URLs are fixed server-side. They used to be taken from the request body,
+ * which let a caller point Stripe's post-payment redirect anywhere.
  */
 export async function createCheckoutSession(
   userId: string,
@@ -106,8 +179,6 @@ export async function createCheckoutSession(
   clerkId: string,
   priceId: string,
   stripeCustomerId: string | null | undefined,
-  successUrl: string | undefined,
-  cancelUrl: string | undefined,
   correlationId: CorrelationId,
 ) {
   try {
@@ -120,12 +191,8 @@ export async function createCheckoutSession(
       correlationId,
     );
 
-    // Parse trial days from environment variable
-    const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
-      ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS, 10)
-      : 0;
-
-    const hasValidTrial = trialDays > 0 && !isNaN(trialDays);
+    const trialDays = await getTrialDaysForCustomer(customerId);
+    const hasValidTrial = trialDays > 0;
 
     if (hasValidTrial) {
       submitLogEvent('checkout', `Creating checkout session with ${trialDays} day free trial`, correlationId, {
@@ -141,15 +208,7 @@ export async function createCheckoutSession(
       ? Math.floor(Date.now() / 1000) + (trialDays * 24 * 60 * 60) + (5 * 60)
       : undefined;
 
-    // Create checkout session with the customer
-    // Use the APP_URL with fallback to production domain to prevent localhost URLs in production
-    // Also explicitly check for localhost and override in production environment
-    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.receiptwise.io';
-
-    // Safety check: never use localhost in production
-    if (process.env.NODE_ENV === 'production' && appUrl.includes('localhost')) {
-      appUrl = 'https://www.receiptwise.io';
-    }
+    const appUrl = getAppUrl();
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -169,9 +228,14 @@ export async function createCheckoutSession(
             trial_days: trialDays.toString(),
           },
         },
+        custom_text: {
+          submit: {
+            message: `Nothing is charged today. Your ${trialDays}-day trial converts to a paid subscription unless you cancel before it ends, which you can do at any time from Settings.`,
+          },
+        },
       }),
-      success_url: successUrl || `${appUrl}/payment/successful?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${appUrl}/payment/failed`,
+      success_url: `${appUrl}/payment/successful?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/payment/failed`,
       client_reference_id: userId,
       metadata: {
         userId: userId,
@@ -210,13 +274,15 @@ export async function syncStripeDataToDatabase(customerId: string, correlationId
     // Get subscriptions for this customer
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
-      limit: 1,
+      limit: 20,
       status: 'all',
       expand: ['data.default_payment_method'],
     });
 
-    // No active subscriptions
-    if (subscriptions.data.length === 0) {
+    const subscription = pickSubscription(subscriptions.data);
+
+    // No subscriptions at all
+    if (!subscription) {
       // Update user to not subscribed
       await UserService.updateSubscriptionStatus(user.id, false);
 
@@ -226,12 +292,7 @@ export async function syncStripeDataToDatabase(customerId: string, correlationId
       return subData;
     }
 
-    // Get the most recent subscription
-    const subscription = subscriptions.data[0];
-
-    // Determine if user should be considered subscribed
-    // Active statuses: active, trialing
-    const isSubscribed = subscription.status === 'active' || subscription.status === 'trialing';
+    const isSubscribed = ENTITLED_STATUSES.includes(subscription.status);
 
     // Update user subscription status in database
     await UserService.updateSubscriptionStatus(user.id, isSubscribed);
@@ -243,8 +304,10 @@ export async function syncStripeDataToDatabase(customerId: string, correlationId
       subscriptionId: subscription.id,
       status: subscription.status,
       priceId: subscription.items.data[0].price.id,
-      currentPeriodEnd: 'current_period_end' in subscription ? (subscription.current_period_end as number) : 0,
-      currentPeriodStart: 'current_period_start' in subscription ? (subscription.current_period_start as number) : 0,
+      // Since API version 2025-03-31 the period lives on the subscription item, not the subscription.
+      currentPeriodEnd: subscription.items.data[0]?.current_period_end ?? 0,
+      currentPeriodStart: subscription.items.data[0]?.current_period_start ?? 0,
+      trialEnd: subscription.trial_end,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       paymentMethod:
         subscription.default_payment_method &&
@@ -277,7 +340,7 @@ export async function findAndReassociateStripeCustomer(
 
     // Search for existing Stripe customer by email
     const existingCustomer = await stripe.customers.search({
-      query: `email:'${email}'`,
+      query: emailSearchQuery(email),
     });
 
     if (existingCustomer.data.length > 0) {

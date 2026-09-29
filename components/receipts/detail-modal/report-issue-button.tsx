@@ -49,7 +49,10 @@ export function ReportIssueButton({ receiptId, onRetrySuccess }: ReportIssueButt
   };
 
   const handleContactSupport = () => {
-    window.location.href = `mailto:support@smartspend.app?subject=Receipt Analysis Issue - ${receiptId}&body=Hi,%0A%0AI found an issue with the receipt analysis for receipt ID: ${receiptId}%0A%0APlease describe the issue:%0A`;
+    // Was support@smartspend.app — a domain with a null MX, so every report bounced.
+    const subject = encodeURIComponent(`Receipt Analysis Issue - ${receiptId}`);
+    const body = encodeURIComponent(`Hi,\n\nI found an issue with the receipt analysis for receipt ID: ${receiptId}\n\nPlease describe the issue:\n`);
+    window.location.href = `mailto:support@receiptwise.io?subject=${subject}&body=${body}`;
   };
 
   return (

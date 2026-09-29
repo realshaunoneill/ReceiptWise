@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, requireSubscription } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { subscriptions, subscriptionPayments } from '@/lib/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { SubscriptionService } from '@/lib/services/subscription-service';
@@ -70,6 +70,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (authResult instanceof NextResponse) return authResult;
     const { user } = authResult;
 
+    // Require active subscription (GET and DELETE already did; PATCH was the odd one out)
+    const subCheck = await requireSubscription(user);
+    if (subCheck) return subCheck;
+
     // Verify ownership
     const [existing] = await db
       .select()
@@ -113,8 +117,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (category !== undefined) updates.category = category;
     if (amount !== undefined) updates.amount = amount;
     if (currency !== undefined) updates.currency = currency;
-    if (billingFrequency !== undefined) updates.billingFrequency = billingFrequency;
-    if (billingDay !== undefined) updates.billingDay = billingDay;
+    if (billingFrequency !== undefined) {
+      if (!['monthly', 'quarterly', 'yearly', 'custom'].includes(billingFrequency)) {
+        return NextResponse.json({ error: 'billingFrequency must be monthly, quarterly, yearly or custom' }, { status: 400 });
+      }
+      updates.billingFrequency = billingFrequency;
+    }
+    if (billingDay !== undefined) {
+      if (!Number.isInteger(Number(billingDay)) || billingDay < 1 || billingDay > 31) {
+        return NextResponse.json({ error: 'billingDay must be between 1 and 31' }, { status: 400 });
+      }
+      updates.billingDay = Number(billingDay);
+    }
     if (customFrequencyDays !== undefined) updates.customFrequencyDays = customFrequencyDays;
     if (status !== undefined) updates.status = status;
     if (endDate !== undefined) updates.endDate = endDate ? new Date(endDate) : null;
@@ -126,6 +140,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (status === 'cancelled' && !endDate && !existing.endDate) {
       updates.endDate = new Date();
     }
+
+    updates.updatedAt = new Date();
 
     const [updated] = await db
       .update(subscriptions)
@@ -144,20 +160,29 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
                                    billingDay !== undefined ||
                                    customFrequencyDays !== undefined;
 
-    if (billingDetailsChanged && updated.status === 'active') {
-      // Delete future pending/missed payments
-      await db
-        .delete(subscriptionPayments)
-        .where(
-          and(
-            eq(subscriptionPayments.subscriptionId, id),
-            eq(subscriptionPayments.status, 'pending'),
-          ),
-        );
+    const reactivated = status === 'active' && existing.status !== 'active';
 
-      // Regenerate expected payments
+    if ((billingDetailsChanged || reactivated) && updated.status === 'active') {
+      if (billingDetailsChanged) {
+        // Drop the unreconciled cycles (pending and missed) so they are regenerated on the new
+        // schedule. Only 'pending' was removed before, so old 'missed' rows stayed at the old
+        // dates alongside the new ones. Paid and cancelled cycles are the user's record and stay.
+        await db
+          .delete(subscriptionPayments)
+          .where(
+            and(
+              eq(subscriptionPayments.subscriptionId, id),
+              inArray(subscriptionPayments.status, ['pending', 'missed']),
+            ),
+          );
+      }
+
+      // Regenerates cycles up to today and recomputes nextBillingDate.
       const paymentsCreated = await SubscriptionService.generateExpectedPayments(id, 12);
       submitLogEvent('subscription', `Regenerated ${paymentsCreated} payments after billing details change`, correlationId, { subscriptionId: id });
+
+      const [refreshed] = await db.select().from(subscriptions).where(eq(subscriptions.id, id)).limit(1);
+      if (refreshed) Object.assign(updated, refreshed);
     }
 
     submitLogEvent('subscription', `Updated subscription: ${id}`, correlationId, { subscriptionId: id });

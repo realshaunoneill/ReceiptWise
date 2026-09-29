@@ -79,7 +79,7 @@ export function useReceipts(
       if (filters?.sortOrder) {
         params.append('sortOrder', filters.sortOrder);
       }
-      
+
       if (filters?.searchAllHouseholds) {
         params.append('searchAllHouseholds', 'true');
       }
@@ -98,7 +98,7 @@ export function useReceipts(
   const refetch = () => {
     // Invalidate all receipt queries, regardless of filters/pagination
     // This ensures fresh data after uploads, deletions, or updates
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: ['receipts'],
       refetchType: 'active',
     });
@@ -113,7 +113,10 @@ export function useReceipts(
   };
 }
 
-// Hook for getting recent receipts (for dashboard)
+// Hook for getting recent receipts (for dashboard): the most recently *uploaded*, so a new
+// upload and its processing status show up here even when the receipt itself is dated weeks ago.
+const RECENT_FILTERS: ReceiptFilters = { sortBy: 'created', sortOrder: 'desc' };
+
 export function useRecentReceipts(householdId?: string, limit: number = 5, personalOnly: boolean = false) {
-  return useReceipts(householdId, 1, limit, undefined, personalOnly);
+  return useReceipts(householdId, 1, limit, RECENT_FILTERS, personalOnly);
 }

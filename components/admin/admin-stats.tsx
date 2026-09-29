@@ -115,7 +115,7 @@ export function AdminStats({ users, households, receipts }: AdminStatsProps) {
                 {stats.subscribedUsers} subscribed
               </span>
               <span>•</span>
-              <span>{users.length - stats.subscribedUsers} free</span>
+              <span>{users.length - stats.subscribedUsers} not subscribed</span>
             </div>
           </CardContent>
         </Card>

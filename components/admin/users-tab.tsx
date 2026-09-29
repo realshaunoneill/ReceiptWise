@@ -126,7 +126,7 @@ export function UsersTab({
             </Badge>
             <Badge variant="outline" className="gap-1">
               <span className="text-muted-foreground">●</span>
-              {users.filter(u => !u.subscribed).length} free
+              {users.filter(u => !u.subscribed).length} not subscribed
             </Badge>
             {users.filter(u => u.isBlocked).length > 0 && (
               <Badge variant="outline" className="gap-1 border-destructive text-destructive">
@@ -151,21 +151,21 @@ export function UsersTab({
           </div>
           <div className="flex gap-2">
             <Select value={filterType} onValueChange={(v) => setFilterType(v as FilterType)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[160px]">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Users</SelectItem>
                 <SelectItem value="subscribed">Subscribed</SelectItem>
-                <SelectItem value="free">Free Tier</SelectItem>
+                <SelectItem value="free">Not subscribed</SelectItem>
                 <SelectItem value="admin">Admins</SelectItem>
                 <SelectItem value="with-stripe">Has Stripe</SelectItem>
                 <SelectItem value="blocked">Blocked</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[160px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { createCheckoutSession } from '@/lib/stripe';
+import { createCheckoutSession, getLiveSubscription, getTrialDaysForCustomer } from '@/lib/stripe';
 import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import Stripe from 'stripe';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
@@ -13,6 +13,20 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 /**
+ * GET /api/checkout
+ * What checkout would offer this user: currently just the trial length (0 for anyone who has
+ * subscribed before), so upgrade prompts can describe it truthfully.
+ */
+export async function GET(request: NextRequest) {
+  const correlationId = (request.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
+  const authResult = await getAuthenticatedUser(correlationId);
+  if (authResult instanceof NextResponse) return authResult;
+
+  const trialDays = await getTrialDaysForCustomer(authResult.user.stripeCustomerId);
+  return NextResponse.json({ trialDays }, { headers: { 'Cache-Control': 'private, no-store' } });
+}
+
+/**
  * POST /api/checkout
  * Create a Stripe checkout session for subscription
  */
@@ -23,16 +37,43 @@ export async function POST(request: NextRequest) {
     if (authResult instanceof NextResponse) return authResult;
     const { user } = authResult;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
 
-    // Use provided priceId or default to monthly price
-    const priceId = body.priceId || process.env.STRIPE_PRICE_ID;
+    // Only the two Premium prices can be bought. Any other active price in the account (an old
+    // test price, a future one-off) was previously purchasable by passing its ID.
+    const allowedPriceIds = [process.env.STRIPE_PRICE_ID, process.env.STRIPE_ANNUAL_PRICE_ID].filter(
+      (id): id is string => Boolean(id),
+    );
+    const priceId: string | undefined = body.priceId ?? process.env.STRIPE_PRICE_ID;
 
     if (!priceId) {
       return NextResponse.json(
         { error: 'Price ID not configured' },
         { status: 400 },
       );
+    }
+
+    if (!allowedPriceIds.includes(priceId)) {
+      return NextResponse.json(
+        { error: 'This subscription plan is not available' },
+        { status: 400 },
+      );
+    }
+
+    // A second checkout would create a second subscription and bill twice. Stripe is the source
+    // of truth here rather than users.subscribed, which can lag a webhook.
+    if (user.stripeCustomerId) {
+      // A customer deleted in Stripe throws here; getOrCreateStripeCustomer below replaces it.
+      const liveSubscription = await getLiveSubscription(user.stripeCustomerId).catch(() => null);
+      if (liveSubscription) {
+        return NextResponse.json(
+          {
+            error: 'You already have a ReceiptWise subscription. Manage or change it under Settings → Subscription.',
+            code: 'ALREADY_SUBSCRIBED',
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Verify the price exists and is active
@@ -64,8 +105,6 @@ export async function POST(request: NextRequest) {
       user.clerkId,
       priceId,
       user.stripeCustomerId,
-      body.successUrl,
-      body.cancelUrl,
       correlationId,
     );
 
@@ -92,10 +131,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     submitLogEvent('checkout', `Error creating checkout session: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { error: error instanceof Error ? error.message : undefined }, true);
     return NextResponse.json(
-      {
-        error: 'Failed to create checkout session',
-        details: error instanceof Error ? error.message : undefined,
-      },
+      { error: 'Failed to create checkout session' },
       { status: 500 },
     );
   }

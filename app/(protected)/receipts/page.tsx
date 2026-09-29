@@ -21,10 +21,10 @@ import { useHouseholds } from '@/lib/hooks/use-households';
 import { ReceiptTimeline } from '@/components/receipts/receipt-timeline';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 import type { Receipt } from '@/lib/db/schema';
-
-const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 function ReceiptsPageContent() {
+  const trialDays = useTrialDays();
   const { user: clerkUser } = useClerkUser();
   const { isSubscribed } = useUser();
   const queryClient = useQueryClient();
@@ -203,7 +203,6 @@ function ReceiptsPageContent() {
           <div className="space-y-4">
             {isSubscribed ? (
               <ReceiptBatchUpload
-                userEmail={clerkUser.emailAddresses[0]?.emailAddress || ''}
                 householdId={selectedHouseholdId}
                 onUploadComplete={handleUploadComplete}
               />

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, requireReceiptAccess, filterReceiptForSubscription } from '@/lib/auth-helpers';
+import { getAuthenticatedUser, requireReceiptAccess, requireReceiptOwner, filterReceiptForSubscription } from '@/lib/auth-helpers';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { getReceiptById, deleteReceipt } from '@/lib/receipt-scanner';
 import { db } from '@/lib/db';
@@ -29,7 +29,8 @@ export async function GET(
       );
     }
 
-    // Verify the user owns this receipt or is admin
+    // Owner, a member of the receipt's household, or an admin. Household members were getting a
+    // 403 here for receipts the list endpoint had just shown them.
     const accessCheck = await requireReceiptAccess(receipt, user, correlationId);
     if (accessCheck) return accessCheck;
 
@@ -131,6 +132,19 @@ export async function PATCH(
       taxDeductible,
     } = body;
 
+    // Validate types: a non-boolean isBusinessExpense used to reach Postgres and 500.
+    const isOptionalBoolean = (v: unknown) => v === undefined || typeof v === 'boolean';
+    const isOptionalText = (v: unknown, max: number) =>
+      v === undefined || v === null || (typeof v === 'string' && v.length <= max);
+    if (
+      !isOptionalBoolean(isBusinessExpense) ||
+      !isOptionalBoolean(taxDeductible) ||
+      !isOptionalText(businessCategory, 100) ||
+      !isOptionalText(businessNotes, 2000)
+    ) {
+      return NextResponse.json({ error: 'Invalid receipt update' }, { status: 400 });
+    }
+
     // Build update object
     const updates: Partial<typeof receipts.$inferInsert> = {};
 
@@ -138,6 +152,11 @@ export async function PATCH(
     if (businessCategory !== undefined) updates.businessCategory = businessCategory;
     if (businessNotes !== undefined) updates.businessNotes = businessNotes;
     if (taxDeductible !== undefined) updates.taxDeductible = taxDeductible;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(filterReceiptForSubscription(receipt, user.subscribed));
+    }
+    updates.updatedAt = new Date();
 
     const [updatedReceipt] = await db
       .update(receipts)
@@ -204,12 +223,13 @@ export async function DELETE(
       );
     }
 
-    // Verify the user owns this receipt or is admin
-    const accessCheck = await requireReceiptAccess(receipt, user, correlationId);
+    // Deleting is owner-only (or admin): household members can read a shared receipt but
+    // must not be able to delete each other's.
+    const accessCheck = await requireReceiptOwner(receipt, user, correlationId);
     if (accessCheck) return accessCheck;
 
     // Soft delete the receipt using helper function
-    const deleted = await deleteReceipt(receiptId, user.id);
+    const deleted = await deleteReceipt(receiptId);
 
     if (!deleted) {
       return NextResponse.json(

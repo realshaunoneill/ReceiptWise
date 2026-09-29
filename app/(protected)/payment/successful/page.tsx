@@ -1,4 +1,3 @@
-'use server';
 import { Suspense } from 'react';
 import { randomUUID } from 'crypto';
 import { syncStripeDataToDatabase } from '@/lib/stripe';
@@ -6,7 +5,7 @@ import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import Stripe from 'stripe';
 import SuccessContent from './content';
 import { Skeleton } from '@/components/ui/skeleton';
-import { type CorrelationId } from '@/lib/logging';
+import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { redirect } from 'next/navigation';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
@@ -29,22 +28,33 @@ export default async function Success({ searchParams }: SuccessPageProps) {
   }
   const { user } = authResult;
 
-  let subscriptionData;
-  let session;
+  let subscriptionData: Awaited<ReturnType<typeof syncStripeDataToDatabase>> | undefined;
   if (sessionId) {
-    // Retrieve the session
-    session = await stripe.checkout.sessions.retrieve(sessionId);
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    // Get the customer ID from the session
-    const customerId = typeof session.customer === 'string'
-      ? session.customer
-      : session.customer?.id;
+      const customerId = typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id;
 
-    if (customerId) {
-      // Sync Stripe data to database when the page loads
-      subscriptionData = await syncStripeDataToDatabase(customerId, correlationId);
+      // Only sync a session this user created. The session_id comes from the query string, so
+      // without this check any signed-in user could trigger syncs for other customers' sessions
+      // (and a foreign or malformed id threw, rendering the error page).
+      const ownsSession = session.client_reference_id === user.id
+        || (customerId !== undefined && customerId === user.stripeCustomerId);
+
+      if (customerId && ownsSession) {
+        subscriptionData = await syncStripeDataToDatabase(customerId, correlationId);
+      }
+    } catch (error) {
+      submitLogEvent('checkout', `Could not confirm checkout session: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { userId: user.id }, true);
     }
   }
+
+  const trialEnd = subscriptionData && 'trialEnd' in subscriptionData && subscriptionData.status === 'trialing'
+    && typeof subscriptionData.trialEnd === 'number'
+    ? subscriptionData.trialEnd
+    : null;
 
   return (
     <>
@@ -92,8 +102,8 @@ export default async function Success({ searchParams }: SuccessPageProps) {
       >
         <SuccessContent
           sessionId={sessionId}
-          _subscriptionStatus={subscriptionData?.status}
-          userName={user.email}
+          subscriptionStatus={subscriptionData?.status}
+          trialEndsAt={trialEnd ? new Date(trialEnd * 1000).toISOString() : undefined}
         />
       </Suspense>
     </>

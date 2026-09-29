@@ -5,6 +5,7 @@ import { getAuthenticatedUser, requireSubscription, requireHouseholdMembership }
 import { eq, and, gte, sql, desc, ilike } from 'drizzle-orm';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
+import { parseBoundedInt, parseMonths, receiptScope, windowStart } from '@/lib/utils/insights-params';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
 
 export const runtime = 'nodejs';
@@ -32,8 +33,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const itemName = searchParams.get('itemName');
     const householdId = searchParams.get('householdId');
-    const months = parseInt(searchParams.get('months') || '12');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const months = parseMonths(searchParams.get('months'), 12);
+    const limit = parseBoundedInt(searchParams.get('limit'), 10, 1, 50);
 
     if (!itemName) {
       return NextResponse.json(
@@ -86,13 +87,11 @@ export async function GET(request: NextRequest) {
       .innerJoin(receipts, eq(receiptItems.receiptId, receipts.id))
       .where(
         and(
-          eq(receipts.userId, user.id),
-          gte(
-            sql`TO_DATE(${receipts.transactionDate}, 'YYYY-MM-DD')`,
-            startDate.toISOString().split('T')[0],
-          ),
+          receiptScope(user.id, householdId),
+          // Plain text comparison: transactionDate is 'YYYY-MM-DD', which sorts lexically. The
+          // previous TO_DATE() threw for any malformed stored date and 500'd the whole route.
+          gte(receipts.transactionDate, windowStart(months)),
           sql`${receipts.deletedAt} IS NULL`,
-          householdId ? eq(receipts.householdId, householdId) : undefined,
           // Match items where name contains all search terms
           searchConditions.length > 0
             ? and(...searchConditions)

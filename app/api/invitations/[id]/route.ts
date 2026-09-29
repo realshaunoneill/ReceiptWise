@@ -1,14 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { householdUsers, householdInvitations } from '@/lib/db/schema';
+import { householdInvitations } from '@/lib/db/schema';
 import { getAuthenticatedUser } from '@/lib/auth-helpers';
-import { eq, and } from 'drizzle-orm';
+import { HouseholdError, HouseholdService } from '@/lib/services/household-service';
+import { and, eq, sql } from 'drizzle-orm';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';
 
-// Accept or decline invitation
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * PATCH /api/invitations/:id — accept or decline from the notifications menu.
+ *
+ * Matched on the caller's email, which is now always Clerk's verified primary address (it was
+ * user-editable, which let anyone claim an invitation meant for someone else). The link flow
+ * uses /api/invitations/token/:token instead.
+ */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -20,27 +29,27 @@ export async function PATCH(
     const { user } = authResult;
 
     const { id: invitationId } = await params;
-    const { action } = await req.json(); // 'accept' or 'decline'
+    const { action } = await req.json().catch(() => ({})); // 'accept' or 'decline'
 
-    if (!['accept', 'decline'].includes(action)) {
+    if (action !== 'accept' && action !== 'decline') {
       return NextResponse.json(
         { error: "Invalid action. Must be 'accept' or 'decline'" },
         { status: 400 },
       );
     }
 
-    // Get the invitation
-    const [invitation] = await db
-      .select()
-      .from(householdInvitations)
-      .where(
-        and(
-          eq(householdInvitations.id, invitationId),
-          eq(householdInvitations.invitedEmail, user.email),
-          eq(householdInvitations.status, 'pending'),
-        ),
-      )
-      .limit(1);
+    const [invitation] = UUID_PATTERN.test(invitationId)
+      ? await db
+        .select()
+        .from(householdInvitations)
+        .where(
+          and(
+            eq(householdInvitations.id, invitationId),
+            sql`lower(${householdInvitations.invitedEmail}) = ${user.email.toLowerCase()}`,
+          ),
+        )
+        .limit(1)
+      : [];
 
     if (!invitation) {
       return NextResponse.json(
@@ -49,68 +58,17 @@ export async function PATCH(
       );
     }
 
-    // Check if invitation is expired
-    if (new Date(invitation.expiresAt) < new Date()) {
-      await db
-        .update(householdInvitations)
-        .set({ status: 'expired', updatedAt: new Date() })
-        .where(eq(householdInvitations.id, invitationId));
+    const result = await HouseholdService.respondToInvitation(invitation, user.id, action);
 
-      return NextResponse.json(
-        { error: 'Invitation has expired' },
-        { status: 400 },
-      );
-    }
-
-    if (action === 'accept') {
-      // Check if user is already a member
-      const [existingMembership] = await db
-        .select()
-        .from(householdUsers)
-        .where(
-          and(
-            eq(householdUsers.householdId, invitation.householdId),
-            eq(householdUsers.userId, user.id),
-          ),
-        )
-        .limit(1);
-
-      if (existingMembership) {
-        return NextResponse.json(
-          { error: 'Already a member of this household' },
-          { status: 400 },
-        );
-      }
-
-      // Add user to household
-      await db.insert(householdUsers).values({
-        householdId: invitation.householdId,
-        userId: user.id,
-        role: 'member',
-      });
-
-      // Update invitation status
-      await db
-        .update(householdInvitations)
-        .set({ status: 'accepted', updatedAt: new Date() })
-        .where(eq(householdInvitations.id, invitationId));
-
-      return NextResponse.json({
-        message: 'Invitation accepted successfully',
-        householdId: invitation.householdId,
-      });
-    } else {
-      // Decline invitation
-      await db
-        .update(householdInvitations)
-        .set({ status: 'declined', updatedAt: new Date() })
-        .where(eq(householdInvitations.id, invitationId));
-
-      return NextResponse.json({
-        message: 'Invitation declined',
-      });
-    }
+    return NextResponse.json(
+      action === 'accept'
+        ? { message: 'Invitation accepted', householdId: result.householdId }
+        : { message: 'Invitation declined' },
+    );
   } catch (error) {
+    if (error instanceof HouseholdError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     submitLogEvent('invitation', `Error processing invitation: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(
       { error: 'Failed to process invitation' },

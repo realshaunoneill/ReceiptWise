@@ -7,15 +7,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 interface SuccessContentProps {
   sessionId?: string;
-  _subscriptionStatus?: string;
-  userName?: string;
+  subscriptionStatus?: string;
+  trialEndsAt?: string;
 }
 
 export default function SuccessContent({
   sessionId,
-  _subscriptionStatus,
-  userName,
+  subscriptionStatus,
+  trialEndsAt,
 }: SuccessContentProps) {
+  // The page used to say "Your subscription is active" unconditionally — including to people who
+  // had just started a trial and had not been charged, and when the session could not be
+  // confirmed at all.
+  const trialEndLabel = trialEndsAt
+    ? new Date(trialEndsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+  const statusLine = trialEndLabel
+    ? `Your free trial runs until ${trialEndLabel}. Nothing is charged before then, and you can cancel any time under Settings → Subscription.`
+    : subscriptionStatus === 'active'
+      ? 'Your subscription is active. Nothing else to do.'
+      : 'Thanks — your checkout is complete. If Premium features are not unlocked within a minute, refresh the page.';
+
   return (
     <main className="container mx-auto max-w-4xl space-y-6 px-4 py-6 sm:p-6" aria-labelledby="payment-success-title">
         <div className="flex flex-col items-center justify-center min-h-[50vh] sm:min-h-[60vh] space-y-6 sm:space-y-8">
@@ -34,10 +46,10 @@ export default function SuccessContent({
           {/* Success Message */}
           <div className="space-y-2 px-2 text-center">
             <h1 id="payment-success-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              You&apos;re all set{userName ? `, ${userName}` : ''}
+              You&apos;re all set
             </h1>
             <p className="text-base text-muted-foreground sm:text-lg">
-              Your subscription is active. Nothing else to do.
+              {statusLine}
             </p>
           </div>
 
@@ -69,8 +81,8 @@ export default function SuccessContent({
                   },
                   {
                     icon: CheckCircle,
-                    title: 'Priority support',
-                    body: 'Email us and yours goes to the front of the queue.',
+                    title: 'Export',
+                    body: 'Download everything as CSV, JSON or a printable page, any time.',
                   },
                 ].map(({ icon: Icon, title, body }) => (
                   <div key={title} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3">

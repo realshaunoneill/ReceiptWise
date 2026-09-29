@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(user, {
       headers: {
-        'Cache-Control': 'private, max-age=60', // Cache for 1 minute
+        // Not cached: subscription state, pending deletion and currency all change through
+        // mutations, and a cached copy made the UI lag them by up to a minute.
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (error) {
@@ -74,12 +76,10 @@ export async function PATCH(req: NextRequest) {
     // Build update object based on provided fields
     const updates: Record<string, unknown> = {};
 
-    // Update email if provided
-    if (body.email && typeof body.email === 'string') {
-      // Note: In a real application, you'd want to validate the email format
-      // and potentially require email verification
-      updates.email = body.email;
-    }
+    // Email is deliberately not updatable here. It is synced from Clerk's verified primary
+    // address on every request (UserService.getOrCreateUser), and it is what invitations and
+    // Stripe customer re-association match on — accepting it from the body let anyone claim
+    // someone else's household invite or billing portal.
 
     // Update currency if provided
     if (body.currency && typeof body.currency === 'string') {

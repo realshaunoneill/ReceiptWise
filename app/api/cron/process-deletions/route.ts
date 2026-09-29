@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { receipts, users } from '@/lib/db/schema';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { HouseholdService } from '@/lib/services/household-service';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -40,6 +41,8 @@ function isAuthorized(req: NextRequest): boolean {
   return timingSafeEqual(a, b);
 }
 
+const TERMINAL_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>(['canceled', 'incomplete_expired']);
+
 /**
  * Cancel every non-cancelled Stripe subscription for a customer.
  * Without this, a deleted account keeps getting billed.
@@ -55,7 +58,9 @@ async function cancelStripeSubscriptions(
   });
 
   for (const subscription of subscriptions.data) {
-    if (subscription.status === 'canceled') continue;
+    // Terminal statuses can't be cancelled — Stripe rejects the call, which would fail this
+    // user's deletion on every run for ever.
+    if (TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) continue;
     await stripe.subscriptions.cancel(subscription.id);
     submitLogEvent('subscription', `Cancelled subscription ${subscription.id} for account deletion`, correlationId, {
       stripeCustomerId,
@@ -154,6 +159,19 @@ export async function GET(req: NextRequest) {
         }
 
         await deleteReceiptBlobs(user.id, correlationId);
+
+        // Before the row goes: a household this person owns passes to its longest-standing
+        // other member, or is deleted (keeping everyone else's receipts) if they were alone in
+        // it. Otherwise the membership cascade left households with members and no owner, which
+        // nobody could then manage, invite to or delete.
+        const released = await HouseholdService.releaseOwnedHouseholds(user.id);
+        if (released.transferred > 0 || released.deleted > 0) {
+          submitLogEvent('household', 'Released households owned by deleted account', correlationId, {
+            userId: user.id,
+            ...released,
+          });
+        }
+
         await deleteClerkUser(user.clerkId, correlationId);
 
         // Receipts, items, household memberships, invitations, api keys and insights

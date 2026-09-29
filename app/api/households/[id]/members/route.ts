@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { HouseholdService } from '@/lib/services/household-service';
-import { getAuthenticatedUser, requireHouseholdMembership } from '@/lib/auth-helpers';
+import { buildInviteUrl, HouseholdError, HouseholdService } from '@/lib/services/household-service';
+import {
+  getAuthenticatedUser,
+  requireHouseholdMembership,
+  requireNoPendingDeletion,
+  requireSubscription,
+} from '@/lib/auth-helpers';
 import {
   createErrorResponse,
   ErrorCode,
@@ -42,7 +47,9 @@ export async function GET(
       userId: user.id,
       context: { householdId, memberCount: members.length },
     });
-    return NextResponse.json(members);
+    return NextResponse.json(members, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch (error) {
     Logger.error('Error fetching household members', error as Error, { requestId });
     const errorResponse = createErrorResponse(
@@ -59,7 +66,8 @@ export async function GET(
 
 /**
  * POST /api/households/:id/members
- * Invite a member to the household
+ * Invite someone to the household (owner only). Same behaviour as
+ * POST /api/households/:id/invitations, kept for existing callers.
  * Validates: Requirements 3.3
  */
 export async function POST(
@@ -74,88 +82,38 @@ export async function POST(
     if (authResult instanceof NextResponse) return authResult;
     const { user } = authResult;
 
+    const subscriptionCheck = await requireSubscription(user);
+    if (subscriptionCheck) return subscriptionCheck;
+    const deletionCheck = requireNoPendingDeletion(user);
+    if (deletionCheck) return deletionCheck;
+
     const { id: householdId } = await params;
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const email = typeof body.email === 'string' ? body.email : '';
 
-    // Validate request body
-    if (!body.email || typeof body.email !== 'string' || body.email.trim() === '') {
-      Logger.warn('Invalid email provided for member invitation', {
-        requestId,
-        userId: user.id,
-        context: { householdId },
-      });
-      const errorResponse = createErrorResponse(
-        ErrorCode.MISSING_REQUIRED_FIELD,
-        'Email is required',
-        { field: 'email' },
-        requestId,
-      );
-      return NextResponse.json(errorResponse, {
-        status: getHttpStatusCode(ErrorCode.MISSING_REQUIRED_FIELD),
-      });
-    }
-
-    // Invite member (will verify ownership inside the service)
-    const householdUser = await HouseholdService.createInvitation(
-      householdId,
-      body.email.trim(),
-      user.id,
-    );
+    const invitation = await HouseholdService.createInvitation(householdId, email, user.id);
 
     Logger.info('Member invited successfully', {
       requestId,
       userId: user.id,
-      context: { householdId, invitedEmail: body.email.trim() },
+      context: { householdId, invitationId: invitation.id },
     });
-    return NextResponse.json(householdUser, { status: 201 });
+    return NextResponse.json({
+      id: invitation.id,
+      invitedEmail: invitation.invitedEmail,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      inviteUrl: buildInviteUrl(invitation.token),
+    }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    // Handle specific error messages
-    if (error instanceof Error) {
-      if (error.message.includes('Only household owners')) {
-        Logger.warn('Non-owner attempted to invite member', {
-          requestId,
-          context: { error: error.message },
-        });
-        const errorResponse = createErrorResponse(
-          ErrorCode.INSUFFICIENT_PERMISSIONS,
-          error.message,
-          undefined,
-          requestId,
-        );
-        return NextResponse.json(errorResponse, {
-          status: getHttpStatusCode(ErrorCode.INSUFFICIENT_PERMISSIONS),
-        });
-      }
-      if (error.message.includes('User not found')) {
-        Logger.warn('Attempted to invite non-existent user', {
-          requestId,
-          context: { error: error.message },
-        });
-        const errorResponse = createErrorResponse(
-          ErrorCode.NOT_FOUND,
-          error.message,
-          undefined,
-          requestId,
-        );
-        return NextResponse.json(errorResponse, {
-          status: getHttpStatusCode(ErrorCode.NOT_FOUND),
-        });
-      }
-      if (error.message.includes('already a member')) {
-        Logger.warn('Attempted to invite existing member', {
-          requestId,
-          context: { error: error.message },
-        });
-        const errorResponse = createErrorResponse(
-          ErrorCode.CONSTRAINT_VIOLATION,
-          error.message,
-          undefined,
-          requestId,
-        );
-        return NextResponse.json(errorResponse, {
-          status: getHttpStatusCode(ErrorCode.CONSTRAINT_VIOLATION),
-        });
-      }
+    // Expected refusals (not the owner, already a member, already invited, bad email) are the
+    // caller's to fix, so they get their own status rather than a 500.
+    if (error instanceof HouseholdError) {
+      Logger.warn('Invitation refused', {
+        requestId,
+        context: { error: error.message },
+      });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     Logger.error('Error inviting member', error as Error, { requestId });

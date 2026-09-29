@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { HouseholdService } from '@/lib/services/household-service';
+import { HouseholdError, HouseholdService } from '@/lib/services/household-service';
 import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import {
   createErrorResponse,
@@ -40,38 +40,12 @@ export async function DELETE(
     });
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    // Handle specific error messages
-    if (error instanceof Error) {
-      if (error.message.includes('Only household owners')) {
-        Logger.warn('Non-owner attempted to remove member', {
-          requestId,
-          context: { error: error.message },
-        });
-        const errorResponse = createErrorResponse(
-          ErrorCode.INSUFFICIENT_PERMISSIONS,
-          error.message,
-          undefined,
-          requestId,
-        );
-        return NextResponse.json(errorResponse, {
-          status: getHttpStatusCode(ErrorCode.INSUFFICIENT_PERMISSIONS),
-        });
-      }
-      if (error.message.includes('cannot remove themselves')) {
-        Logger.warn('Owner attempted to remove themselves', {
-          requestId,
-          context: { error: error.message },
-        });
-        const errorResponse = createErrorResponse(
-          ErrorCode.INVALID_INPUT,
-          error.message,
-          undefined,
-          requestId,
-        );
-        return NextResponse.json(errorResponse, {
-          status: getHttpStatusCode(ErrorCode.INVALID_INPUT),
-        });
-      }
+    if (error instanceof HouseholdError) {
+      Logger.warn('Member removal refused', {
+        requestId,
+        context: { error: error.message },
+      });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     Logger.error('Error removing member', error as Error, { requestId });

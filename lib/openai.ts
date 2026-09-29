@@ -13,7 +13,9 @@ const itemModifierSchema = z.object({
 const receiptItemSchema = z.object({
   name: z.string(),
   quantity: z.number().nullable().optional(),
-  price: z.number(),
+  // Nullable: the model occasionally returns null for one unreadable line, and a strict number
+  // here failed schema validation for the whole receipt. Treated as 0 downstream.
+  price: z.number().nullable(),
   category: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   modifiers: z.array(itemModifierSchema).nullable().optional(),
@@ -29,7 +31,7 @@ const receiptDataSchema = z.object({
   items: z.array(receiptItemSchema).nullable().optional(),
   rawItems: z.array(z.object({
     name: z.string(),
-    price: z.number(),
+    price: z.number().nullable(),
   })).nullable().optional(),
   location: z.string().nullable().optional(),
   subtotal: z.number().nullable().optional(),
@@ -68,15 +70,44 @@ export interface ReceiptAnalysisResult {
   usage: TokenUsage;
 }
 
+/** Upper bound on the whole vision call, retries included. Keeps processing inside the routes' maxDuration. */
+const VISION_TIMEOUT_MS = 50_000;
+/** Upper bound on downloading the receipt image from blob storage. */
+const IMAGE_FETCH_TIMEOUT_MS = 15_000;
+
+/**
+ * Normalise a model-supplied date to YYYY-MM-DD, or null if it is not a real calendar date.
+ *
+ * The schema accepts any string, and a value like "15/09/2026" used to be stored verbatim — which
+ * then made the insights routes' TO_DATE(... 'YYYY-MM-DD') throw and 500 for that user.
+ */
+export function normalizeReceiptDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const [, y, m, d] = match;
+  const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+  if (
+    date.getUTCFullYear() !== Number(y) ||
+    date.getUTCMonth() !== Number(m) - 1 ||
+    date.getUTCDate() !== Number(d)
+  ) {
+    return null;
+  }
+  return `${y}-${m}-${d}`;
+}
+
 export interface SpendingInsight {
   summary: string;
   usage: TokenUsage;
 }
 
 /**
- * Analyze receipt image using GPT-4o-mini (for /api/receipt/process)
- * This is the main receipt processing function with full extraction
- * Using GPT-4o-mini for cost efficiency - structured data extraction works well with smaller models
+ * Analyze a receipt image with GPT-4o (vision) and return the structured extraction.
+ *
+ * Used by every processing channel through lib/receipt-processing.ts. GPT-4o rather than
+ * GPT-4o-mini: accuracy on faded or crumpled receipts matters more here than the cost difference.
+ * (generateSpendingSummary below is the one call that uses gpt-4o-mini.)
  */
 export async function analyzeReceiptWithGPT4o(
   imageUrl: string,
@@ -86,7 +117,7 @@ export async function analyzeReceiptWithGPT4o(
 ): Promise<ReceiptAnalysisResult> {
   submitLogEvent('receipt-process', 'Fetching image for analysis', correlationId, { imageUrl, userId });
 
-  const inputImageRes = await fetch(imageUrl);
+  const inputImageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS) });
   if (!inputImageRes.ok) {
     throw new Error(`Failed to download image: ${inputImageRes.statusText}`);
   }
@@ -110,6 +141,10 @@ export async function analyzeReceiptWithGPT4o(
     result = await generateObject({
       model: openai('gpt-4o'),
       schema: receiptDataSchema,
+      // Without these a slow or failing call retried twice with no deadline, running past the
+      // route's maxDuration and leaving the receipt wedged in 'processing'.
+      maxRetries: 1,
+      abortSignal: AbortSignal.timeout(VISION_TIMEOUT_MS),
       experimental_telemetry: {
         isEnabled: true,
         functionId: 'analyzeReceiptWithGPT4o',
@@ -266,7 +301,10 @@ Extract all numeric values as numbers (not strings).`,
   });
 
   return {
-    data: result.object,
+    data: {
+      ...result.object,
+      date: normalizeReceiptDate(result.object.date),
+    },
     usage: {
       promptTokens: result.usage.promptTokens,
       completionTokens: result.usage.completionTokens,

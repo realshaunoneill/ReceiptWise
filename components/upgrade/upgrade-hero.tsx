@@ -1,4 +1,6 @@
-const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
+'use client';
+
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 /**
  * Was a Crown badge reading "Premium Features" above the heading "Upgrade to
@@ -7,6 +9,7 @@ const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.e
  * a closing claim that says nothing a reader can check.
  */
 export function UpgradeHero() {
+  const trialDays = useTrialDays();
   return (
     <div className="mx-auto max-w-2xl">
       <h1

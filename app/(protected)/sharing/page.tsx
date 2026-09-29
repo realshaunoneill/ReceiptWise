@@ -15,11 +15,13 @@ import { useHouseholds } from '@/lib/hooks/use-households';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HouseholdReceipts } from '@/components/households/household-receipts';
 import { Users, Home, Share2, Receipt, Shield, Crown, Check, UserPlus, ArrowRight } from 'lucide-react';
-import type { HouseholdWithMembers, MemberWithUser } from '@/lib/types/api-responses';
-
-const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0;
+import type { HouseholdWithMembers } from '@/lib/types/api-responses';
+import type { HouseholdMemberRow } from '@/components/households/household-members-list';
+import type { HouseholdSummary } from '@/components/households/household-card';
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 export default function SharingPage() {
+  const trialDays = useTrialDays();
   const router = useRouter();
   const { user, isSubscribed, isLoading: userLoading } = useUser();
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string>();
@@ -33,7 +35,7 @@ export default function SharingPage() {
   };
 
   // Get members for selected household
-  const { data: members = [], isLoading: membersLoading } = useQuery({
+  const { data: members = [], isLoading: membersLoading } = useQuery<HouseholdMemberRow[]>({
     queryKey: ['household-members', selectedHouseholdId],
     queryFn: async () => {
       if (!selectedHouseholdId) return [];
@@ -41,15 +43,10 @@ export default function SharingPage() {
       const response = await fetch(`/api/households/${selectedHouseholdId}/members`);
       if (!response.ok) throw new Error('Failed to fetch members');
 
-      const data = await response.json();
-      return data.map((member: MemberWithUser) => ({
-        id: member.user_id,
-        user_id: member.user_id,
-        full_name: member.email.split('@')[0],
-        email: member.email,
-        role: member.role === 'owner' ? 'admin' : 'member',
-        joined_at: member.joined_at,
-      }));
+      // The API returns camelCase { userId, email, role, joinedAt }. This used to map
+      // `member.user_id`, which is always undefined — so the owner was never recognised as
+      // the owner, and Invite / Remove never rendered for anyone.
+      return response.json();
     },
     enabled: !!selectedHouseholdId,
   });
@@ -63,8 +60,14 @@ export default function SharingPage() {
 
   const selectedHousehold = households.find((h: HouseholdWithMembers) => h.id === selectedHouseholdId);
   const currentUserId = user?.id;
-  const isCurrentUserAdmin = selectedHousehold && user ?
-    members.find((m: { user_id: string; role: string }) => m.user_id === user.id)?.role === 'admin' : false;
+  const isCurrentUserOwner = Boolean(
+    selectedHousehold && user && members.find((m) => m.userId === user.id)?.role === 'owner',
+  );
+
+  const refreshHouseholds = () => {
+    queryClient.invalidateQueries({ queryKey: ['households'] });
+    queryClient.invalidateQueries({ queryKey: ['household-members'] });
+  };
 
   // Show skeleton loading state
   if (userLoading) {
@@ -159,8 +162,8 @@ export default function SharingPage() {
                 )}
               </div>
               <CardDescription className="max-w-xl text-base">
-                A household is a shared receipt pile. Everyone in it adds to the same
-                collection and sees the same totals.
+                A household is a shared receipt pile. Everyone in it sees the same receipts;
+                each person who adds receipts needs their own Premium.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
@@ -173,8 +176,8 @@ export default function SharingPage() {
                   },
                   {
                     icon: UserPlus,
-                    title: 'Invite by email',
-                    body: 'They accept and they are in. No account juggling.',
+                    title: 'Invite with a link',
+                    body: 'Send them a link; they join with a free account.',
                   },
                   {
                     icon: Share2,
@@ -183,8 +186,8 @@ export default function SharingPage() {
                   },
                   {
                     icon: Shield,
-                    title: 'Owners and members',
-                    body: 'Control who can invite and who can remove.',
+                    title: 'One owner',
+                    body: 'The owner invites and removes. Anyone can leave.',
                   },
                 ].map(({ icon: Icon, title, body }) => (
                   <div key={title}>
@@ -201,7 +204,7 @@ export default function SharingPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {[
                     'Unlimited households and members',
-                    'Per-household spending breakdowns',
+                    'Per-household spending views',
                     'Filter any view to one household',
                     'Unlimited receipts and scanning',
                     'Subscription tracking',
@@ -214,6 +217,23 @@ export default function SharingPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Joining someone's household doesn't need Premium, so a non-subscriber can be
+                  in one — and must always be able to see which, and leave. */}
+              {households.length > 0 && (
+                <div className="space-y-3 border-t pt-6">
+                  <h3 className="font-semibold text-foreground">Households you&apos;re in</h3>
+                  <p className="text-sm text-muted-foreground">
+                    You can see these households&apos; receipts on the Receipts page. Adding
+                    receipts and the line-item detail need Premium.
+                  </p>
+                  <HouseholdList
+                    households={households as HouseholdSummary[]}
+                    isSubscribed={false}
+                    onUpdate={refreshHouseholds}
+                  />
+                </div>
+              )}
 
               {/* CTA */}
               <div className="space-y-3 border-t pt-6">
@@ -295,7 +315,7 @@ export default function SharingPage() {
               </div>
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
                 <Shield className="h-5 w-5 text-primary mb-2" />
-                <p className="text-xs text-muted-foreground text-center">Manage permissions</p>
+                <p className="text-xs text-muted-foreground text-center">Invite with a link</p>
               </div>
             </div>
             <CreateHouseholdDialog
@@ -309,11 +329,8 @@ export default function SharingPage() {
                 <h2 className="text-xl font-semibold text-foreground">Your Households</h2>
                 <HouseholdList
                   households={households}
-                  currentUserId={currentUserId!}
                   isSubscribed={isSubscribed}
-                  onUpdate={() => {
-                    queryClient.invalidateQueries({ queryKey: ['households'] });
-                  }}
+                  onUpdate={refreshHouseholds}
                   onSelect={(household) => setSelectedHouseholdId(household.id)}
                   selectedId={selectedHouseholdId}
                 />
@@ -330,11 +347,9 @@ export default function SharingPage() {
                         householdId={selectedHousehold.id}
                         members={members}
                         currentUserId={currentUserId!}
-                        isCurrentUserAdmin={isCurrentUserAdmin}
+                        isCurrentUserOwner={isCurrentUserOwner}
                         isSubscribed={isSubscribed}
-                        onUpdate={() => {
-                          queryClient.invalidateQueries({ queryKey: ['household-members', selectedHouseholdId] });
-                        }}
+                        onUpdate={refreshHouseholds}
                       />
                     )}
                   </>

@@ -23,8 +23,11 @@ export function UpcomingPayments({
   const router = useRouter();
   const { format: formatCurrency } = useCurrency();
 
-  // Filter for active subscriptions with upcoming payments in the next X days
+  // Filter for active subscriptions with upcoming payments in the next X days.
+  // Billing dates are stored as midnight UTC, so compare from the start of today — comparing
+  // against the current time dropped anything due today.
   const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
   const futureDate = addDays(now, daysAhead);
 
   const upcomingPayments = subscriptions

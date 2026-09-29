@@ -11,6 +11,8 @@ import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import { useCurrency } from '@/lib/hooks/use-currency';
 import { cn } from '@/lib/utils';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
+import { useUser } from '@/lib/hooks/use-user';
+import { canRetryReceipt, isStuckProcessing } from '@/lib/utils/receipt-status';
 import { toast } from 'sonner';
 
 interface ReceiptListProps {
@@ -24,6 +26,8 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
   const [modalOpen, setModalOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const { format: formatCurrency } = useCurrency();
+  // Retry is owner-only on the server; a household member's receipt would just 403.
+  const { user: currentUser } = useUser();
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -88,7 +92,7 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
             {receipts.map((receipt) => {
               // Check if this is not actually a receipt
               const isNotReceipt = receipt.isReceipt === false;
-              
+
               return (
               <div
                 key={receipt.id}
@@ -192,11 +196,16 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                     )}
                   </div>
 
-                  {/* Retry Button for Failed Receipts */}
-                  {receipt.processingStatus === 'failed' && (
+                  {/* Retry for failed receipts, and for ones whose processing never finished */}
+                  {canRetryReceipt(receipt) && currentUser?.id === receipt.userId && (
                     <div className="mt-2 space-y-1.5">
-                      {receipt.processingError && (
+                      {receipt.processingStatus === 'failed' && receipt.processingError && (
                         <p className="text-xs text-destructive">{receipt.processingError}</p>
+                      )}
+                      {isStuckProcessing(receipt) && (
+                        <p className="text-xs text-muted-foreground">
+                          This one hasn&apos;t finished reading.
+                        </p>
                       )}
                       <div className="flex flex-wrap items-center gap-2">
                         <Button

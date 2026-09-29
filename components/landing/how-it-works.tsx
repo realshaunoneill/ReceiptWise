@@ -17,7 +17,9 @@ const steps = [
     step: '01',
     title: 'Snap or upload',
     description:
-      'Photograph a paper receipt, upload a PDF or screenshot, or clip an online receipt straight from your browser with the Chrome extension.',
+      // Images only (JPG, PNG, WebP) — the upload route rejects PDFs. The extension is not on
+      // the Chrome Web Store yet, so it is not offered as a way in here.
+      'Photograph a paper receipt, or upload a photo or a screenshot of one. JPG, PNG and WebP all work.',
   },
   {
     // Was a Sparkles icon. A scan line says "this is being read" without the

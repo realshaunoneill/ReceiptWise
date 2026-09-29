@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { HouseholdService } from '@/lib/services/household-service';
-import { getAuthenticatedUser, requireSubscription } from '@/lib/auth-helpers';
+import { HouseholdError, HouseholdService } from '@/lib/services/household-service';
+import { getAuthenticatedUser, requireNoPendingDeletion, requireSubscription } from '@/lib/auth-helpers';
 import {
   createErrorResponse,
   ErrorCode,
@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(households, {
       headers: {
-        'Cache-Control': 'private, max-age=300', // Cache for 5 minutes
+        // Not cached: after creating a household or accepting an invite the client refetches,
+        // and a cached copy kept the new household out of view for up to five minutes.
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (error) {
@@ -86,9 +88,12 @@ export async function POST(req: NextRequest) {
       return subCheck;
     }
 
+    const deletionCheck = requireNoPendingDeletion(user);
+    if (deletionCheck) return deletionCheck;
+
     const body = await req.json();
 
-    // Validate request body
+    // Validate request body (length is enforced by HouseholdService.createHousehold)
     if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
       Logger.warn('Invalid household name provided', {
         requestId,
@@ -118,6 +123,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(household, { status: 201 });
   } catch (error) {
+    if (error instanceof HouseholdError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     Logger.error('Error creating household', error as Error, { requestId });
     const errorResponse = createErrorResponse(
       ErrorCode.DATABASE_ERROR,

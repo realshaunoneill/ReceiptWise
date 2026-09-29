@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { HouseholdService } from '@/lib/services/household-service';
+import { HouseholdError, HouseholdService, validateHouseholdName } from '@/lib/services/household-service';
 import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import {
   createErrorResponse,
@@ -61,6 +61,8 @@ export async function GET(
     return NextResponse.json({
       ...household,
       members,
+    }, {
+      headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch (error) {
     Logger.error('Error fetching household', error as Error, { requestId });
@@ -117,21 +119,23 @@ export async function PATCH(
 
     const body = await req.json();
 
-    // Validate request body
-    if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+    let name: string;
+    try {
+      name = validateHouseholdName(body.name);
+    } catch (validationError) {
       Logger.warn('Invalid household name provided', {
         requestId,
         userId: user.id,
         context: { householdId },
       });
       const errorResponse = createErrorResponse(
-        ErrorCode.MISSING_REQUIRED_FIELD,
-        'Household name is required',
+        ErrorCode.INVALID_INPUT,
+        validationError instanceof Error ? validationError.message : 'Household name is required',
         { field: 'name' },
         requestId,
       );
       return NextResponse.json(errorResponse, {
-        status: getHttpStatusCode(ErrorCode.MISSING_REQUIRED_FIELD),
+        status: getHttpStatusCode(ErrorCode.INVALID_INPUT),
       });
     }
 
@@ -142,14 +146,14 @@ export async function PATCH(
 
     const [updatedHousehold] = await db
       .update(households)
-      .set({ name: body.name.trim(), updatedAt: new Date() })
+      .set({ name, updatedAt: new Date() })
       .where(eq(households.id, householdId))
       .returning();
 
     Logger.info('Household updated successfully', {
       requestId,
       userId: user.id,
-      context: { householdId, newName: body.name.trim() },
+      context: { householdId, newName: name },
     });
     return NextResponse.json(updatedHousehold);
   } catch (error) {
@@ -195,21 +199,12 @@ export async function DELETE(
     });
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    // Handle specific error messages
-    if (error instanceof Error && error.message.includes('Only household owners')) {
-      Logger.warn('Non-owner attempted to delete household', {
+    if (error instanceof HouseholdError) {
+      Logger.warn('Household delete refused', {
         requestId,
         context: { error: error.message },
       });
-      const errorResponse = createErrorResponse(
-        ErrorCode.INSUFFICIENT_PERMISSIONS,
-        error.message,
-        undefined,
-        requestId,
-      );
-      return NextResponse.json(errorResponse, {
-        status: getHttpStatusCode(ErrorCode.INSUFFICIENT_PERMISSIONS),
-      });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     Logger.error('Error deleting household', error as Error, { requestId });

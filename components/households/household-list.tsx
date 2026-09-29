@@ -1,17 +1,12 @@
 'use client';
 
-import { HouseholdCard } from '@/components/households/household-card';
+import { HouseholdCard, type HouseholdSummary } from '@/components/households/household-card';
 import { Users, Share2, Receipt } from 'lucide-react';
-import type { Household } from '@/lib/types';
 
-interface HouseholdWithDetails extends Household {
-  memberCount: number
-  isAdmin: boolean
-}
+type HouseholdWithDetails = HouseholdSummary;
 
 interface HouseholdListProps {
   households: HouseholdWithDetails[]
-  currentUserId: string
   isSubscribed?: boolean
   onUpdate: () => void
   onSelect?: (household: HouseholdWithDetails) => void
@@ -20,7 +15,6 @@ interface HouseholdListProps {
 
 export function HouseholdList({
   households,
-  currentUserId,
   isSubscribed = false,
   onUpdate,
   onSelect,
@@ -66,7 +60,6 @@ export function HouseholdList({
         >
           <HouseholdCard
             household={household}
-            currentUserId={currentUserId}
             isSubscribed={isSubscribed}
             onUpdate={onUpdate}
           />

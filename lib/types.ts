@@ -53,35 +53,6 @@ export interface ReceiptItem {
   created_at: string
 }
 
-export interface BankConnection {
-  id: string
-  user_id: string
-  provider: 'revolut' | 'plaid'
-  account_id: string
-  account_name?: string
-  institution_name?: string
-  access_token_encrypted?: string
-  last_synced_at?: string
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface BankTransaction {
-  id: string
-  bank_connection_id: string
-  user_id: string
-  transaction_id: string
-  merchant_name?: string
-  amount: number
-  currency: string
-  transaction_date: string
-  category?: string
-  description?: string
-  receipt_id?: string
-  created_at: string
-}
-
 export interface Subscription {
   id: string
   user_id: string

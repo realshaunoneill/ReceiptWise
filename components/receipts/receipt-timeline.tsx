@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { categoryBadgeClasses, categoryTextClasses, getCategory } from '@/lib/utils/categories';
 import { format, parseISO, isToday, isYesterday, isThisWeek, isThisMonth, startOfDay } from 'date-fns';
-import type { ReceiptWithItems } from '@/lib/types/api-responses';
+import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { isStuckProcessing } from '@/lib/utils/receipt-status';
 import { cn } from '@/lib/utils';
 
 interface ReceiptTimelineProps {
@@ -132,8 +133,10 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
               const category = getCategory(receipt.category);
               const CategoryIcon = category.icon;
 
-              const isProcessing = receipt.processingStatus === 'pending' || receipt.processingStatus === 'processing';
-              const isFailed = receipt.processingStatus === 'failed';
+              const isStuck = isStuckProcessing(receipt);
+              const isProcessing = !isStuck && (receipt.processingStatus === 'pending' || receipt.processingStatus === 'processing');
+              const isFailed = receipt.processingStatus === 'failed' || isStuck;
+              const timeOfDay = (receipt.ocrData as OCRData | null)?.timeOfDay;
 
               return (
                 <Card
@@ -215,7 +218,7 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                       )}
                       {isFailed && (
                         <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
-                          Failed
+                          {isStuck ? 'Didn’t finish — open to retry' : 'Failed'}
                         </Badge>
                       )}
 
@@ -227,11 +230,13 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                         </Badge>
                       )}
 
-                      {/* Time badge */}
-                      {receipt.transactionDate && (
+                      {/* Time badge. transactionDate is a date with no time, so formatting it
+                          as a time printed "12:00 AM" on every card; the time read off the
+                          receipt, when there is one, lives in the OCR data. */}
+                      {typeof timeOfDay === 'string' && timeOfDay && (
                         <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
                           <Clock className="h-3 w-3" aria-hidden="true" />
-                          {format(parseISO(receipt.transactionDate), 'h:mm a')}
+                          {timeOfDay}
                         </Badge>
                       )}
 

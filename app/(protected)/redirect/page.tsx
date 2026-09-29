@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/use-user';
 import { useUser as useClerkUser } from '@clerk/nextjs';
 import { Loader2 } from 'lucide-react';
+import { takePendingInvite } from '@/lib/utils/pending-invite';
 
 /**
  * Smart redirect page that sends users to the appropriate destination based on their subscription
@@ -31,6 +32,14 @@ export default function RedirectPage() {
     // Only redirect when we have valid user data
     if (user) {
       setHasRedirected(true);
+
+      // Someone who opened an invitation link while signed out goes back to it first,
+      // whatever their subscription state — otherwise sign-up swallowed the invitation.
+      const pendingInvite = takePendingInvite();
+      if (pendingInvite) {
+        router.replace(`/invite/${pendingInvite}`);
+        return;
+      }
 
       if (!isSubscribed) {
         // Free user - send to upgrade page to see premium benefits

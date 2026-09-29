@@ -40,20 +40,18 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
     if (!name.trim()) return;
 
     setIsCreating(true);
-    try {
-      await createHousehold({ name: name.trim() });
-      toast.success(`"${name.trim()}" household created!`, {
-        description: 'You can now invite members to share receipts.',
+    const result = await createHousehold({ name: name.trim() });
+    setIsCreating(false);
+
+    if (result.ok) {
+      toast.success(`"${result.household.name}" created`, {
+        description: 'Invite people from the Members list.',
       });
       onHouseholdCreated();
       setOpen(false);
       setName('');
-    } catch (_error) {
-      toast.error('Failed to create household', {
-        description: 'Please try again.',
-      });
-    } finally {
-      setIsCreating(false);
+    } else {
+      toast.error('Could not create the household', { description: result.error });
     }
   };
 
@@ -82,6 +80,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
               <Input
                 id="name"
                 placeholder="Enter a name for your household"
+                maxLength={60}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="mt-2"
@@ -113,8 +112,8 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
                   <Users className="h-3 w-3" />
                   Invite family or roommates
                 </li>
-                <li>Share receipts automatically</li>
-                <li>Track shared expenses together</li>
+                <li>Pick it on the Receipts page to add receipts to it</li>
+                <li>See everyone&apos;s shared receipts in one list</li>
               </ul>
             </div>
           </div>

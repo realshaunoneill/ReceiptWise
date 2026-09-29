@@ -1,0 +1,33 @@
+name: CI
+
+# Nothing checked a change before it reached production: the only other workflow force-pushes
+# master to staging. This runs the checks that need no secrets. `next build` is left to Vercel,
+# because the build script also pushes the schema to the database.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # package-lock.json is the lockfile. (An empty pnpm-lock.yaml used to sit beside it, which
+      # made Vercel install with pnpm and re-resolve every dependency from package.json on each
+      # deploy.)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint .

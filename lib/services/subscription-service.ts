@@ -1,64 +1,222 @@
 import { db } from '@/lib/db';
-import { subscriptions, subscriptionPayments, type Subscription } from '@/lib/db/schema';
-import { eq, and, lte, or, inArray } from 'drizzle-orm';
+import { subscriptions, subscriptionPayments, type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
+import { eq, and, lt, inArray } from 'drizzle-orm';
 
-export class SubscriptionService {
-  /**
-   * Calculate next billing date based on billing frequency
-   * Handles month-end edge cases (e.g., Jan 31 -> Feb 28/29)
-   */
-  static calculateNextBillingDate(
-    startDate: Date,
-    billingFrequency: 'monthly' | 'quarterly' | 'yearly' | 'custom',
-    customFrequencyDays?: number,
-  ): Date {
-    const nextBilling = new Date(startDate);
-    const originalDay = startDate.getDate();
+type BillingFrequency = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
-    switch (billingFrequency) {
-      case 'monthly':
-        nextBilling.setMonth(nextBilling.getMonth() + 1);
-        // Handle month-end dates: if we wanted day 31 but next month only has 30 days,
-        // the date will overflow to the next month. Fix by setting to last day of intended month.
-        if (nextBilling.getDate() !== originalDay) {
-          nextBilling.setDate(0); // Set to last day of previous month
-        }
-        break;
-      case 'quarterly':
-        nextBilling.setMonth(nextBilling.getMonth() + 3);
-        // Handle month-end dates for quarterly billing
-        if (nextBilling.getDate() !== originalDay) {
-          nextBilling.setDate(0); // Set to last day of previous month
-        }
-        break;
-      case 'yearly':
-        nextBilling.setFullYear(nextBilling.getFullYear() + 1);
-        // Handle Feb 29 (leap year) edge case
-        if (nextBilling.getDate() !== originalDay) {
-          nextBilling.setDate(0); // Set to last day of previous month
-        }
-        break;
-      case 'custom':
-        if (customFrequencyDays) {
-          nextBilling.setDate(nextBilling.getDate() + customFrequencyDays);
-        }
-        break;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const MONTHS_PER_CYCLE: Record<Exclude<BillingFrequency, 'custom'>, number> = {
+  monthly: 1,
+  quarterly: 3,
+  yearly: 12,
+};
+
+/** A pending payment only becomes "missed" this long after its expected date. */
+const MISSED_GRACE_DAYS = 3;
+
+/** Upper bound on cycles generated for one subscription in one pass. */
+const MAX_CYCLES = 600;
+
+type ScheduleFields = Pick<Subscription, 'startDate' | 'billingFrequency' | 'billingDay' | 'customFrequencyDays' | 'endDate'>;
+
+/** Midnight UTC of the given instant's UTC calendar day. */
+function utcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function daysInMonthUTC(year: number, month: number): number {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
+
+/** The given day of a month, clamped to the month's length (31 → Feb 28/29 → Mar 31). */
+function dayOfMonthUTC(year: number, month: number, day: number): Date {
+  const normalizedYear = year + Math.floor(month / 12);
+  const normalizedMonth = ((month % 12) + 12) % 12;
+  return new Date(Date.UTC(
+    normalizedYear,
+    normalizedMonth,
+    Math.min(day, daysInMonthUTC(normalizedYear, normalizedMonth)),
+  ));
+}
+
+/**
+ * Billing schedule for a tracked subscription.
+ *
+ * Cycles fall on `billingDay` ("What day of the month?"), starting with the first such day on
+ * or after `startDate` ("When did you start?"), clamped to short months. Each cycle is derived
+ * from the anchor rather than from the previous cycle, so a 31st goes Jan 31 → Feb 28 → Mar 31
+ * instead of drifting to the 28th for ever — which is what the old step-from-previous-date maths
+ * did, while ignoring billingDay entirely. Custom frequencies repeat every N days from the start.
+ */
+class BillingSchedule {
+  private readonly start: Date;
+  private readonly frequency: BillingFrequency;
+  private readonly billingDay: number;
+  private readonly customDays: number;
+  private readonly end: Date | null;
+  private readonly anchor: Date;
+
+  constructor(subscription: ScheduleFields) {
+    this.start = utcDay(new Date(subscription.startDate));
+    this.frequency = (subscription.billingFrequency as BillingFrequency) || 'monthly';
+    this.billingDay = Math.min(Math.max(subscription.billingDay || this.start.getUTCDate(), 1), 31);
+    this.customDays = Math.max(subscription.customFrequencyDays || 30, 1);
+    this.end = subscription.endDate ? utcDay(new Date(subscription.endDate)) : null;
+
+    if (this.frequency === 'custom') {
+      this.anchor = this.start;
+    } else {
+      const inStartMonth = dayOfMonthUTC(this.start.getUTCFullYear(), this.start.getUTCMonth(), this.billingDay);
+      this.anchor = inStartMonth >= this.start
+        ? inStartMonth
+        : dayOfMonthUTC(this.start.getUTCFullYear(), this.start.getUTCMonth() + 1, this.billingDay);
     }
+  }
 
-    return nextBilling;
+  /** The date of cycle `index` (0 = first payment). */
+  cycle(index: number): Date {
+    if (this.frequency === 'custom') {
+      return new Date(this.anchor.getTime() + index * this.customDays * DAY_MS);
+    }
+    const months = MONTHS_PER_CYCLE[this.frequency] * index;
+    return dayOfMonthUTC(this.anchor.getUTCFullYear(), this.anchor.getUTCMonth() + months, this.billingDay);
   }
 
   /**
-   * Generate expected payments for a subscription
-   * Creates payment records only for billing cycles that have already occurred (in the past)
-   * This ensures we only track payments that should have been made, not future predictions
+   * A cycle index at or just before the one nearest `date`, so walks can start near today
+   * rather than at the first payment — a daily custom subscription a few years old has
+   * thousands of cycles.
+   */
+  private indexNear(date: Date): number {
+    if (this.frequency === 'custom') {
+      return Math.max(0, Math.floor((date.getTime() - this.anchor.getTime()) / (this.customDays * DAY_MS)) - 1);
+    }
+    const monthsApart = (date.getUTCFullYear() - this.anchor.getUTCFullYear()) * 12
+      + (date.getUTCMonth() - this.anchor.getUTCMonth());
+    return Math.max(0, Math.floor(monthsApart / MONTHS_PER_CYCLE[this.frequency]) - 1);
+  }
+
+  /**
+   * Cycle dates up to and including `until` (and the end date, if set) — the most recent
+   * MAX_CYCLES of them, oldest first.
+   */
+  cyclesThrough(until: Date): Date[] {
+    const limit = this.end && this.end < until ? this.end : until;
+    let last = this.indexNear(limit);
+    while (this.cycle(last + 1) <= limit) last++;
+    while (last >= 0 && this.cycle(last) > limit) last--;
+
+    const dates: Date[] = [];
+    for (let i = Math.max(0, last - MAX_CYCLES + 1); i <= last; i++) {
+      dates.push(this.cycle(i));
+    }
+    return dates;
+  }
+
+  /** The first cycle on or after `from`, or null once the subscription has ended. */
+  firstCycleOnOrAfter(from: Date): Date | null {
+    const target = utcDay(from);
+    for (let i = this.indexNear(target); ; i++) {
+      const date = this.cycle(i);
+      if (this.end && date > this.end) return null;
+      if (date >= target) return date;
+    }
+  }
+
+  /**
+   * How close an existing payment's expectedDate must be to a cycle date to count as that cycle.
+   * Rows written by the old maths can sit a day or three off the corrected schedule; the window
+   * stays under half a cycle so it can never swallow a neighbouring one.
+   */
+  get matchToleranceMs(): number {
+    if (this.frequency === 'custom') {
+      return Math.max(0, Math.floor((this.customDays - 1) / 2)) * DAY_MS;
+    }
+    return 3 * DAY_MS;
+  }
+}
+
+type NewPayment = {
+  subscriptionId: string;
+  expectedDate: Date;
+  expectedAmount: string;
+  status: string;
+};
+
+export class SubscriptionService {
+  /**
+   * The next billing date for a subscription as of `now`: the first cycle on or after today
+   * that hasn't already been paid. Previously nextBillingDate was set once to start + one period
+   * and only moved when a payment was marked paid, so any subscription more than a period old
+   * showed a date in the past and dropped out of "upcoming".
+   */
+  static computeNextBillingDate(
+    subscription: ScheduleFields,
+    paidDates: Date[] = [],
+    now: Date = new Date(),
+  ): Date {
+    const schedule = new BillingSchedule(subscription);
+    const tolerance = schedule.matchToleranceMs;
+    let from = utcDay(now);
+
+    for (let i = 0; i < 24; i++) {
+      const next = schedule.firstCycleOnOrAfter(from);
+      if (!next) break;
+      const alreadyPaid = paidDates.some((d) => Math.abs(utcDay(new Date(d)).getTime() - next.getTime()) <= tolerance);
+      if (!alreadyPaid) return next;
+      from = new Date(next.getTime() + DAY_MS);
+    }
+
+    // Ended (or everything ahead is paid): keep the last cycle so the column stays non-null.
+    return schedule.cyclesThrough(utcDay(now)).at(-1) ?? schedule.cycle(0);
+  }
+
+  /**
+   * Work out which expected-payment rows are missing for one subscription, and its correct
+   * nextBillingDate, given all its existing payment rows.
+   *
+   * Existing rows of EVERY status count when deduplicating. The old code only looked at
+   * pending/missed, so marking the last outstanding cycle paid made it regenerate every
+   * historical cycle from the start date, which then all flipped to "missed" — the missed list
+   * could never be cleared. A cycle that has any row (including one the user cancelled) is never
+   * recreated.
+   */
+  private static planPayments(subscription: Subscription, existing: SubscriptionPayment[], now: Date) {
+    const schedule = new BillingSchedule(subscription);
+    const tolerance = schedule.matchToleranceMs;
+    const existingDays = existing.map((p) => utcDay(new Date(p.expectedDate)).getTime());
+
+    const toCreate: NewPayment[] = [];
+    for (const date of schedule.cyclesThrough(utcDay(now))) {
+      const covered = existingDays.some((day) => Math.abs(day - date.getTime()) <= tolerance);
+      if (!covered) {
+        toCreate.push({
+          subscriptionId: subscription.id,
+          expectedDate: date,
+          expectedAmount: subscription.amount,
+          status: 'pending',
+        });
+      }
+    }
+
+    const paidDates = existing
+      .filter((p) => p.status === 'paid')
+      .map((p) => new Date(p.expectedDate));
+    const nextBillingDate = this.computeNextBillingDate(subscription, paidDates, now);
+
+    return { toCreate, nextBillingDate };
+  }
+
+  /**
+   * Generate expected payments for a subscription, for billing cycles up to today only (never
+   * future ones), and bring its nextBillingDate up to date.
    */
   static async generateExpectedPayments(
     subscriptionId: string,
     _monthsAhead: number = 12,
     _generateHistorical: boolean = false,
   ): Promise<number> {
-    // Fetch subscription
     const [subscription] = await db
       .select()
       .from(subscriptions)
@@ -69,314 +227,99 @@ export class SubscriptionService {
       return 0;
     }
 
-    // Get existing pending/missed payments to avoid duplicates
-    const existingPayments = await db
-      .select()
-      .from(subscriptionPayments)
-      .where(
-        and(
-          eq(subscriptionPayments.subscriptionId, subscriptionId),
-          or(
-            eq(subscriptionPayments.status, 'pending'),
-            eq(subscriptionPayments.status, 'missed'),
-          ),
-        ),
-      );
-
-    const now = new Date();
-    const paymentsToCreate: Array<{
-      subscriptionId: string;
-      expectedDate: Date;
-      expectedAmount: string;
-      status: string;
-    }> = [];
-
-    const startDate = new Date(subscription.startDate);
-
-    // Special case: if subscription has started and there are no payments,
-    // create the first expected payment so user can link their initial receipt
-    if (existingPayments.length === 0 && startDate <= now) {
-      const firstBillingDate = this.calculateNextBillingDate(
-        startDate,
-        subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-        subscription.customFrequencyDays || undefined,
-      );
-
-      paymentsToCreate.push({
-        subscriptionId: subscription.id,
-        expectedDate: new Date(firstBillingDate),
-        expectedAmount: subscription.amount,
-        status: 'pending',
-      });
-    }
-
-    // Determine the starting point for payment generation
-    let startingDate: Date;
-
-    if (existingPayments.length === 0) {
-      // No payments exist - start from the first billing date we just created
-      startingDate = this.calculateNextBillingDate(
-        startDate,
-        subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-        subscription.customFrequencyDays || undefined,
-      );
-    } else {
-      // Payments exist - start from the latest payment to check for gaps
-      const sortedPayments = existingPayments.sort(
-        (a, b) => new Date(b.expectedDate).getTime() - new Date(a.expectedDate).getTime(),
-      );
-      startingDate = sortedPayments[0].expectedDate;
-    }
-
-    // ALWAYS only generate up to today - never create future expected payments
-    const endDate = now;
-
-    let currentDate = new Date(startingDate);
-    let safetyCounter = 0;
-    const MAX_ITERATIONS = 1000;
-
-    // Generate payments from start to end date
-    while (safetyCounter < MAX_ITERATIONS) {
-      const previousDate = new Date(currentDate);
-
-      // Calculate next billing date
-      const nextDate = this.calculateNextBillingDate(
-        currentDate,
-        subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-        subscription.customFrequencyDays || undefined,
-      );
-
-      // Safety check: ensure date actually progressed
-      if (nextDate <= previousDate) {
-        throw new Error(`Date calculation did not progress forward for subscription ${subscriptionId}`);
-      }
-
-      safetyCounter++;
-
-      // Check if we've reached the end date
-      if (nextDate > endDate) {
-        break;
-      }
-
-      // Check if this payment already exists (including the first one we just created)
-      const existingPayment = existingPayments.find(
-        (p) => {
-          const diff = Math.abs(
-            new Date(p.expectedDate).getTime() - nextDate.getTime(),
-          );
-          return diff < 24 * 60 * 60 * 1000; // Within 1 day
-        },
-      );
-
-      const alreadyCreated = paymentsToCreate.find(
-        (p) => {
-          const diff = Math.abs(
-            p.expectedDate.getTime() - nextDate.getTime(),
-          );
-          return diff < 24 * 60 * 60 * 1000; // Within 1 day
-        },
-      );
-
-      if (!existingPayment && !alreadyCreated) {
-        paymentsToCreate.push({
-          subscriptionId: subscription.id,
-          expectedDate: new Date(nextDate),
-          expectedAmount: subscription.amount,
-          status: 'pending',
-        });
-      }
-
-      currentDate = nextDate;
-    }
-
-    // Bulk insert payments
-    if (paymentsToCreate.length > 0) {
-      await db.insert(subscriptionPayments).values(paymentsToCreate);
-    }
-
-    return paymentsToCreate.length;
+    const { created } = await this.generateExpectedPaymentsBatch([subscription]);
+    return created;
   }
 
   /**
-   * Generate expected payments for multiple subscriptions in batch
-   * More efficient than calling generateExpectedPayments for each subscription
-   * Reduces N+1 queries to 2 batch queries
+   * Generate expected payments for several subscriptions with one read and one insert, and
+   * correct each one's nextBillingDate. Returns the corrected dates so a caller that already
+   * holds the rows can patch them without re-reading.
    */
   static async generateExpectedPaymentsBatch(
     subscriptionList: Subscription[],
-  ): Promise<number> {
+  ): Promise<{ created: number; nextBillingDates: Map<string, Date> }> {
+    const nextBillingDates = new Map<string, Date>();
     const activeSubscriptions = subscriptionList.filter(sub => sub.status === 'active');
 
     if (activeSubscriptions.length === 0) {
-      return 0;
+      return { created: 0, nextBillingDates };
     }
 
     const subscriptionIds = activeSubscriptions.map(s => s.id);
-
-    // Batch fetch all existing pending/missed payments for all subscriptions
     const allExistingPayments = await db
       .select()
       .from(subscriptionPayments)
-      .where(
-        and(
-          inArray(subscriptionPayments.subscriptionId, subscriptionIds),
-          or(
-            eq(subscriptionPayments.status, 'pending'),
-            eq(subscriptionPayments.status, 'missed'),
-          ),
-        ),
-      );
+      .where(inArray(subscriptionPayments.subscriptionId, subscriptionIds));
 
-    // Group existing payments by subscription ID
-    const existingPaymentsBySubscription = new Map<string, typeof allExistingPayments>();
-    allExistingPayments.forEach(payment => {
-      const existing = existingPaymentsBySubscription.get(payment.subscriptionId) || [];
-      existing.push(payment);
-      existingPaymentsBySubscription.set(payment.subscriptionId, existing);
-    });
+    const existingBySubscription = new Map<string, SubscriptionPayment[]>();
+    for (const payment of allExistingPayments) {
+      const list = existingBySubscription.get(payment.subscriptionId) || [];
+      list.push(payment);
+      existingBySubscription.set(payment.subscriptionId, list);
+    }
 
     const now = new Date();
-    const allPaymentsToCreate: Array<{
-      subscriptionId: string;
-      expectedDate: Date;
-      expectedAmount: string;
-      status: string;
-    }> = [];
+    const allPaymentsToCreate: NewPayment[] = [];
 
-    // Process each subscription
     for (const subscription of activeSubscriptions) {
-      const existingPayments = existingPaymentsBySubscription.get(subscription.id) || [];
-      const startDate = new Date(subscription.startDate);
+      const { toCreate, nextBillingDate } = this.planPayments(
+        subscription,
+        existingBySubscription.get(subscription.id) || [],
+        now,
+      );
+      allPaymentsToCreate.push(...toCreate);
 
-      // Special case: if subscription has started and there are no payments,
-      // create the first expected payment
-      if (existingPayments.length === 0 && startDate <= now) {
-        const firstBillingDate = this.calculateNextBillingDate(
-          startDate,
-          subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-          subscription.customFrequencyDays || undefined,
-        );
-
-        allPaymentsToCreate.push({
-          subscriptionId: subscription.id,
-          expectedDate: new Date(firstBillingDate),
-          expectedAmount: subscription.amount,
-          status: 'pending',
-        });
-      }
-
-      // Determine the starting point for payment generation
-      let startingDate: Date;
-
-      if (existingPayments.length === 0) {
-        startingDate = this.calculateNextBillingDate(
-          startDate,
-          subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-          subscription.customFrequencyDays || undefined,
-        );
-      } else {
-        const sortedPayments = existingPayments.sort(
-          (a, b) => new Date(b.expectedDate).getTime() - new Date(a.expectedDate).getTime(),
-        );
-        startingDate = sortedPayments[0].expectedDate;
-      }
-
-      let currentDate = new Date(startingDate);
-      let safetyCounter = 0;
-      const MAX_ITERATIONS = 100; // Reduced for batch processing
-
-      while (safetyCounter < MAX_ITERATIONS) {
-        const previousDate = new Date(currentDate);
-        const nextDate = this.calculateNextBillingDate(
-          currentDate,
-          subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-          subscription.customFrequencyDays || undefined,
-        );
-
-        if (nextDate <= previousDate) break;
-        safetyCounter++;
-
-        if (nextDate > now) break;
-
-        const existingPayment = existingPayments.find((p) => {
-          const diff = Math.abs(new Date(p.expectedDate).getTime() - nextDate.getTime());
-          return diff < 24 * 60 * 60 * 1000;
-        });
-
-        const alreadyCreated = allPaymentsToCreate.find((p) => {
-          if (p.subscriptionId !== subscription.id) return false;
-          const diff = Math.abs(p.expectedDate.getTime() - nextDate.getTime());
-          return diff < 24 * 60 * 60 * 1000;
-        });
-
-        if (!existingPayment && !alreadyCreated) {
-          allPaymentsToCreate.push({
-            subscriptionId: subscription.id,
-            expectedDate: new Date(nextDate),
-            expectedAmount: subscription.amount,
-            status: 'pending',
-          });
-        }
-
-        currentDate = nextDate;
+      if (new Date(subscription.nextBillingDate).getTime() !== nextBillingDate.getTime()) {
+        nextBillingDates.set(subscription.id, nextBillingDate);
       }
     }
 
-    // Bulk insert all payments at once
     if (allPaymentsToCreate.length > 0) {
       await db.insert(subscriptionPayments).values(allPaymentsToCreate);
     }
 
-    return allPaymentsToCreate.length;
+    for (const [id, nextBillingDate] of nextBillingDates) {
+      await db
+        .update(subscriptions)
+        .set({ nextBillingDate, updatedAt: new Date() })
+        .where(eq(subscriptions.id, id));
+    }
+
+    return { created: allPaymentsToCreate.length, nextBillingDates };
   }
 
   /**
-   * Generate expected payments for all active subscriptions
-   * This should be run periodically (e.g., daily cron job)
+   * Mark a set of subscriptions' pending payments as missed once they are more than
+   * MISSED_GRACE_DAYS past their expected date.
+   *
+   * Scoped to the given subscriptions. It used to be one UPDATE across every user's payments on
+   * every GET /api/subscriptions (the call site's comment said "this user's"), with no grace
+   * period — so a payment generated for today was "missed" the moment it was created.
    */
-  static async generateAllExpectedPayments(monthsAhead: number = 12): Promise<{
-    processed: number;
-    created: number;
-  }> {
-    // Get all active subscriptions
-    const activeSubscriptions = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.status, 'active'));
+  static async updateMissedPayments(subscriptionIds: string[]): Promise<number> {
+    if (subscriptionIds.length === 0) return 0;
 
-    // Use batch method instead of individual calls
-    const totalCreated = await this.generateExpectedPaymentsBatch(activeSubscriptions);
-
-    return {
-      processed: activeSubscriptions.length,
-      created: totalCreated,
-    };
-  }
-
-  /**
-   * Update missed payments status
-   * Mark payments as "missed" if they're past due and still pending
-   */
-  static async updateMissedPayments(): Promise<number> {
-    const now = new Date();
+    const cutoff = new Date(Date.now() - MISSED_GRACE_DAYS * DAY_MS);
 
     const result = await db
       .update(subscriptionPayments)
-      .set({ status: 'missed' })
+      .set({ status: 'missed', updatedAt: new Date() })
       .where(
         and(
+          inArray(subscriptionPayments.subscriptionId, subscriptionIds),
           eq(subscriptionPayments.status, 'pending'),
-          lte(subscriptionPayments.expectedDate, now),
+          lt(subscriptionPayments.expectedDate, cutoff),
         ),
       )
-      .returning();
+      .returning({ id: subscriptionPayments.id });
 
     return result.length;
   }
 
   /**
-   * When a payment is marked as paid, generate the next expected payment
-   * and update the subscription's nextBillingDate
+   * When a payment is marked as paid, record it and move nextBillingDate to the next unpaid
+   * cycle.
    */
   static async handlePaymentPaid(
     subscriptionId: string,
@@ -388,28 +331,23 @@ export class SubscriptionService {
       .where(eq(subscriptions.id, subscriptionId))
       .limit(1);
 
-    if (!subscription || subscription.status !== 'active') {
+    if (!subscription) {
       return;
     }
 
-    // Calculate next billing date from the paid date
-    const nextBilling = this.calculateNextBillingDate(
-      paidDate,
-      subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-      subscription.customFrequencyDays || undefined,
-    );
+    const lastPaymentDate = subscription.lastPaymentDate && subscription.lastPaymentDate > paidDate
+      ? subscription.lastPaymentDate
+      : paidDate;
 
-    // Update subscription's nextBillingDate and lastPaymentDate
     await db
       .update(subscriptions)
-      .set({
-        nextBillingDate: nextBilling,
-        lastPaymentDate: paidDate,
-      })
+      .set({ lastPaymentDate, updatedAt: new Date() })
       .where(eq(subscriptions.id, subscriptionId));
 
-    // Generate future expected payments
-    await this.generateExpectedPayments(subscriptionId, 12);
+    if (subscription.status === 'active') {
+      // Fills any gaps and recomputes nextBillingDate against the now-paid cycle.
+      await this.generateExpectedPayments(subscriptionId);
+    }
   }
 
   /**

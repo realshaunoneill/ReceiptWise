@@ -23,12 +23,26 @@ interface UploadItem {
 
 const ENV_PATH_PREFIX = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
 
+/*
+ * What /api/receipt/upload's token actually allows. The inputs used to accept image/* and the
+ * copy promised HEIC, so a HEIC (or GIF, or TIFF) passed the client check and then failed the
+ * upload with a generic error. Restricting `accept` also makes iOS Safari convert HEIC photos to
+ * JPEG before handing them over.
+ */
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ACCEPT_ATTRIBUTE = ACCEPTED_TYPES.join(',');
+const MAX_FILE_MB = 15;
+
+/** Blob pathnames are public URLs: keep them free of anything personal. */
+function safeFileName(name: string): string {
+  const cleaned = name.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return cleaned.slice(-80) || 'receipt';
+}
+
 export function ReceiptBatchUpload({
-  userEmail,
   householdId,
   onUploadComplete,
 }: {
-  userEmail: string
   householdId?: string
   onUploadComplete?: () => void
 }) {
@@ -63,18 +77,27 @@ export function ReceiptBatchUpload({
   const pendingFilesRef = useRef<UploadItem[]>([]);
 
   const addFiles = useCallback((files: File[]) => {
+    const wrongType = files.filter(file => !ACCEPTED_TYPES.includes(file.type));
+    const tooLarge = files.filter(file => ACCEPTED_TYPES.includes(file.type) && file.size > MAX_FILE_MB * 1024 * 1024);
+
+    // These used to be dropped silently, so a HEIC or an oversized photo just never appeared.
+    if (wrongType.length > 0) {
+      toast.error(
+        wrongType.length === 1
+          ? `${wrongType[0].name} isn't a JPG, PNG or WebP image`
+          : `${wrongType.length} files aren't JPG, PNG or WebP images`,
+      );
+    }
+    if (tooLarge.length > 0) {
+      toast.error(
+        tooLarge.length === 1
+          ? `${tooLarge[0].name} is over ${MAX_FILE_MB}MB`
+          : `${tooLarge.length} files are over ${MAX_FILE_MB}MB`,
+      );
+    }
+
     const newItems: UploadItem[] = files
-      .filter(file => {
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-          return false;
-        }
-        // Validate file size (max 15MB)
-        if (file.size > 15 * 1024 * 1024) {
-          return false;
-        }
-        return true;
-      })
+      .filter(file => ACCEPTED_TYPES.includes(file.type) && file.size <= MAX_FILE_MB * 1024 * 1024)
       .map(file => ({
         id: `${Date.now()}-${Math.random()}`,
         file,
@@ -117,69 +140,6 @@ export function ReceiptBatchUpload({
     });
   }, []);
 
-  const retryItem = useCallback(async (id: string) => {
-    const item = uploadItems.find(i => i.id === id);
-    if (!item || !item.blobUrl) return;
-
-    setUploadItems(prev =>
-      prev.map(i => (i.id === id ? { ...i, status: 'processing' as const, progress: 50, error: undefined } : i)),
-    );
-
-    try {
-      // If no receiptId, create the DB entry first
-      let receiptId = item.receiptId;
-      if (!receiptId) {
-        const createResponse = await fetch('/api/receipt/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageUrl: item.blobUrl,
-            householdId,
-          }),
-        });
-
-        if (!createResponse.ok) {
-          throw new Error('Failed to create receipt entry');
-        }
-
-        const createData = await createResponse.json();
-        receiptId = createData.receiptId;
-      }
-
-      const processResponse = await fetch('/api/receipt/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          receiptId,
-        }),
-      });
-
-      if (!processResponse.ok) {
-        throw new Error('Failed to process receipt');
-      }
-
-      setUploadItems(prev =>
-        prev.map(i => (i.id === id ? { ...i, status: 'completed' as const, progress: 100 } : i)),
-      );
-
-      toast.success('Receipt processed successfully!');
-      onUploadComplete?.();
-    } catch (error) {
-      setUploadItems(prev =>
-        prev.map(i =>
-          i.id === id
-            ? {
-                ...i,
-                status: 'failed' as const,
-                error: error instanceof Error ? error.message : 'Processing failed',
-              }
-            : i,
-        ),
-      );
-      toast.error(error instanceof Error ? error.message : 'Failed to process receipt');
-    }
-  }, [uploadItems, householdId, onUploadComplete]);
-
   const processItem = useCallback(async (item: UploadItem) => {
     try {
       // Step 1: Upload to Vercel Blob
@@ -187,9 +147,11 @@ export function ReceiptBatchUpload({
         prev.map(i => (i.id === item.id ? { ...i, status: 'uploading' as const, progress: 25 } : i)),
       );
 
-      const receiptId = `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const receiptId = `receipt-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      // The pathname becomes part of a public URL (and ended up in logs and analytics), so it
+      // must not carry the user's email address, which it used to.
       const blob = await upload(
-        `${ENV_PATH_PREFIX}/receipts/${userEmail}/${receiptId}/${item.file.name}`,
+        `${ENV_PATH_PREFIX}/receipts/${receiptId}/${safeFileName(item.file.name)}`,
         item.file,
         {
           access: 'public',
@@ -209,7 +171,10 @@ export function ReceiptBatchUpload({
       });
 
       if (!createResponse.ok) {
-        throw new Error('Failed to create receipt entry');
+        const data = await createResponse.json().catch(() => ({}));
+        // Keep the blob URL so Retry can create the entry without re-uploading.
+        setUploadItems(prev => prev.map(i => (i.id === item.id ? { ...i, blobUrl: blob.url } : i)));
+        throw new Error(data.error || 'Failed to create receipt entry');
       }
 
       const { receiptId: dbReceiptId } = await createResponse.json();
@@ -233,7 +198,8 @@ export function ReceiptBatchUpload({
       })
         .then(async (response) => {
           if (!response.ok) {
-            throw new Error('Failed to process receipt');
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to process receipt');
           }
 
           setUploadItems(prev =>
@@ -277,7 +243,83 @@ export function ReceiptBatchUpload({
         ),
       );
     }
-  }, [userEmail, householdId, onUploadComplete]);
+  }, [householdId, onUploadComplete]);
+
+  const retryItem = useCallback(async (id: string) => {
+    const item = uploadItems.find(i => i.id === id);
+    if (!item) return;
+
+    // The upload itself failed, so there is nothing on the server to retry yet: start over.
+    // (This used to return silently, so the Retry button did nothing.)
+    if (!item.blobUrl) {
+      processItem({ ...item, status: 'pending', progress: 0, error: undefined });
+      return;
+    }
+
+    setUploadItems(prev =>
+      prev.map(i => (i.id === id ? { ...i, status: 'processing' as const, progress: 50, error: undefined } : i)),
+    );
+
+    try {
+      // If no receiptId, create the DB entry first
+      let receiptId = item.receiptId;
+      if (!receiptId) {
+        const createResponse = await fetch('/api/receipt/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: item.blobUrl,
+            householdId,
+          }),
+        });
+
+        if (!createResponse.ok) {
+          const data = await createResponse.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to create receipt entry');
+        }
+
+        const createData = await createResponse.json();
+        receiptId = createData.receiptId;
+      }
+
+      // A receipt that already exists is retried through the retry route, which also recovers
+      // one left stuck in 'processing'.
+      const processResponse = item.receiptId
+        ? await fetch(`/api/receipts/${receiptId}/retry`, { method: 'POST' })
+        : await fetch('/api/receipt/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              receiptId,
+            }),
+          });
+
+      if (!processResponse.ok) {
+        const data = await processResponse.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to process receipt');
+      }
+
+      setUploadItems(prev =>
+        prev.map(i => (i.id === id ? { ...i, status: 'completed' as const, progress: 100 } : i)),
+      );
+
+      toast.success('Receipt processed successfully!');
+      onUploadComplete?.();
+    } catch (error) {
+      setUploadItems(prev =>
+        prev.map(i =>
+          i.id === id
+            ? {
+                ...i,
+                status: 'failed' as const,
+                error: error instanceof Error ? error.message : 'Processing failed',
+              }
+            : i,
+        ),
+      );
+      toast.error(error instanceof Error ? error.message : 'Failed to process receipt');
+    }
+  }, [uploadItems, householdId, onUploadComplete, processItem]);
 
   const processItems = useCallback(async (items: UploadItem[]) => {
     // Process all items in parallel (async)
@@ -383,7 +425,7 @@ export function ReceiptBatchUpload({
                   Click to upload or drag & drop receipts
                 </span>
                 <span className="mt-1 text-sm text-muted-foreground">
-                  PNG, JPG, or HEIC (max 15MB each)
+                  PNG, JPG or WebP (max {MAX_FILE_MB}MB each)
                 </span>
               </>
             )}
@@ -394,7 +436,7 @@ export function ReceiptBatchUpload({
             ref={fileInputRef}
             type="file"
             className="hidden"
-            accept="image/*"
+            accept={ACCEPT_ATTRIBUTE}
             multiple
             onChange={handleFilesChange}
           />
@@ -402,7 +444,7 @@ export function ReceiptBatchUpload({
             ref={cameraInputRef}
             type="file"
             className="hidden"
-            accept="image/*"
+            accept={ACCEPT_ATTRIBUTE}
             capture="environment"
             onChange={handleFilesChange}
           />
@@ -429,7 +471,7 @@ export function ReceiptBatchUpload({
         </div>
 
         <p className="text-xs text-center text-muted-foreground">
-          Supports PNG, JPG, WEBP • Max 15MB per file
+          Supports PNG, JPG, WebP • Max {MAX_FILE_MB}MB per file
         </p>
 
         {/* Upload Queue */}

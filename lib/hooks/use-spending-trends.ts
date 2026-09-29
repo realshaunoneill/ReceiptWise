@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useReceipts } from './use-receipts';
-import type { ReceiptWithItems } from '@/lib/types/api-responses';
+import { useMemo } from 'react';
+import { useReceiptStats } from './use-dashboard-stats';
 
 interface SpendingTrendsData {
   chartData: Array<{
@@ -17,14 +16,44 @@ interface SpendingTrendsData {
   }>
 }
 
-export function useSpendingTrends(householdId?: string, period: 'week' | 'month' | 'year' = 'month', personalOnly: boolean = false) {
-  // Get all receipts for analysis (not paginated)
-  const { receipts, isLoading: receiptsLoading } = useReceipts(householdId, 1, 1000, undefined, personalOnly);
+/** Start of the current period and of the one before it, which "change" compares against. */
+function periodBounds(period: 'week' | 'month' | 'year', now: Date) {
+  let startDate: Date;
+  switch (period) {
+    case 'week':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case 'year':
+      startDate = new Date(now.getFullYear(), 0, 1);
+      break;
+    case 'month':
+    default:
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  const previousPeriodStart = new Date(startDate.getTime() - (now.getTime() - startDate.getTime()));
+  return { startDate, previousPeriodStart };
+}
 
-  const trendsData = useQuery({
-    queryKey: ['spending-trends', householdId, period, personalOnly, receipts?.length],
-    queryFn: (): SpendingTrendsData => {
-      if (!receipts || receipts.length === 0) {
+function toIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function useSpendingTrends(householdId?: string, period: 'week' | 'month' | 'year' = 'month', personalOnly: boolean = false) {
+  // Per-receipt points from the server, back to the start of the previous period. This used to
+  // ask /api/receipts for 1000 receipts and silently get 100 (the route's page cap), and it
+  // counted pending, failed and not-a-receipt uploads.
+  const from = useMemo(() => toIsoDate(periodBounds(period, new Date()).previousPeriodStart), [period]);
+  const { data: stats, isLoading, error } = useReceiptStats(householdId, personalOnly, from);
+
+  const trendsData = useMemo((): SpendingTrendsData | undefined => {
+      if (!stats) return undefined;
+      const receipts = (stats.points ?? []).map((p) => ({
+        transactionDate: p.date,
+        createdAt: p.date,
+        totalAmount: String(p.amount),
+        category: p.category,
+      }));
+      if (receipts.length === 0) {
         return {
           chartData: [],
           totalSpent: 0,
@@ -70,7 +99,7 @@ export function useSpendingTrends(householdId?: string, period: 'week' | 'month'
       // Group receipts by time period
       const groupedData: Record<string, { amount: number; date: Date }> = {};
 
-      periodReceipts.forEach((receipt: ReceiptWithItems) => {
+      periodReceipts.forEach((receipt) => {
         const receiptDate = new Date(receipt.transactionDate || receipt.createdAt);
         let groupKey: string;
 
@@ -142,7 +171,7 @@ export function useSpendingTrends(householdId?: string, period: 'week' | 'month'
       }
 
       // Calculate total spent in current period
-      const totalSpent = periodReceipts.reduce((sum: number, receipt: ReceiptWithItems) => {
+      const totalSpent = periodReceipts.reduce((sum: number, receipt) => {
         return sum + (parseFloat(receipt.totalAmount || '0'));
       }, 0);
 
@@ -156,7 +185,7 @@ export function useSpendingTrends(householdId?: string, period: 'week' | 'month'
         return receiptDate >= previousPeriodStart && receiptDate < startDate;
       });
 
-      const previousTotal = previousPeriodReceipts.reduce((sum: number, receipt: ReceiptWithItems) => {
+      const previousTotal = previousPeriodReceipts.reduce((sum: number, receipt) => {
         return sum + (parseFloat(receipt.totalAmount || '0'));
       }, 0);
 
@@ -185,13 +214,11 @@ export function useSpendingTrends(householdId?: string, period: 'week' | 'month'
         change: Math.round(change * 100) / 100, // Round to 2 decimal places
         spendingByCategory,
       };
-    },
-    enabled: !receiptsLoading && !!receipts,
-  });
+  }, [stats, period]);
 
   return {
-    data: trendsData.data,
-    isLoading: receiptsLoading || trendsData.isLoading,
-    error: trendsData.error,
+    data: trendsData,
+    isLoading,
+    error,
   };
 }

@@ -177,7 +177,7 @@ export function UserCard({ user, isExpanded, onToggle, userReceipts, onOpenRecei
               ) : (
                 <>
                   <Crown className="h-3 w-3 mr-1" />
-                  {user.subscribed ? 'Subscribed' : 'Free'}
+                  {user.subscribed ? 'Subscribed' : 'Not subscribed'}
                 </>
               )}
             </Button>

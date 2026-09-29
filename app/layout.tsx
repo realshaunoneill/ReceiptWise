@@ -7,9 +7,11 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { Footer } from '@/components/layout/footer';
 import { StagingBanner } from '@/components/layout/staging-banner';
+import { ConsentBanner } from '@/components/layout/consent-banner';
 import { QueryProvider } from '@/lib/providers/query-provider';
 import { PostHogProvider } from '@/lib/providers/posthog-provider';
 import { Toaster } from 'sonner';
+import { getAppUrl } from '@/lib/app-url';
 import './globals.css';
 
 /*
@@ -44,10 +46,10 @@ export const metadata: Metadata = {
   authors: [{ name: 'ReceiptWise' }],
   creator: 'ReceiptWise',
   publisher: 'ReceiptWise',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://www.receiptwise.io'),
-  alternates: {
-    canonical: '/',
-  },
+  metadataBase: new URL(getAppUrl()),
+  // No root alternates.canonical: a canonical set here is inherited by every page that does not
+  // override it, so /sign-in and every app page declared the homepage as their canonical. Each
+  // public page sets its own instead.
   openGraph: {
     title: 'ReceiptWise - Family Expense & Receipt Tracker',
     description: 'Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place',
@@ -55,9 +57,11 @@ export const metadata: Metadata = {
     siteName: 'ReceiptWise',
     images: [
       {
-        url: '/opengraph.png',
-        width: 1536,
-        height: 1024,
+        // JPEG at 1200x800 (~115 KB). The PNG was 1.7 MB, over the size some
+        // link-preview crawlers will fetch.
+        url: '/opengraph.jpg',
+        width: 1200,
+        height: 800,
         alt: 'ReceiptWise - Receipt & Expense Tracker',
       },
     ],
@@ -68,7 +72,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'ReceiptWise - Family Expense & Receipt Tracker',
     description: 'Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place',
-    images: ['/opengraph.png'],
+    images: ['/opengraph.jpg'],
     creator: '@receiptwise',
   },
   robots: {
@@ -100,7 +104,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
       <html lang="en" suppressHydrationWarning>
         <body className={`${plexSans.variable} ${plexMono.variable} font-sans antialiased`}>
           <NuqsAdapter>
@@ -113,6 +117,7 @@ export default function RootLayout({
                     <Footer />
                   </div>
                   <Toaster />
+                  <ConsentBanner />
                 </ThemeProvider>
               </PostHogProvider>
             </QueryProvider>

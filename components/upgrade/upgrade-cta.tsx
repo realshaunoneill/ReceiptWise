@@ -5,12 +5,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
-
-const pricingDetails = {
-  trial: process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS) : 0,
-};
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 export function UpgradeCTA() {
+  const pricingDetails = { trial: useTrialDays() };
   const upgradeMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch('/api/checkout', {
@@ -22,7 +20,8 @@ export function UpgradeCTA() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to start checkout. Please try again.');
       }
 
       return response.json();
@@ -37,7 +36,7 @@ export function UpgradeCTA() {
     },
     onError: (error) => {
       console.error('Error creating checkout session:', error);
-      toast.error('Failed to start checkout. Please try again.');
+      toast.error(error.message);
     },
   });
 

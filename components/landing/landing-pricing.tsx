@@ -35,9 +35,10 @@ const INCLUDED = [
   'Unlimited households',
   'Spending analytics and insights',
   'Subscription tracking',
-  'Chrome extension',
   'CSV and JSON export',
-  'Priority support',
+  // Not yet on the Chrome Web Store, so it is named as coming rather than as included. "Priority
+  // support" was also here: with one plan there is no lower tier to be prioritised over.
+  'Chrome extension, once it is on the Chrome Web Store',
 ];
 
 function formatPrice(amount: number, currency: string) {
@@ -132,12 +133,12 @@ export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
           ))}
         </ul>
 
-        <Link href={isSignedIn ? '/upgrade' : '/sign-up'} className="mt-8 block">
-          <Button className="w-full gap-2">
+        <Button asChild className="mt-8 w-full gap-2">
+          <Link href={isSignedIn ? '/upgrade' : '/sign-up'}>
             {trialDays > 0 ? `Start your ${trialDays}-day trial` : 'Subscribe'}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </Link>
+          </Link>
+        </Button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
           {trialDays > 0
             ? 'Card details are needed to begin. Cancel during the trial and nothing is charged.'

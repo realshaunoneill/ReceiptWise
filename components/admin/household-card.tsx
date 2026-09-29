@@ -98,7 +98,7 @@ export function HouseholdCard({
                   <div className="space-y-2">
                     {householdDetails.members.map((member: MemberWithUser) => (
                       <div
-                        key={member.user_id}
+                        key={member.userId}
                         className="flex items-center justify-between rounded-md bg-background p-3"
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">

@@ -1,4 +1,7 @@
-'use server';
+// No 'use server' here. That directive turns every exported async function into a Server
+// Action callable from the browser by id, and these are unauthenticated data-layer helpers
+// (getHouseholdReceipts(householdId), deleteReceipt(id), ...). Route handlers authorize, then
+// call in.
 
 import { db } from '@/lib/db';
 import { receipts, receiptItems, users, householdUsers } from '@/lib/db/schema';
@@ -39,6 +42,19 @@ export interface PaginatedReceipts {
 }
 
 /**
+ * totalAmount is text, written from model output. A bare CAST(... AS DECIMAL) makes one
+ * non-numeric value 500 the whole list for that user, so non-numeric values read as NULL.
+ */
+const numericTotal = sql<number>`CASE WHEN ${receipts.totalAmount} ~ '^-?[0-9]+([.][0-9]+)?$' THEN ${receipts.totalAmount}::numeric END`;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Escape LIKE/ILIKE wildcards so a search for "50%" or "a_b" matches literally. */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/**
  * Get receipts with pagination and filtering
  */
 export async function getReceipts(options: GetReceiptsOptions): Promise<PaginatedReceipts> {
@@ -72,34 +88,24 @@ export async function getReceipts(options: GetReceiptsOptions): Promise<Paginate
   // Build search/filter conditions
   const filterConditions = [];
 
-  // Text search across merchant name, category, and line items
+  // Text search across merchant name, category, and line items.
+  // The item match is a correlated EXISTS on this receipt's own items. It used to prefetch the
+  // first 1000 matching item rows across *every* user's receipts and intersect, so for a common
+  // term a user's own matches could fall outside that window and silently not be found.
   if (search) {
-    // Search in receipt items for matching product names
-    // Limit to 1000 to prevent performance issues with large datasets
-    const matchingReceiptIds = await db
-      .selectDistinct({ receiptId: receiptItems.receiptId })
-      .from(receiptItems)
-      .where(ilike(receiptItems.name, `%${search}%`))
-      .limit(1000)
-      .then(rows => rows.map(r => r.receiptId));
-
-    if (matchingReceiptIds.length > 0) {
-      filterConditions.push(
-        or(
-          ilike(receipts.merchantName, `%${search}%`),
-          ilike(receipts.category, `%${search}%`),
-          inArray(receipts.id, matchingReceiptIds),
+    const pattern = `%${escapeLikePattern(search)}%`;
+    filterConditions.push(
+      or(
+        ilike(receipts.merchantName, pattern),
+        ilike(receipts.category, pattern),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(receiptItems)
+            .where(and(eq(receiptItems.receiptId, receipts.id), ilike(receiptItems.name, pattern))),
         ),
-      );
-    } else {
-      // If no items match, still search merchant and category
-      filterConditions.push(
-        or(
-          ilike(receipts.merchantName, `%${search}%`),
-          ilike(receipts.category, `%${search}%`),
-        ),
-      );
-    }
+      ),
+    );
   }
 
   // Category filter
@@ -113,11 +119,13 @@ export async function getReceipts(options: GetReceiptsOptions): Promise<Paginate
   }
 
   // Amount range filter
-  if (minAmount) {
-    filterConditions.push(gte(sql`CAST(${receipts.totalAmount} AS DECIMAL)`, parseFloat(minAmount)));
+  const min = minAmount ? parseFloat(minAmount) : NaN;
+  const max = maxAmount ? parseFloat(maxAmount) : NaN;
+  if (Number.isFinite(min)) {
+    filterConditions.push(gte(numericTotal, min));
   }
-  if (maxAmount) {
-    filterConditions.push(lte(sql`CAST(${receipts.totalAmount} AS DECIMAL)`, parseFloat(maxAmount)));
+  if (Number.isFinite(max)) {
+    filterConditions.push(lte(numericTotal, max));
   }
 
   // Date range filter
@@ -139,17 +147,28 @@ export async function getReceipts(options: GetReceiptsOptions): Promise<Paginate
   let sortField;
   switch (sortBy) {
     case 'amount':
-      sortField = sql`CAST(${receipts.totalAmount} AS DECIMAL)`;
+      sortField = numericTotal;
       break;
     case 'merchant':
       sortField = receipts.merchantName;
       break;
+    case 'created':
+      // Upload order, for "recent receipts": the latest uploads, whatever date is on them.
+      sortField = receipts.createdAt;
+      break;
     case 'date':
     default:
-      sortField = receipts.transactionDate || receipts.createdAt;
+      // Must be a SQL COALESCE, not a JS `||`: `receipts.transactionDate` is a Drizzle column
+      // object and therefore always truthy, so the createdAt fallback never applied and rows
+      // with no extracted transaction date sorted unpredictably. transactionDate is text
+      // ('YYYY-MM-DD'), so createdAt is formatted the same way to stay comparable.
+      sortField = sql`COALESCE(${receipts.transactionDate}, TO_CHAR(${receipts.createdAt}, 'YYYY-MM-DD'))`;
       break;
   }
   const orderFn = sortOrder === 'asc' ? asc : desc;
+  // Tiebreakers make the order total. Without them, receipts sharing a date could swap places
+  // between LIMIT/OFFSET pages, showing up twice or not at all.
+  const orderBy = [orderFn(sortField), desc(receipts.createdAt), desc(receipts.id)];
 
   let userReceipts;
   let totalCount;
@@ -183,7 +202,7 @@ export async function getReceipts(options: GetReceiptsOptions): Promise<Paginate
       .select()
       .from(receipts)
       .where(conditions)
-      .orderBy(orderFn(sortField))
+      .orderBy(...orderBy)
       .limit(limit)
       .offset(offset);
 
@@ -205,7 +224,7 @@ export async function getReceipts(options: GetReceiptsOptions): Promise<Paginate
       .select()
       .from(receipts)
       .where(conditions)
-      .orderBy(orderFn(sortField))
+      .orderBy(...orderBy)
       .limit(limit)
       .offset(offset);
 
@@ -226,7 +245,7 @@ export async function getReceipts(options: GetReceiptsOptions): Promise<Paginate
       .select()
       .from(receipts)
       .where(conditions)
-      .orderBy(orderFn(sortField))
+      .orderBy(...orderBy)
       .limit(limit)
       .offset(offset);
 
@@ -322,6 +341,11 @@ export async function getHouseholdReceipts(householdId: string) {
  * Optimized to use batch queries instead of sequential queries
  */
 export async function getReceiptById(receiptId: string, includeDeleted = false): Promise<ReceiptWithItems | null> {
+  // A non-UUID id is a Postgres cast error (a 500), not a missing receipt (a 404).
+  if (!UUID_PATTERN.test(receiptId)) {
+    return null;
+  }
+
   const conditions = includeDeleted
     ? eq(receipts.id, receiptId)
     : and(eq(receipts.id, receiptId), isNull(receipts.deletedAt));
@@ -355,12 +379,16 @@ export async function getReceiptById(receiptId: string, includeDeleted = false):
 }
 
 /**
- * Soft delete a receipt
+ * Soft delete a receipt.
+ *
+ * Does no authorization of its own — the caller must already have run requireReceiptOwner.
+ * (It used to re-check `receipt.userId === userId` with the caller's id, which made an admin
+ * deletion that had passed the route's admin check fail with a 500.) The row and its image are
+ * purged for good by the sweep-receipts cron 30 days later.
  */
-export async function deleteReceipt(receiptId: string, userId: string): Promise<boolean> {
-  // Verify ownership
+export async function deleteReceipt(receiptId: string): Promise<boolean> {
   const receipt = await getReceiptById(receiptId);
-  if (!receipt || receipt.userId !== userId) {
+  if (!receipt) {
     return false;
   }
 

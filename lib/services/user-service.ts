@@ -26,20 +26,46 @@ export class UserService {
   }
 
   /**
-   * Get or create user by Clerk ID
-   * If user doesn't exist, creates a new user with the provided email
-   * Returns the user with their subscription status
+   * Get or create user by Clerk ID, keeping `users.email` in step with Clerk.
+   *
+   * `email` must be the verified primary address from Clerk (see getClerkUserEmail). It is the
+   * only writer of `users.email`: invitations are matched on it and Stripe customers are
+   * re-associated by it, so it must never be user-editable.
    */
   static async getOrCreateUser(clerkId: string, email: string): Promise<User> {
-    // Try to find existing user
-    let user = await this.getUserByClerkId(clerkId);
+    const user = await this.getUserByClerkId(clerkId);
 
-    // If user doesn't exist, create them
-    if (!user) {
-      user = await this.createUser(clerkId, email);
+    if (user) {
+      if (user.email !== email) {
+        // Another row can only hold this address if that Clerk account was replaced; leave both
+        // untouched rather than violate the unique constraint and lock this user out.
+        const holder = await this.getUserByEmail(email);
+        if (!holder) {
+          const [updated] = await db
+            .update(users)
+            .set({ email, updatedAt: new Date() })
+            .where(eq(users.id, user.id))
+            .returning();
+          return updated;
+        }
+      }
+      return user;
     }
 
-    return user;
+    // A returning person whose Clerk account was recreated gets a new clerkId but the same
+    // verified address. Inserting would fail on users.email's unique constraint and 500 on every
+    // request, so re-link the existing row instead.
+    const existing = await this.getUserByEmail(email);
+    if (existing) {
+      const [relinked] = await db
+        .update(users)
+        .set({ clerkId, updatedAt: new Date() })
+        .where(eq(users.id, existing.id))
+        .returning();
+      return relinked;
+    }
+
+    return this.createUser(clerkId, email);
   }
 
   /**

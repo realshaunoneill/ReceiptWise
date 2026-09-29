@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, requireSubscription } from '@/lib/auth-helpers';
+import { getAuthenticatedUser, getHouseholdMembership, requireSubscription } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { subscriptions, subscriptionPayments } from '@/lib/db/schema';
 import { eq, and, or, desc, inArray } from 'drizzle-orm';
@@ -42,21 +42,22 @@ export async function GET(req: NextRequest) {
       conditions.push(eq(subscriptions.status, status));
     }
 
-    // Fetch subscriptions
+    // Fetch subscriptions (re-sorted below once nextBillingDate is corrected)
     const userSubscriptions = await db
       .select()
       .from(subscriptions)
       .where(and(...conditions))
       .orderBy(desc(subscriptions.nextBillingDate));
 
-    // Generate expected payments for all active subscriptions in batch (optimized)
-    const activeUserSubscriptions = userSubscriptions.filter(sub => sub.status === 'active');
-    if (activeUserSubscriptions.length > 0) {
-      await SubscriptionService.generateExpectedPaymentsBatch(activeUserSubscriptions);
+    // Fill in any billing cycles that have come round since the last visit and correct each
+    // nextBillingDate, then flag overdue ones — both scoped to this user's subscriptions.
+    const { nextBillingDates } = await SubscriptionService.generateExpectedPaymentsBatch(userSubscriptions);
+    for (const subscription of userSubscriptions) {
+      const corrected = nextBillingDates.get(subscription.id);
+      if (corrected) subscription.nextBillingDate = corrected;
     }
-
-    // Update missed payments for this user's subscriptions
-    await SubscriptionService.updateMissedPayments();
+    await SubscriptionService.updateMissedPayments(userSubscriptions.map(s => s.id));
+    userSubscriptions.sort((a, b) => new Date(b.nextBillingDate).getTime() - new Date(a.nextBillingDate).getTime());
 
     // Optionally include payment information
     if (includePayments && userSubscriptions.length > 0) {
@@ -152,8 +153,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!['monthly', 'quarterly', 'yearly', 'custom'].includes(billingFrequency)) {
+      return NextResponse.json(
+        { error: 'billingFrequency must be monthly, quarterly, yearly or custom' },
+        { status: 400 },
+      );
+    }
+
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      return NextResponse.json({ error: 'amount must be a number' }, { status: 400 });
+    }
+
     // Validate billingDay is within valid range
-    if (billingDay < 1 || billingDay > 31) {
+    if (!Number.isInteger(Number(billingDay)) || billingDay < 1 || billingDay > 31) {
       return NextResponse.json(
         { error: 'billingDay must be between 1 and 31' },
         { status: 400 },
@@ -168,13 +181,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculate next billing date
     const start = new Date(startDate);
-    const nextBilling = SubscriptionService.calculateNextBillingDate(
-      start,
+    if (Number.isNaN(start.getTime())) {
+      return NextResponse.json({ error: 'startDate is not a valid date' }, { status: 400 });
+    }
+
+    // A subscription filed under a household must be filed under one the caller belongs to.
+    if (householdId) {
+      const membership = await getHouseholdMembership(householdId, user.id);
+      if (!membership) {
+        return NextResponse.json({ error: 'Not a member of this household' }, { status: 403 });
+      }
+    }
+
+    const nextBilling = SubscriptionService.computeNextBillingDate({
+      startDate: start,
       billingFrequency,
-      customFrequencyDays,
-    );
+      billingDay: Number(billingDay),
+      customFrequencyDays: customFrequencyDays ?? null,
+      endDate: null,
+    });
 
     // Create subscription
     const [newSubscription] = await db
@@ -185,10 +211,10 @@ export async function POST(req: NextRequest) {
         name,
         description,
         category,
-        amount,
+        amount: String(amount),
         currency,
         billingFrequency,
-        billingDay,
+        billingDay: Number(billingDay),
         customFrequencyDays,
         startDate: start,
         nextBillingDate: nextBilling,

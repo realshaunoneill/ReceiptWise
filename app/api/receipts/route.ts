@@ -85,7 +85,9 @@ export async function GET(req: NextRequest) {
       receipts: filteredReceipts,
     }, {
       headers: {
-        'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+        // Not cached. react-query already caches client-side; an HTTP cache on top meant the
+        // refetch after an upload, delete or retry was served the old list for up to 30s.
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (error) {

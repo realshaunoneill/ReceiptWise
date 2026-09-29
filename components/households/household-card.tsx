@@ -1,54 +1,63 @@
 'use client';
 
-import { Users, Crown, MoreVertical, Trash2, LogOut, UserPlus, Receipt, Calendar } from 'lucide-react';
+import { Users, Crown, MoreVertical, Trash2, LogOut, UserPlus, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { InviteMemberDialog } from '@/components/households/invite-member-dialog';
 import { SubscriptionUpsell } from '@/components/subscriptions/subscription-upsell';
-import type { Household } from '@/lib/types';
 import { leaveHousehold, deleteHousehold } from '@/lib/household-actions';
 import { toast } from 'sonner';
 
+export interface HouseholdSummary {
+  id: string
+  name: string
+  // The API returns camelCase; this read `created_at`, so the date never rendered.
+  createdAt?: string | Date
+  memberCount: number
+  isAdmin: boolean
+}
+
 interface HouseholdCardProps {
-  household: Household & {
-    memberCount: number
-    isAdmin: boolean
-  }
-  currentUserId: string
+  household: HouseholdSummary
   isSubscribed?: boolean
   onUpdate: () => void
 }
 
-export function HouseholdCard({ household, currentUserId, isSubscribed = false, onUpdate }: HouseholdCardProps) {
-  const handleLeave = async () => {
-    if (!confirm('Are you sure you want to leave this household?')) return;
+export function HouseholdCard({ household, isSubscribed = false, onUpdate }: HouseholdCardProps) {
+  const isOwner = household.isAdmin;
+  const isSoleMember = household.memberCount <= 1;
 
-    try {
-      await leaveHousehold({ householdId: household.id, userId: currentUserId });
+  const handleLeave = async () => {
+    const message = isOwner
+      ? `You're the only one in "${household.name}", so leaving deletes it. Your receipts stay in your personal view. Continue?`
+      : `Leave "${household.name}"? Receipts you added go back to your personal view.`;
+    if (!confirm(message)) return;
+
+    const result = await leaveHousehold({ householdId: household.id });
+    if (result.ok) {
       toast.success(`Left "${household.name}"`);
       onUpdate();
-    } catch (_error) {
-      toast.error('Failed to leave household');
+    } else {
+      toast.error(result.error);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this household? This action cannot be undone.')) return;
+    if (!confirm(`Delete "${household.name}"? Everyone is removed from it. Each person's receipts stay in their own personal view — nothing is deleted except the household.`)) return;
 
-    try {
-      await deleteHousehold(household.id);
+    const result = await deleteHousehold(household.id);
+    if (result.ok) {
       toast.success(`"${household.name}" deleted`);
       onUpdate();
-    } catch (_error) {
-      toast.error('Failed to delete household');
+    } else {
+      toast.error(result.error);
     }
   };
 
-  // Format date
-  const createdDate = household.created_at
-    ? new Date(household.created_at).toLocaleDateString('en-US', {
+  const createdDate = household.createdAt
+    ? new Date(household.createdAt).toLocaleDateString('en-IE', {
         month: 'short',
         year: 'numeric',
       })
@@ -59,27 +68,27 @@ export function HouseholdCard({ household, currentUserId, isSubscribed = false, 
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
-              <Users className="h-5 w-5 text-primary" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <Users className="h-5 w-5 text-primary" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold text-foreground truncate">{household.name}</h3>
-                {household.isAdmin && (
+                {isOwner && (
                   <Badge variant="outline" className="shrink-0 gap-1 border-primary/30 bg-primary/10 text-primary">
-                    <Crown className="h-3 w-3" />
-                    Admin
+                    <Crown className="h-3 w-3" aria-hidden="true" />
+                    Owner
                   </Badge>
                 )}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3" />
+                  <Users className="h-3 w-3" aria-hidden="true" />
                   {household.memberCount} {household.memberCount === 1 ? 'member' : 'members'}
                 </span>
                 {createdDate && (
                   <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
+                    <Calendar className="h-3 w-3" aria-hidden="true" />
                     {createdDate}
                   </span>
                 )}
@@ -87,63 +96,61 @@ export function HouseholdCard({ household, currentUserId, isSubscribed = false, 
             </div>
           </div>
 
-          {isSubscribed && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {household.isAdmin && (
-                  <>
-                    <DropdownMenuItem className="text-muted-foreground" disabled>
-                      <Receipt className="mr-2 h-4 w-4" />
-                      View Shared Receipts
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {household.isAdmin ? (
-                  <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Household
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={handleLeave}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Leave Household
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* Not paywalled: leaving or deleting a household must work after Premium lapses.
+              Held a permanently-disabled "View Shared Receipts" item, now removed. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Manage ${household.name}`}>
+                <MoreVertical className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(!isOwner || isSoleMember) && (
+                <DropdownMenuItem onClick={handleLeave}>
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Leave household
+                </DropdownMenuItem>
+              )}
+              {isOwner && (
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Delete household
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         {isSubscribed ? (
-          household.isAdmin ? (
-            <div className="flex items-center gap-2">
-              <InviteMemberDialog householdId={household.id} onMemberInvited={onUpdate} />
-              <p className="text-xs text-muted-foreground">Invite family or roommates</p>
+          isOwner ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <InviteMemberDialog householdId={household.id} onMemberInvited={onUpdate} />
+                <p className="text-xs text-muted-foreground">Invite family or housemates with a link</p>
+              </div>
+              {!isSoleMember && (
+                <p className="text-xs text-muted-foreground">
+                  To leave, first make someone else the owner from the Members list.
+                </p>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
-              <UserPlus className="h-4 w-4 text-muted-foreground" />
+              <UserPlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">
-                Only admins can invite new members
+                Only the owner can invite people
               </p>
             </div>
           )
         ) : (
           <SubscriptionUpsell
-            title="Household Management"
-            description="Upgrade to Premium to manage your household:"
+            title="Household tools need Premium"
+            description="With Premium you can:"
             features={[
-              'Invite and manage members',
-              'Share receipts automatically',
-              'Track shared expenses',
-              'Assign household roles',
+              'Invite people with a link',
+              'Add receipts to the household',
+              'See every line item on shared receipts',
             ]}
           />
         )}

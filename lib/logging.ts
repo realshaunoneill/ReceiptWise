@@ -62,13 +62,37 @@ const simpleLog = (
   }
 };
 
+/*
+ * Email addresses are stripped before anything leaves the process. Call sites put `email`,
+ * `userEmail` and the like into payloads, and interpolate addresses into messages; `userId` is
+ * already on every event and is enough to debug with. Doing it here, at the one sink, means a
+ * new call site cannot reintroduce the leak.
+ */
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const EMAIL_KEY_PATTERN = /e-?mail/i;
+
+function redactValue(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') return value.replace(EMAIL_PATTERN, '[email]');
+  if (depth > 4 || value === null || typeof value !== 'object' || value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map((v) => redactValue(v, depth + 1));
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, v]) => [
+      key,
+      EMAIL_KEY_PATTERN.test(key) ? '[email]' : redactValue(v, depth + 1),
+    ]),
+  );
+}
+
 export const submitLogEvent =(
     event: EventType,
-    logLine: string,
+    rawLogLine: string,
     correlationId: CorrelationId | null,
-    data?: Record<string, unknown>,
+    rawData?: Record<string, unknown>,
     alert = false,
   ) => {
+    const logLine = rawLogLine.replace(EMAIL_PATTERN, '[email]');
+    const data = rawData ? (redactValue(rawData) as Record<string, unknown>) : undefined;
+
     const logEvent = async () => {
       try {
         simpleLog(event, logLine, correlationId, data);

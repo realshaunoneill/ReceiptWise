@@ -15,6 +15,7 @@ import type { HouseholdInvitation } from '@/lib/db/schema';
 
 type InvitationWithHouseholdName = HouseholdInvitation & {
   householdName: string;
+  invitedByEmail: string | null;
 };
 
 export function InvitationNotifications() {
@@ -103,8 +104,9 @@ export function InvitationNotifications() {
                       <p className="text-sm font-semibold text-primary truncate">
                         {invitation.householdName}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(invitation.createdAt).toLocaleDateString('en-US', {
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {invitation.invitedByEmail ? `From ${invitation.invitedByEmail} · ` : ''}
+                        {new Date(invitation.createdAt).toLocaleDateString('en-IE', {
                           month: 'short',
                           day: 'numeric',
                         })}

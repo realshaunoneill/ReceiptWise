@@ -1,191 +1,122 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { apiKeys, receipts, users } from '@/lib/db/schema';
-import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { waitUntil } from '@vercel/functions';
 import { put } from '@vercel/blob';
 import { randomUUID } from 'crypto';
-import { eq, and } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { receipts } from '@/lib/db/schema';
+import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { getHouseholdMembership } from '@/lib/auth-helpers';
+import { authenticateApiKey } from '@/lib/api-key-auth';
+import { processReceipt } from '@/lib/receipt-processing';
+import { checkReceiptCreationLimit } from '@/lib/receipt-rate-limit';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Covers the upload plus the in-process processing started with waitUntil below, which runs
+// inside this function's lifetime.
+export const maxDuration = 120;
 
 const ENV_PATH_PREFIX = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
 const MAX_UPLOAD_SIZE_MB = 15;
+const ALLOWED_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
 
-// Authenticate using API key
-async function authenticateApiKey(apiKey: string, _correlationId: CorrelationId) {
-  const [keyRecord] = await db
-    .select()
-    .from(apiKeys)
-    .where(
-      and(
-        eq(apiKeys.key, apiKey),
-        eq(apiKeys.isRevoked, false),
-      ),
-    )
-    .limit(1);
-
-  if (!keyRecord) {
-    return { error: 'Invalid API key', status: 401 };
-  }
-
-  // Check expiration
-  if (keyRecord.expiresAt && keyRecord.expiresAt < new Date()) {
-    return { error: 'API key expired', status: 401 };
-  }
-
-  // Get user
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, keyRecord.userId))
-    .limit(1);
-
-  if (!user) {
-    return { error: 'User not found', status: 404 };
-  }
-
-  if (user.isBlocked) {
-    return { error: 'Account suspended', status: 403 };
-  }
-
-  // Check subscription
-  const skipSubscriptionCheck = process.env.SKIP_SUBSCRIPTION_CHECK === 'true';
-  if (!skipSubscriptionCheck && !user.subscribed) {
-    return { error: 'Active subscription required', status: 403 };
-  }
-
-  // Update last used timestamp
-  await db
-    .update(apiKeys)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(apiKeys.id, keyRecord.id));
-
-  return { user, keyRecord };
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+};
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
 
-  // Enable CORS for extension
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
-  };
-
   try {
-    // Get API key from header
-    const apiKey = req.headers.get('X-API-Key');
-    if (!apiKey) {
+    const auth = await authenticateApiKey(req);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status, headers: corsHeaders });
+    }
+    const { user } = auth;
+
+    // Reject oversized bodies before buffering the multipart form.
+    const declaredLength = Number(req.headers.get('content-length') || 0);
+    if (declaredLength > (MAX_UPLOAD_SIZE_MB + 1) * 1024 * 1024) {
       return NextResponse.json(
-        { error: 'API key required' },
-        { status: 401, headers },
+        { error: `File too large. Max size: ${MAX_UPLOAD_SIZE_MB}MB` },
+        { status: 413, headers: corsHeaders },
       );
     }
 
-    // Authenticate
-    const authResult = await authenticateApiKey(apiKey, correlationId);
-    if ('error' in authResult) {
+    const rateLimit = await checkReceiptCreationLimit(user.id);
+    if (rateLimit.limited) {
       return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status, headers },
+        { error: rateLimit.message },
+        { status: 429, headers: { ...corsHeaders, 'Retry-After': String(rateLimit.retryAfterSeconds) } },
       );
     }
-
-    const { user } = authResult;
 
     submitLogEvent('extension-upload', 'Extension upload started', correlationId, {
       userId: user.id,
-      userEmail: user.email,
     });
 
-    // Parse form data
+    // Only a file upload is accepted. There used to be an `imageUrl` mode that fetched any
+    // caller-supplied URL server-side (internal and metadata addresses included) and republished
+    // the response as a public blob. The extension never used it — it always sends the snipped
+    // image as `file` — so it was pure attack surface.
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    const imageUrl = formData.get('imageUrl') as string | null;
+    const file = formData.get('file');
 
-    let finalImageUrl: string;
-
-    if (file) {
-      // Validate file
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!allowedTypes.includes(file.type)) {
-        return NextResponse.json(
-          { error: 'Invalid file type. Allowed: JPEG, PNG, WebP' },
-          { status: 400, headers },
-        );
-      }
-
-      if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-        return NextResponse.json(
-          { error: `File too large. Max size: ${MAX_UPLOAD_SIZE_MB}MB` },
-          { status: 400, headers },
-        );
-      }
-
-      // Upload to Vercel Blob
-      const filename = `${ENV_PATH_PREFIX}/receipts/${user.id}/${Date.now()}-${file.name}`;
-      const blob = await put(filename, file, {
-        access: 'public',
-        contentType: file.type,
-      });
-
-      finalImageUrl = blob.url;
-
-      submitLogEvent('extension-upload', 'File uploaded to blob storage', correlationId, {
-        userId: user.id,
-        blobUrl: blob.url,
-        fileSize: file.size,
-      });
-    } else if (imageUrl) {
-      // Download image from URL and upload to blob
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        return NextResponse.json(
-          { error: 'Failed to fetch image from URL' },
-          { status: 400, headers },
-        );
-      }
-
-      const contentType = response.headers.get('content-type') || 'image/png';
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      if (buffer.length > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-        return NextResponse.json(
-          { error: `Image too large. Max size: ${MAX_UPLOAD_SIZE_MB}MB` },
-          { status: 400, headers },
-        );
-      }
-
-      const filename = `${ENV_PATH_PREFIX}/receipts/${user.id}/${Date.now()}-extension-upload.png`;
-      const blob = await put(filename, buffer, {
-        access: 'public',
-        contentType,
-      });
-
-      finalImageUrl = blob.url;
-
-      submitLogEvent('extension-upload', 'URL image uploaded to blob storage', correlationId, {
-        userId: user.id,
-        sourceUrl: imageUrl,
-        blobUrl: blob.url,
-      });
-    } else {
+    if (!(file instanceof File)) {
       return NextResponse.json(
-        { error: 'No file or imageUrl provided' },
-        { status: 400, headers },
+        { error: 'No file provided' },
+        { status: 400, headers: corsHeaders },
       );
     }
 
-    // Create receipt entry
+    const extension = ALLOWED_TYPES[file.type];
+    if (!extension) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Allowed: JPEG, PNG, WebP' },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
+      return NextResponse.json(
+        { error: `File too large. Max size: ${MAX_UPLOAD_SIZE_MB}MB` },
+        { status: 413, headers: corsHeaders },
+      );
+    }
+
+    // Random suffix so blob URLs are not guessable from the user id and a timestamp.
+    const blob = await put(`${ENV_PATH_PREFIX}/receipts/${user.id}/extension.${extension}`, file, {
+      access: 'public',
+      contentType: file.type,
+      addRandomSuffix: true,
+    });
+
+    submitLogEvent('extension-upload', 'File uploaded to blob storage', correlationId, {
+      userId: user.id,
+      blobUrl: blob.url,
+      fileSize: file.size,
+    });
+
+    // Only file into the default household if the user is still a member of it. Leaving or
+    // being removed from a household did not clear defaultHouseholdId, so new captures kept
+    // appearing in an ex-household.
+    let householdId: string | null = null;
+    if (user.defaultHouseholdId) {
+      const membership = await getHouseholdMembership(user.defaultHouseholdId, user.id);
+      householdId = membership ? user.defaultHouseholdId : null;
+    }
+
     const [receipt] = await db
       .insert(receipts)
       .values({
         userId: user.id,
-        householdId: user.defaultHouseholdId,
-        imageUrl: finalImageUrl,
+        householdId,
+        imageUrl: blob.url,
         processingStatus: 'pending',
       })
       .returning();
@@ -193,35 +124,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     submitLogEvent('extension-upload', 'Receipt created successfully', correlationId, {
       receiptId: receipt.id,
       userId: user.id,
-      imageUrl: finalImageUrl,
+      householdId,
     });
 
-    // Trigger async processing.
-    // Must be the /api/extension/process route: it accepts X-API-Key auth and is exempt
-    // from Clerk middleware. /api/receipt/process is Clerk-only, so posting there left
-    // every extension upload stuck at 'pending' forever.
-    const processUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.receiptwise.io'}/api/extension/process`;
-    fetch(processUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
-      body: JSON.stringify({ receiptId: receipt.id }),
-    }).catch((err) => {
-      submitLogEvent('extension-upload', `Background processing trigger failed: ${err.message}`, correlationId, {
-        receiptId: receipt.id,
-      }, true);
-    });
+    // Process in-process after the response is sent. This used to be a fire-and-forget HTTP
+    // call to NEXT_PUBLIC_APP_URL, which is http://localhost:3000 in production — so every
+    // extension upload sat at 'pending' forever. processReceipt records 'failed' itself on error,
+    // and the hourly sweeper catches anything the function was killed before finishing.
+    waitUntil(
+      processReceipt(receipt.id, user.id, correlationId).catch((error) => {
+        submitLogEvent('extension-upload', `Background processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {
+          receiptId: receipt.id,
+        }, true);
+      }),
+    );
 
     return NextResponse.json(
       {
         success: true,
         receiptId: receipt.id,
-        imageUrl: finalImageUrl,
+        imageUrl: blob.url,
         processingStatus: 'pending',
       },
-      { headers },
+      { headers: corsHeaders },
     );
   } catch (error) {
     submitLogEvent('extension-upload', `Extension upload error: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {
@@ -230,19 +155,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(
       { error: 'Upload failed' },
-      { status: 500, headers },
+      { status: 500, headers: corsHeaders },
     );
   }
 }
 
 // Handle CORS preflight
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
-    },
-  });
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
 }

@@ -4,25 +4,25 @@ import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { db } from '@/lib/db';
 import { apiKeys } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { randomUUID, randomBytes } from 'crypto';
+import { randomUUID } from 'crypto';
+import { generateApiKey } from '@/lib/api-key-auth';
 
 export const runtime = 'nodejs';
 
-// Generate a secure API key
-function generateApiKey(): string {
-  return `rw_${randomBytes(32).toString('hex')}`;
-}
+const MAX_ACTIVE_KEYS = 10;
 
-// Mask API key for display (show only last 8 characters)
-function maskApiKey(key: string): string {
-  if (key.length <= 8) return key;
-  return `${'•'.repeat(key.length - 8)}${key.slice(-8)}`;
+/*
+ * Keys are stored as a SHA-256 digest (see lib/api-key-auth.ts), so the plaintext exists only in
+ * the POST response and in the extension. The list shows the stored prefix instead.
+ */
+function displayKey(prefix: string | null): string {
+  return prefix ? `${prefix}${'•'.repeat(12)}` : `rw_${'•'.repeat(12)}`;
 }
 
 // GET - List all API keys for the user (masked for security)
 export async function GET(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
-  
+
   try {
     const authResult = await getAuthenticatedUser(correlationId);
     if (authResult instanceof NextResponse) return authResult;
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const maskedKeys = keys.map(k => ({
       id: k.id,
       name: k.name,
-      maskedKey: maskApiKey(k.key),
+      maskedKey: displayKey(k.keyPrefix),
       createdAt: k.createdAt,
       lastUsedAt: k.lastUsedAt,
     }));
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 // POST - Create a new API key
 export async function POST(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
-  
+
   try {
     const authResult = await getAuthenticatedUser(correlationId);
     if (authResult instanceof NextResponse) return authResult;
@@ -78,15 +78,29 @@ export async function POST(req: NextRequest) {
 
     // Parse request body for optional key name
     const body = await req.json().catch(() => ({}));
-    const keyName = body.name || 'Chrome Extension';
+    const keyName = typeof body.name === 'string' && body.name.trim()
+      ? body.name.trim().slice(0, 60)
+      : 'Chrome Extension';
 
-    // Create new API key
-    const newKey = generateApiKey();
+    const activeKeys = await db
+      .select({ id: apiKeys.id })
+      .from(apiKeys)
+      .where(and(eq(apiKeys.userId, user.id), eq(apiKeys.isRevoked, false)));
+    if (activeKeys.length >= MAX_ACTIVE_KEYS) {
+      return NextResponse.json(
+        { error: `You can have up to ${MAX_ACTIVE_KEYS} active keys. Revoke one you no longer use first.` },
+        { status: 400 },
+      );
+    }
+
+    // Create new API key: only the digest and a display prefix are stored.
+    const { key: newKey, hash, prefix } = generateApiKey();
     const [created] = await db
       .insert(apiKeys)
       .values({
         userId: user.id,
-        key: newKey,
+        key: hash,
+        keyPrefix: prefix,
         name: keyName,
       })
       .returning();
@@ -96,7 +110,7 @@ export async function POST(req: NextRequest) {
     // Return full key only on creation (user needs to copy it)
     return NextResponse.json({
       id: created.id,
-      key: created.key, // Full key shown only once
+      key: newKey, // Plaintext shown only once; it is not recoverable afterwards
       name: created.name,
       createdAt: created.createdAt,
       lastUsedAt: created.lastUsedAt,
@@ -113,7 +127,7 @@ export async function POST(req: NextRequest) {
 // DELETE - Revoke specific API key by ID
 export async function DELETE(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
-  
+
   try {
     const authResult = await getAuthenticatedUser(correlationId);
     if (authResult instanceof NextResponse) return authResult;

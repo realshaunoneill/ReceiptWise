@@ -1,9 +1,18 @@
+import type { Metadata } from 'next';
 import { SignIn } from '@clerk/nextjs';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScanLine, BarChart3, Users, CheckCircle2 } from 'lucide-react';
+import { clerkAppearance } from '@/lib/clerk/appearance';
+
+export const metadata: Metadata = {
+  title: 'Sign in - ReceiptWise',
+  alternates: {
+    canonical: '/sign-in',
+  },
+};
 
 export default function SignInPage() {
   return (
@@ -12,7 +21,7 @@ export default function SignInPage() {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-lg supports-backdrop-filter:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="ReceiptWise" className="h-8 w-auto" />
+            <img src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8" aria-hidden="true" />
             <span className="text-xl font-bold text-foreground">ReceiptWise</span>
           </Link>
           <div className="flex items-center gap-4">
@@ -105,44 +114,13 @@ export default function SignInPage() {
                       Sign in
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      With Google, or with the email address you signed up with.
+                      Use the account you signed up with.
                     </p>
                   </div>
 
                   <div className="flex justify-center">
-                    {/*
-                      Clerk ships its own light palette, and only the outer card
-                      was being neutralised — so in dark mode the sign-in form sat
-                      on this page as a white rectangle with black text, the one
-                      element that had not been themed. Clerk's appearance variables
-                      accept any CSS colour value, so pointing them at the same
-                      custom properties the rest of the app uses makes the form
-                      follow the theme (and the typeface) for free.
-                    */}
                     <SignIn
-                      appearance={{
-                        variables: {
-                          colorPrimary: 'var(--primary)',
-                          colorBackground: 'var(--card)',
-                          colorText: 'var(--card-foreground)',
-                          colorTextSecondary: 'var(--muted-foreground)',
-                          colorInputBackground: 'var(--background)',
-                          colorInputText: 'var(--foreground)',
-                          colorNeutral: 'var(--foreground)',
-                          colorDanger: 'var(--destructive)',
-                          borderRadius: 'var(--radius)',
-                          fontFamily: 'var(--font-plex-sans)',
-                        },
-                        elements: {
-                          rootBox: 'w-full max-w-md',
-                          card: 'shadow-none border-0 bg-transparent p-0',
-                          headerTitle: 'hidden',
-                          headerSubtitle: 'hidden',
-                          formButtonPrimary: 'bg-primary hover:bg-primary/90',
-                          formFieldInput: 'border-input',
-                          footer: 'hidden',
-                        },
-                      }}
+                      appearance={clerkAppearance}
                       routing="path"
                       path="/sign-in"
                       signUpUrl="/sign-up"

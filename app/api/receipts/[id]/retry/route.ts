@@ -1,21 +1,29 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { receipts, receiptItems } from '@/lib/db/schema';
-import { getAuthenticatedUser, filterReceiptForSubscription } from '@/lib/auth-helpers';
-import { analyzeReceiptWithGPT4o } from '@/lib/openai';
+import {
+  getAuthenticatedUser,
+  filterReceiptForSubscription,
+  requireSubscription,
+  requireNoPendingDeletion,
+  requireReceiptOwner,
+} from '@/lib/auth-helpers';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
-import { eq, and, isNull } from 'drizzle-orm';
+import { getReceiptById } from '@/lib/receipt-scanner';
 import { randomUUID } from 'crypto';
-import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
-import type { OCRItem } from '@/lib/types/api-responses';
-import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
+import { processReceipt } from '@/lib/receipt-processing';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Image fetch (≤15s) plus the vision call (≤50s, retries included) plus the database writes.
+export const maxDuration = 90;
+
+/**
+ * Minimum gap between re-analyses of an already-completed receipt. "Report issue → Re-analyze"
+ * had no limit, so the button could be driven in a loop, each click a GPT-4o vision call.
+ */
+const REANALYZE_COOLDOWN_MS = 60 * 1000;
 
 /**
  * POST /api/receipts/[id]/retry
- * Retry processing a failed receipt
+ * Retry a failed or stuck receipt, or re-analyze a completed one.
  */
 export async function POST(
   req: NextRequest,
@@ -25,214 +33,62 @@ export async function POST(
   try {
     const authResult = await getAuthenticatedUser(correlationId);
     if (authResult instanceof NextResponse) return authResult;
-    const { user, email } = authResult;
+    const { user } = authResult;
+
+    // Every retry is a paid model call, so it gets the same gates as /api/receipt/process.
+    const subCheck = await requireSubscription(user);
+    if (subCheck) return subCheck;
+
+    const deletionCheck = requireNoPendingDeletion(user);
+    if (deletionCheck) return deletionCheck;
 
     const { id: receiptId } = await params;
 
-    // Get the receipt
-    const [receipt] = await db
-      .select()
-      .from(receipts)
-      .where(
-        and(
-          eq(receipts.id, receiptId),
-          eq(receipts.userId, user.id),
-          isNull(receipts.deletedAt),
-        ),
-      )
-      .limit(1);
+    const receipt = await getReceiptById(receiptId);
 
     if (!receipt) {
-      return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Receipt not found', message: 'Receipt not found' }, { status: 404 });
     }
 
-    // Allow retry for failed, pending, or completed receipts (re-analyze)
-    if (receipt.processingStatus === 'processing') {
-      return NextResponse.json({ error: 'Receipt is currently being processed' }, { status: 400 });
-    }
+    // Owner only — household members can see a shared receipt but must not spend its owner's
+    // processing on it. (Admins pass this check but processReceipt still scopes to the owner.)
+    const ownerCheck = await requireReceiptOwner(receipt, user, correlationId);
+    if (ownerCheck) return ownerCheck;
 
-    // Alert when user initiates a retry - helps track re-analysis requests
-    submitLogEvent('receipt-retry', 'User initiated receipt re-analysis', correlationId, {
-      receiptId: receipt.id,
-      userId: user.id,
-      userEmail: email,
-      previousStatus: receipt.processingStatus,
-      merchantName: receipt.merchantName,
-      totalAmount: receipt.totalAmount,
-      timestamp: new Date().toISOString(),
-    }, true); // Alert = true
-
-    submitLogEvent('receipt-process-start', 'Starting receipt retry processing', correlationId, {
-      receiptId: receipt.id,
-      imageUrl: receipt.imageUrl,
-      userId: user.id,
-      userEmail: email,
-      previousStatus: receipt.processingStatus,
-      previousError: receipt.processingError,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Update status to processing
-    await db
-      .update(receipts)
-      .set({
-        processingStatus: 'processing',
-        processingError: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(receipts.id, receiptId));
-
-    submitLogEvent('receipt-status-processing', 'Receipt status updated to processing (retry)', correlationId, {
-      receiptId: receipt.id,
-      userId: user.id,
-      status: 'processing',
-      timestamp: new Date().toISOString(),
-    });
-
-    // Analyze receipt with OpenAI
-    let ocrData, usage;
-    try {
-      const result = await analyzeReceiptWithGPT4o(receipt.imageUrl, email, user.id, correlationId);
-      ocrData = result.data;
-      usage = result.usage;
-    } catch (error) {
-      // Build detailed error info for debugging
-      const errorDetails: Record<string, unknown> = {
-        receiptId: receipt.id,
-        userId: user.id,
-        imageUrl: receipt.imageUrl,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : undefined,
-      };
-
-      // Check for AI SDK specific error properties
-      if (error && typeof error === 'object') {
-        if ('text' in error) {
-          errorDetails.rawAIResponse = (error as { text?: string }).text;
-        }
-        if ('cause' in error) {
-          errorDetails.errorCause = (error as { cause?: unknown }).cause;
-        }
-        if ('issues' in error) {
-          errorDetails.validationIssues = (error as { issues?: unknown }).issues;
-        }
-      }
-
-      // Update with error
-      await db
-        .update(receipts)
-        .set({
-          processingStatus: 'failed',
-          processingError: error instanceof Error ? error.message : 'Unknown error',
-          updatedAt: new Date(),
-        })
-        .where(eq(receipts.id, receiptId));
-
-      submitLogEvent('receipt-error', `Receipt retry failed: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, errorDetails, true);
-
+    if (receipt.userId !== user.id) {
       return NextResponse.json(
-        {
-          error: 'Failed to process receipt',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-        { status: 500 },
+        { error: 'Only the person who uploaded this receipt can re-read it', message: 'Only the person who uploaded this receipt can re-read it' },
+        { status: 403 },
       );
     }
 
-    // Update receipt with processed data
-    const [updatedReceipt] = await db
-      .update(receipts)
-      .set({
-        merchantName: ocrData.merchant || 'Unknown Merchant',
-        totalAmount: ocrData.total?.toString() || '0',
-        currency: ocrData.currency || user.currency || DEFAULT_CURRENCY,
-        transactionDate: ocrData.date || new Date().toISOString().split('T')[0],
-        location: ocrData.location,
-        tax: ocrData.tax?.toString(),
-        serviceCharge: ocrData.serviceCharge?.toString(),
-        subtotal: ocrData.subtotal?.toString(),
-        receiptNumber: ocrData.receiptNumber,
-        paymentMethod: ocrData.paymentMethod,
-        category: ocrData.category || 'other',
-        processingStatus: 'completed',
-        processingError: null,
-        processingTokens: usage,
-        ocrData: {
-          ...ocrData,
-          merchantType: ocrData.merchantType,
-          tips: ocrData.tips,
-          discount: ocrData.discount,
-          loyaltyNumber: ocrData.loyaltyNumber,
-          tableNumber: ocrData.tableNumber,
-          serverName: ocrData.serverName,
-          orderNumber: ocrData.orderNumber,
-          phoneNumber: ocrData.phoneNumber,
-          website: ocrData.website,
-          vatNumber: ocrData.vatNumber,
-          timeOfDay: ocrData.timeOfDay,
-          customerCount: ocrData.customerCount,
-          specialOffers: ocrData.specialOffers,
-          deliveryFee: ocrData.deliveryFee,
-          packagingFee: ocrData.packagingFee,
-        },
-        updatedAt: new Date(),
-      })
-      .where(eq(receipts.id, receiptId))
-      .returning();
-
-    // Save receipt items
-    if (ocrData.items && Array.isArray(ocrData.items)) {
-      // Delete existing items if any
-      await db.delete(receiptItems).where(eq(receiptItems.receiptId, receiptId));
-
-      const itemsToInsert = ocrData.items.map((item: OCRItem) => {
-        const quantityRaw = item.quantity || 1;
-        const quantity = typeof quantityRaw === 'string' ? parseFloat(quantityRaw) : quantityRaw;
-        const priceRaw = item.price || 0;
-        const totalPrice = typeof priceRaw === 'string' ? parseFloat(priceRaw) : priceRaw;
-        const unitPrice = quantity > 0 ? totalPrice / quantity : totalPrice;
-
-        return {
-          receiptId: receiptId,
-          name: item.name || 'Unknown Item',
-          quantity: quantity.toString(),
-          unitPrice: unitPrice.toString(),
-          totalPrice: totalPrice.toString(),
-          price: totalPrice.toString(),
-          category: item.category || null,
-          description: item.description || null,
-          modifiers: item.modifiers || null, // Store modifiers
-        };
-      });
-
-      if (itemsToInsert.length > 0) {
-        await db.insert(receiptItems).values(itemsToInsert);
-      }
+    const isReanalysis = receipt.processingStatus === 'completed';
+    if (isReanalysis && Date.now() - receipt.updatedAt.getTime() < REANALYZE_COOLDOWN_MS) {
+      return NextResponse.json(
+        { error: 'Too soon', message: 'This receipt was just read. Wait a minute before trying again.' },
+        { status: 429 },
+      );
     }
 
-    submitLogEvent('receipt', 'Receipt retry successful', correlationId, {
+    submitLogEvent('receipt-retry', 'User initiated receipt retry', correlationId, {
       receiptId: receipt.id,
       userId: user.id,
-    });
-
-    submitLogEvent('receipt-process-complete', 'Receipt retry processing completed successfully', correlationId, {
-      receiptId: receipt.id,
-      userId: user.id,
-      merchantName: updatedReceipt.merchantName,
-      totalAmount: updatedReceipt.totalAmount,
-      currency: updatedReceipt.currency,
-      itemCount: ocrData.items?.length || 0,
-      tokensUsed: usage,
-      processingStatus: 'completed',
-      wasRetry: true,
+      previousStatus: receipt.processingStatus,
+      reanalyze: isReanalysis,
       timestamp: new Date().toISOString(),
     });
 
-    // Invalidate insights cache since receipt data changed
-    await invalidateInsightsCache(user.id, receipt.householdId, correlationId);
+    const result = await processReceipt(receipt.id, user.id, correlationId, { allowReanalyze: isReanalysis });
+
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: 'Failed to process receipt', message: result.message },
+        { status: result.status },
+      );
+    }
 
     // Filter based on subscription status
-    const filteredReceipt = filterReceiptForSubscription(updatedReceipt, user.subscribed);
+    const filteredReceipt = filterReceiptForSubscription({ ...result.receipt, items: result.items }, user.subscribed);
 
     return NextResponse.json({
       success: true,
@@ -243,10 +99,11 @@ export async function POST(
       error: error instanceof Error ? error.stack : undefined,
     }, true);
 
+    // Stack traces and raw messages stay in the logs, never in the response body.
     return NextResponse.json(
       {
-        error: (error as Error).message,
-        details: error instanceof Error ? error.stack : undefined,
+        error: 'Failed to process receipt',
+        message: 'Something went wrong reading this receipt. Try again.',
       },
       { status: 500 },
     );

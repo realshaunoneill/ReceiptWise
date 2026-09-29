@@ -62,6 +62,28 @@ export function useSendInvitation() {
   });
 }
 
+export function useRevokeInvitation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ householdId, invitationId }: { householdId: string; invitationId: string }) => {
+      const response = await fetch(`/api/households/${householdId}/invitations/${invitationId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to revoke invitation');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['household-invitations'] });
+    },
+  });
+}
+
 export function useHouseholdInvitations(householdId: string) {
   return useQuery({
     queryKey: ['household-invitations', householdId],

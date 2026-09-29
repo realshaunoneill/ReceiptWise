@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -54,14 +54,9 @@ export function ExitIntentPopup() {
 
   return (
     <Dialog open={showPopup} onOpenChange={(open) => !open && handleDismiss()}>
+      {/* DialogContent draws its own close button, which closes through onOpenChange and so
+          also records the dismissal. A second hand-rolled X sat on top of it. */}
       <DialogContent className="sm:max-w-md">
-        <button
-          onClick={handleDismiss}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
 
         {/*
           Was "Wait! Don't Leave Empty-Handed" over a gift icon, with four
@@ -104,12 +99,12 @@ export function ExitIntentPopup() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col gap-2 pt-2">
-            <Link href="/sign-up" onClick={handleDismiss}>
-              <Button className="w-full gap-2" size="lg">
+            <Button asChild className="w-full gap-2" size="lg">
+              <Link href="/sign-up" onClick={handleDismiss}>
                 {hasFreeTrial ? `Start the ${trialDays}-day trial` : 'Create an account'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               className="w-full text-muted-foreground"

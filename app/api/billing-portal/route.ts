@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createBillingPortalSession, findAndReassociateStripeCustomer } from '@/lib/stripe';
 import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { getAppUrl } from '@/lib/app-url';
 
 export async function POST(_request: NextRequest) {
   const correlationId = crypto.randomUUID() as CorrelationId;
@@ -32,8 +33,7 @@ export async function POST(_request: NextRequest) {
       }
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.receiptwise.io';
-    const returnUrl = `${appUrl}/settings`;
+    const returnUrl = `${getAppUrl()}/settings`;
     const portalUrl = await createBillingPortalSession(
       stripeCustomerId,
       returnUrl,

@@ -1,22 +1,21 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
-Allow: /support
-Allow: /privacy
-Allow: /terms
-Allow: /refund
 
-# Disallow protected/private routes
-Disallow: /api/
-Disallow: /admin/
-Disallow: /dashboard/
-Disallow: /receipts/
-Disallow: /subscriptions/
-Disallow: /insights/
-Disallow: /sharing/
-Disallow: /settings/
-Disallow: /sign-in/
-Disallow: /upgrade/
-Disallow: /payment/
+# Protected and private routes. No trailing slashes: "Disallow: /dashboard/" would
+# not block /dashboard itself.
+Disallow: /api
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /receipts
+Disallow: /subscriptions
+Disallow: /insights
+Disallow: /sharing
+Disallow: /settings
+Disallow: /upgrade
+Disallow: /payment
+Disallow: /redirect
+Disallow: /invite
+Disallow: /sign-in
 
 Sitemap: https://www.receiptwise.io/sitemap.xml
