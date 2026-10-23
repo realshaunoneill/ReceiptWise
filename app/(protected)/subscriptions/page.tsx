@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
-import { useUser } from '@/lib/hooks/use-user';
+import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CreateSubscriptionDialog } from '@/components/subscriptions/create-subscription-dialog';
 import { SubscriptionDetailModal } from '@/components/subscriptions/subscription-detail-modal';
@@ -36,6 +36,7 @@ function SubscriptionsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isSubscribed, isLoading: userLoading } = useUser();
+  const billsEnabled = useFeature('bills');
 
   // Handle selected and filter query parameters from URL
   useEffect(() => {
@@ -183,7 +184,7 @@ function SubscriptionsPageContent() {
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
-              <h1 id="subscriptions-title" className="text-3xl font-bold text-foreground">Subscriptions</h1>
+              <h1 id="subscriptions-title" className="text-3xl font-bold text-foreground">{billsEnabled ? 'Bills & subscriptions' : 'Subscriptions'}</h1>
               <p className="text-muted-foreground">Recurring payments, what they cost, and what is due next.</p>
             </div>
           </div>
@@ -291,7 +292,7 @@ function SubscriptionsPageContent() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
-          <h1 id="subscriptions-main-title" className="text-3xl font-bold text-foreground">Subscriptions</h1>
+          <h1 id="subscriptions-main-title" className="text-3xl font-bold text-foreground">{billsEnabled ? 'Bills & subscriptions' : 'Subscriptions'}</h1>
           <p className="text-muted-foreground">Recurring payments, what they cost, and what is due next.</p>
         </div>
         <CreateSubscriptionDialog />

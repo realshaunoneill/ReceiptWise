@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <h1 id="privacy-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Privacy Policy</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: September 29, 2026
+            Last updated: October 23, 2026
           </p>
         </div>
 
@@ -50,6 +50,14 @@ export default function PrivacyPage() {
               <li>Recurring subscriptions you choose to track</li>
             </ul>
 
+            <p><strong>Bills and your monthly plan:</strong></p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>The income, bills, one-off amounts and savings goals you add, and whether each has been paid</li>
+              <li>Bank balances, but only ones you type in yourself. ReceiptWise does not connect to your bank</li>
+              <li>Bills and statements you upload or forward to your forwarding address, and what is read off them: who they are from, amounts, dates, billing periods, and the last four characters of an account or card number</li>
+              <li>For forwarded email: the sender, the subject and the attachments. The rest of the message is read only when it has no attachment, to find the bill in it</li>
+            </ul>
+
             <p><strong>Usage information (only if you accept analytics):</strong></p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Pages visited and features used, browser and device type</li>
@@ -82,13 +90,15 @@ export default function PrivacyPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>4. How receipts are read</CardTitle>
+            <CardTitle>4. How receipts and bills are read</CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>
               Receipts are read by OpenAI&apos;s models through their API: images are sent to <strong>GPT-4o</strong>
               to extract the merchant, items and totals, and summarised spending figures are sent to
-              <strong> GPT-4o-mini</strong> to write your spending summaries.
+              <strong> GPT-4o-mini</strong> to write your spending summaries. Bills and statements you upload or
+              forward (PDFs, photos, or an email&apos;s text when it has no attachment) are sent to <strong>GPT-4o</strong>
+              to find the provider, the amount due and the due date.
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>OpenAI does not use API data to train its models</li>
@@ -107,11 +117,12 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Clerk</strong> — sign-in and account management</li>
               <li><strong>Stripe</strong> — subscriptions and payments</li>
-              <li><strong>OpenAI</strong> — reading receipts and writing spending summaries (see section 4)</li>
-              <li><strong>Vercel</strong> — hosting, receipt image storage (Vercel Blob) and cookieless page-view statistics (Vercel Analytics)</li>
+              <li><strong>OpenAI</strong> — reading receipts and bills, and writing spending summaries (see section 4)</li>
+              <li><strong>Vercel</strong> — hosting, storage of receipt images and of bills (Vercel Blob; bills in a private store), and cookieless page-view statistics (Vercel Analytics)</li>
+              <li><strong>Cloudflare</strong> — receives email sent to your forwarding address and passes it to us</li>
               <li><strong>Neon</strong> — our Postgres database, hosted in the London (eu-west-2) region</li>
               <li><strong>PostHog</strong> (EU cloud) — product analytics and session recordings, only if you accept analytics; your email address is attached to your analytics profile so we can answer support questions about it</li>
-              <li><strong>Rapid7 InsightOps</strong> (EU region) — application logs. Logs identify you by an internal account ID (email addresses are removed before logs are sent) and can include the contents of receipts being processed. They are used only to diagnose faults and abuse</li>
+              <li><strong>Rapid7 InsightOps</strong> (EU region) — application logs. Logs identify you by an internal account ID (email addresses are removed before logs are sent) and can include the contents of receipts being processed. The contents of bills, balances and income are not logged. Logs are used only to diagnose faults and abuse</li>
             </ul>
           </CardContent>
         </Card>
@@ -140,6 +151,8 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>Data is encrypted in transit (TLS) and at rest by our hosting and database providers</li>
               <li>Receipt images are stored at long, unguessable addresses; anyone holding an image&apos;s address can open it, so treat shared links with care</li>
+              <li>Bills are stored privately: they can only be opened through the app, by you and anyone you share them with</li>
+              <li>Your forwarding address is the only thing that identifies you on forwarded email; you can replace it in Settings at any time, and mail to the old one is then refused</li>
               <li>Sign-in is handled by Clerk, and payments by Stripe, which is PCI DSS certified</li>
               <li>Access to production data is restricted to the operator of the service</li>
             </ul>
@@ -155,6 +168,7 @@ export default function PrivacyPage() {
             <p>When you create or join a household:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Receipts assigned to the household are visible to every member, including images and extracted details</li>
+              <li>Bills, income, savings goals and balances you share with the household are visible to every member, who can also mark them paid; only you can change or delete what you added</li>
               <li>The household owner can remove members</li>
               <li>You can leave a household, or move your receipts out of it, at any time</li>
             </ul>
@@ -168,6 +182,7 @@ export default function PrivacyPage() {
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Receipts you delete</strong> disappear from the app immediately, and are purged — image included — within 30 days</li>
+              <li><strong>Bills you delete</strong> are purged, file included, within 30 days. A <strong>forwarded email</strong> itself is deleted 7 days after it has been read, and our record of it (sender, subject, what happened) after 90 days</li>
               <li><strong>Deleting your account</strong> takes effect 24 hours after you ask (so an accidental request can be undone). We then cancel your subscription and delete your account, receipts and images</li>
               <li><strong>Invoices</strong> are kept by Stripe for as long as tax law requires</li>
               <li><strong>Application logs, analytics and session recordings</strong> are deleted automatically on our providers&apos; retention schedules, and are not used to rebuild anything you have deleted</li>

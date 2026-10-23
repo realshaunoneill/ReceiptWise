@@ -6,6 +6,7 @@ import { ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 /**
  * Pricing panel for the public landing page.
@@ -34,7 +35,8 @@ const INCLUDED = [
   'Automatic scanning of every receipt',
   'Unlimited households',
   'Spending analytics and insights',
-  'Subscription tracking',
+  BILLS_LAUNCHED ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
+  ...(BILLS_LAUNCHED ? ['Bills read from an upload or a forwarded email'] : []),
   'CSV and JSON export',
   // Not yet on the Chrome Web Store, so it is named as coming rather than as included. "Priority
   // support" was also here: with one plan there is no lower tier to be prioritised over.

@@ -2,7 +2,7 @@
   "name": "ReceiptWise - Family Expense & Receipt Tracker",
   "short_name": "ReceiptWise",
   "description": "Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",

@@ -25,8 +25,11 @@ import {
   Receipt,
   Check,
   Globe,
+  Wallet,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFeature } from '@/lib/hooks/use-user';
 import { toast } from 'sonner';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from '@/lib/utils/currency';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
@@ -65,10 +68,12 @@ type OnboardingStep = {
   pricing?: boolean;
   cta?: boolean;
   currencySelect?: boolean;
+  /** Only shown to accounts with the monthly plan (lib/features.ts 'bills'). */
+  requiresBills?: boolean;
 };
 
 /*
- * Seven steps of the tour.
+ * The steps of the tour (seven, or eight with the monthly plan).
  *
  * Four of the titles ended in ✨, one in 🎉 and one in 🎁 — a decoration applied
  * to whichever headings happened to be about features, in a dialog that is the
@@ -120,7 +125,7 @@ const onboardingSteps: OnboardingStep[] = [
   {
     id: 4,
     title: 'Adding receipts',
-    description: 'Photograph the paper, upload a PDF, or clip an online receipt from your browser.',
+    description: 'Photograph the paper, upload an image, or clip an online receipt from your browser.',
     icon: Upload,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
@@ -140,13 +145,28 @@ const onboardingSteps: OnboardingStep[] = [
     bgColor: 'bg-primary/10',
     features: [
       { icon: CreditCard, text: 'Every recurring payment in one list' },
-      { icon: Users, text: 'Split costs across the household' },
+      { icon: Users, text: 'Shared with the household, if you like' },
       { icon: CheckCircle2, text: 'Link a receipt to the payment it covers' },
       { icon: BarChart3, text: 'See what is due next' },
     ],
   },
   {
     id: 6,
+    title: 'Your month, planned',
+    description: 'Your pay, the bills on the way and what is left for each week, from one payday to the next.',
+    icon: Wallet,
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
+    features: [
+      { icon: Wallet, text: 'Add your pay and the plan runs payday to payday' },
+      { icon: CreditCard, text: 'Bills fill themselves in each month' },
+      { icon: Upload, text: 'Upload a bill and it is read and filed' },
+      { icon: Mail, text: 'Or forward bills to your own address' },
+    ],
+    requiresBills: true,
+  },
+  {
+    id: 7,
     title: 'Insights',
     description: 'Where the money went, over the week, the month or the year.',
     icon: BarChart3,
@@ -160,7 +180,7 @@ const onboardingSteps: OnboardingStep[] = [
     ],
   },
   {
-    id: 7,
+    id: 8,
     title: 'Subscribing',
     description: 'That is the tour. Adding receipts and everything built on them needs a subscription.',
     icon: CreditCard,
@@ -215,9 +235,12 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
     }
   }, [open]);
 
-  const step = onboardingSteps[currentStep];
+  // The plan step only for accounts that have the plan (FEATURE_BILLS).
+  const billsEnabled = useFeature('bills');
+  const steps = onboardingSteps.filter((candidate) => !candidate.requiresBills || billsEnabled);
+  const step = steps[Math.min(currentStep, steps.length - 1)];
   const Icon = step.icon;
-  const isLastStep = currentStep === onboardingSteps.length - 1;
+  const isLastStep = currentStep === steps.length - 1;
 
   // Format currency
   const formatPrice = (amount: number, currency: string) => {
@@ -343,7 +366,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
             <motion.div
               className="h-full bg-primary"
               initial={{ width: '0%' }}
-              animate={{ width: `${((currentStep + 1) / onboardingSteps.length) * 100}%` }}
+              animate={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
               transition={{ duration: 0.3 }}
             />
           </div>
@@ -566,7 +589,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
 
                 {/* Step indicators */}
                 <div className="flex justify-center gap-2 py-4">
-                  {onboardingSteps.map((_, index) => (
+                  {steps.map((_, index) => (
                     <div
                       key={index}
                       className={cn(

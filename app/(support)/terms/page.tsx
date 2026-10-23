@@ -18,7 +18,7 @@ export default function TermsPage() {
         <div>
           <h1 id="terms-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Terms of Service</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: September 29, 2026
+            Last updated: October 23, 2026
           </p>
         </div>
 
@@ -42,7 +42,13 @@ export default function TermsPage() {
             <p>
               ReceiptWise provides receipt management and expense tracking services, including AI-powered OCR
               (Optical Character Recognition) for extracting data from receipt images, spending analytics,
-              and household sharing features.
+              household sharing features, and a monthly plan of your income, bills and savings, with bills read
+              from documents you upload or forward by email.
+            </p>
+            <p>
+              <strong>The plan is an estimate, not financial advice.</strong> It is worked out from what you enter
+              and from what is read off your bills, which can be incomplete or wrong. Check amounts and dates
+              against your bills and your bank, and don&apos;t rely on it to decide whether a payment will go through.
             </p>
           </CardContent>
         </Card>

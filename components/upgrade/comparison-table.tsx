@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, Minus } from 'lucide-react';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 /**
  * The single feature list on the upgrade page.
@@ -48,6 +49,12 @@ const features = [
     free: 'Read existing data',
     premium: 'Full access',
   },
+  ...(BILLS_LAUNCHED ? [{
+    title: 'Monthly plan',
+    description: 'Pay, bills and savings payday to payday, with bills read from uploads or forwarded email.',
+    free: null,
+    premium: 'Full access',
+  }] : []),
   {
     title: 'Export',
     description: 'Take everything out as CSV, JSON, or HTML with the images.',

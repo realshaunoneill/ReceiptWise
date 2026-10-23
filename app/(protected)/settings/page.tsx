@@ -974,7 +974,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Export all your receipts, subscriptions, and payment history in CSV or JSON format.
+                  Export all your receipts, subscriptions, and payment history in CSV or JSON format. &quot;All data&quot; includes your plan: income, bills, savings, balances and what was read off your bills.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Button
@@ -1113,6 +1113,7 @@ export default function SettingsPage() {
                                 <ul className="text-sm list-disc list-inside space-y-1 text-muted-foreground">
                                   <li>All your receipts and images</li>
                                   <li>Subscription tracking data</li>
+                                  <li>Your plan: income, bills, savings goals, balances, and the bills you uploaded or forwarded</li>
                                   <li>Household memberships</li>
                                   <li>Account settings and preferences</li>
                                 </ul>

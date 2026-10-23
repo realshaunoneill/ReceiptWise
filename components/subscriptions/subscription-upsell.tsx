@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 interface SubscriptionUpsellProps {
   title?: string;
@@ -22,7 +23,7 @@ export function SubscriptionUpsell({
     'Unlimited receipts, all of them read for you',
     'Unlimited households',
     'Spending analytics and insights',
-    'Subscription tracking',
+    BILLS_LAUNCHED ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
   ],
   className = '',
   variant = 'default',

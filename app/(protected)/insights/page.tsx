@@ -16,6 +16,7 @@ import { TrendingUp, Search, CreditCard, Crown, Check, PieChart, ScanLine, Arrow
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 export default function InsightsPage() {
   const trialDays = useTrialDays();
@@ -200,7 +201,7 @@ export default function InsightsPage() {
                   {[
                     'Unlimited receipts and scanning',
                     'Unlimited households',
-                    'Subscription tracking',
+                    BILLS_LAUNCHED ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
                     'Filter by household or personal',
                   ].map((feature) => (
                     <div key={feature} className="flex items-center gap-2">

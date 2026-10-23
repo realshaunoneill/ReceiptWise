@@ -13,6 +13,7 @@ import {
   Search,
   Shield,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,6 +24,7 @@ import { HowItWorks } from '@/components/landing/how-it-works';
 import { LandingPricing } from '@/components/landing/landing-pricing';
 import { ExitIntentPopup } from '@/components/landing/exit-intent-popup';
 import { useUser } from '@clerk/nextjs';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 const scrollToSection = (id: string) => {
   const element = document.getElementById(id);
@@ -61,6 +63,12 @@ const features = [
     description:
       'Make a household for your family, your partner or your flatmates. Anyone in it can add a receipt, and everyone sees the same pile.',
   },
+  ...(BILLS_LAUNCHED ? [{
+    icon: Wallet,
+    title: 'Your month, planned',
+    description:
+      'Your pay, the bills on the way and what is left for each week, payday to payday. Upload a bill or forward it by email and it lands in the right month.',
+  }] : []),
   {
     icon: Scan,
     title: 'Receipts read for you',
@@ -111,6 +119,7 @@ const benefits = [
   'Split view: shared, personal, or both',
   'Export for an accountant or a tax return',
   'Shared subscriptions tracked alongside receipts',
+  ...(BILLS_LAUNCHED ? ['Bills, savings and a weekly split, payday to payday'] : []),
   'Find any receipt by something on it',
 ];
 
@@ -283,9 +292,10 @@ export function LandingPage() {
                 </div>
               );
             })}
-            {/* Fills the seventh cell's row so the grid keeps its edge. */}
-            <div className="hidden bg-card lg:block" aria-hidden="true" />
-            <div className="hidden bg-card lg:block" aria-hidden="true" />
+            {/* Fills the last row so the grid keeps its edge. */}
+            {Array.from({ length: (3 - (features.length % 3)) % 3 }, (_, i) => (
+              <div key={`filler-${i}`} className="hidden bg-card lg:block" aria-hidden="true" />
+            ))}
           </div>
         </div>
       </section>
