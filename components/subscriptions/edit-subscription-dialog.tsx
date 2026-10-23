@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useUpdateSubscription } from '@/hooks/use-subscriptions';
 import {
@@ -29,6 +29,8 @@ import { fromUtcDate } from '@/lib/dates/local-date';
 import { toCents } from '@/lib/money';
 import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
+import { useFeature } from '@/lib/hooks/use-user';
+import { BillFields, type BillFieldValues } from './bill-fields';
 
 type EditSubscriptionDialogProps = {
   subscription: Subscription;
@@ -67,6 +69,14 @@ const categories = [
   'Other',
 ];
 
+function billFieldsOf(subscription: Subscription): BillFieldValues {
+  return {
+    kind: subscription.kind === 'bill' ? 'bill' : 'subscription',
+    amountType: subscription.amountType === 'variable' ? 'variable' : 'fixed',
+    paymentMethod: (subscription.paymentMethod ?? '') as BillFieldValues['paymentMethod'],
+  };
+}
+
 function formValues(subscription: Subscription): FormData {
   return {
     name: subscription.name,
@@ -90,6 +100,8 @@ export function EditSubscriptionDialog({
   onOpenChange,
 }: EditSubscriptionDialogProps) {
   const { mutate: updateSubscription, isPending } = useUpdateSubscription(subscription.id);
+  const billsEnabled = useFeature('bills');
+  const [billFields, setBillFields] = useState<BillFieldValues>(billFieldsOf(subscription));
 
   const {
     register,
@@ -108,6 +120,7 @@ export function EditSubscriptionDialog({
   // Reset form when subscription changes
   useEffect(() => {
     reset(formValues(subscription));
+    setBillFields(billFieldsOf(subscription));
   }, [subscription, reset]);
 
   const onSubmit = (data: FormData) => {
@@ -129,6 +142,12 @@ export function EditSubscriptionDialog({
     if (data.website !== before.website) changes.website = data.website || null;
     if (data.notes !== before.notes) changes.notes = data.notes || null;
     if (data.isBusinessExpense !== before.isBusinessExpense) changes.isBusinessExpense = data.isBusinessExpense;
+    if (billsEnabled) {
+      const beforeBill = billFieldsOf(subscription);
+      if (billFields.kind !== beforeBill.kind) changes.kind = billFields.kind;
+      if (billFields.amountType !== beforeBill.amountType) changes.amountType = billFields.amountType;
+      if (billFields.paymentMethod !== beforeBill.paymentMethod) changes.paymentMethod = billFields.paymentMethod || null;
+    }
 
     if (Object.keys(changes).length === 0) {
       onOpenChange(false);
@@ -321,6 +340,8 @@ export function EditSubscriptionDialog({
               </div>
             )}
           </div>
+
+          {billsEnabled && <BillFields value={billFields} onChange={setBillFields} />}
 
           {/* Additional Details */}
           <div className="space-y-4">

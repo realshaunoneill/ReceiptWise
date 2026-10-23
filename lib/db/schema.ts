@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, uniqueIndex, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, uniqueIndex, date, numeric, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 // Users Table
 export const users = pgTable('users', {
@@ -209,6 +209,8 @@ export const subscriptions = pgTable('subscriptions', {
   paymentMethod: text('payment_method'), // 'direct_debit' | 'standing_order' | 'card' | 'manual'; null = not said (older rows)
   providerKey: text('provider_key'), // normalised provider name, for matching uploaded bills
   accountReference: text('account_reference'), // last 4 characters of the account/reference number only
+  // The account it comes out of, for the plan's "left until payday" view. Null = the main account.
+  paidFromAccountId: uuid('paid_from_account_id').references((): AnyPgColumn => financialAccounts.id, { onDelete: 'set null' }),
 
   // Dates
   startDate: timestamp('start_date').notNull(),
@@ -280,6 +282,134 @@ export type NewSubscription = typeof subscriptions.$inferInsert;
 
 export type SubscriptionPayment = typeof subscriptionPayments.$inferSelect;
 export type NewSubscriptionPayment = typeof subscriptionPayments.$inferInsert;
+
+// ---------------------------------------------------------------------------------------------
+// The monthly plan (bills & budget). All of these follow the receipts/subscriptions ownership
+// shape: an owner, optionally shared with one household (see lib/services/finance-access.ts).
+// Money is numeric(12,2), which Drizzle returns as a string; calendar days are Postgres `date`,
+// returned as YYYY-MM-DD strings. Additive changes only: the build applies this with
+// `drizzle-kit push --force`.
+// ---------------------------------------------------------------------------------------------
+
+const money = (name: string) => numeric(name, { precision: 12, scale: 2 });
+
+// Bank accounts, for the optional "left until payday" view. Balances are typed in by hand; there
+// is no bank connection.
+export const financialAccounts = pgTable('financial_accounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  kind: text('kind').notNull().default('current'), // 'current' | 'savings' | 'cash'
+  currency: text('currency').notNull().default('EUR'),
+  // Whether its balance counts towards "left until payday". Savings accounts default to no.
+  includeInPlan: boolean('include_in_plan').notNull().default(true),
+  institution: text('institution'),
+  last4: text('last4'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  archivedAt: timestamp('archived_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index('financial_accounts_user_id_idx').on(table.userId),
+  householdIdIdx: index('financial_accounts_household_id_idx').on(table.householdId),
+}));
+
+// Balance history: the latest entry (newest as_of_date, then newest created_at) is the balance.
+export const accountBalances = pgTable('account_balances', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  accountId: uuid('account_id').notNull().references(() => financialAccounts.id, { onDelete: 'cascade' }),
+  balance: money('balance').notNull(),
+  asOfDate: date('as_of_date').notNull(),
+  enteredByUserId: uuid('entered_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  accountAsOfIdx: index('account_balances_account_as_of_idx').on(table.accountId, table.asOfDate, table.createdAt),
+}));
+
+// What comes in, and when. The active primary one sets the plan's period (payday to payday).
+export const incomeSources = pgTable('income_sources', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  amount: money('amount').notNull(),
+  currency: text('currency').notNull().default('EUR'),
+  frequency: text('frequency').notNull().default('monthly'), // PAY_FREQUENCIES in lib/schedule/pay-schedule.ts
+  payDay: integer('pay_day'), // 1-31, for 'monthly' (clamped to short months)
+  anchorDate: date('anchor_date'), // any real payday, for 'weekly' | 'fortnightly' | 'four_weekly'
+  weekendRule: text('weekend_rule').notNull().default('previous_business_day'), // | 'next_business_day' | 'none'
+  isPrimary: boolean('is_primary').notNull().default(false),
+  intoAccountId: uuid('into_account_id').references(() => financialAccounts.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('active'), // 'active' | 'ended'
+  endDate: date('end_date'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index('income_sources_user_id_idx').on(table.userId),
+  householdIdIdx: index('income_sources_household_id_idx').on(table.householdId),
+}));
+
+// One-off lines in a period's plan: "Niamh's wedding 400", "Dress 85", a bonus coming in. An entry
+// belongs to whichever period its date falls in, so moving payday re-buckets entries instead of
+// orphaning them.
+export const planEntries = pgTable('plan_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
+  date: date('date').notNull(),
+  label: text('label').notNull(),
+  amount: money('amount').notNull(),
+  currency: text('currency').notNull().default('EUR'),
+  direction: text('direction').notNull().default('out'), // 'out' | 'in'
+  category: text('category'),
+  doneAt: timestamp('done_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userDateIdx: index('plan_entries_user_date_idx').on(table.userId, table.date),
+  householdDateIdx: index('plan_entries_household_date_idx').on(table.householdId, table.date),
+}));
+
+// Something being saved for. Its per-period contribution is a line in the plan.
+export const savingsGoals = pgTable('savings_goals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  targetAmount: money('target_amount'), // null = no target, just a regular set-aside
+  currency: text('currency').notNull().default('EUR'),
+  targetDate: date('target_date'),
+  contributionPerCycle: money('contribution_per_cycle'),
+  // Saved so far, typed in or raised by contributions. With a linked account, that balance is used.
+  savedAmount: money('saved_amount').notNull().default('0'),
+  linkedAccountId: uuid('linked_account_id').references(() => financialAccounts.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('active'), // 'active' | 'paused' | 'achieved' | 'archived'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index('savings_goals_user_id_idx').on(table.userId),
+  householdIdIdx: index('savings_goals_household_id_idx').on(table.householdId),
+}));
+
+export const savingsGoalContributions = pgTable('savings_goal_contributions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  goalId: uuid('goal_id').notNull().references(() => savingsGoals.id, { onDelete: 'cascade' }),
+  amount: money('amount').notNull(),
+  contributedOn: date('contributed_on').notNull(),
+  enteredByUserId: uuid('entered_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  goalDateIdx: index('savings_goal_contributions_goal_date_idx').on(table.goalId, table.contributedOn),
+}));
+
+export type FinancialAccount = typeof financialAccounts.$inferSelect;
+export type AccountBalance = typeof accountBalances.$inferSelect;
+export type IncomeSource = typeof incomeSources.$inferSelect;
+export type PlanEntry = typeof planEntries.$inferSelect;
+export type SavingsGoal = typeof savingsGoals.$inferSelect;
+export type SavingsGoalContribution = typeof savingsGoalContributions.$inferSelect;
 
 // Additional types for business logic
 export type HouseholdMember = {

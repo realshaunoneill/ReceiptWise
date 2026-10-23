@@ -131,6 +131,7 @@ export function useCreateSubscription() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['plan'] });
     },
   });
 }
@@ -151,6 +152,7 @@ export function useUpdateSubscription(id: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['plan'] });
       queryClient.invalidateQueries({ queryKey: ['subscription', id] });
     },
   });
@@ -170,6 +172,7 @@ export function useDeleteSubscription() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['plan'] });
     },
   });
 }
@@ -190,6 +193,7 @@ export function useUpdatePayment(subscriptionId?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['plan'] });
       if (subscriptionId) {
         queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
       }
@@ -211,6 +215,7 @@ export function useUnlinkPayment(subscriptionId?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['plan'] });
       if (subscriptionId) {
         queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
       }
@@ -234,6 +239,7 @@ export function useUpdateOccurrence(subscriptionId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['plan'] });
       queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
     },
   });

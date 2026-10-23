@@ -1,7 +1,21 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
-import { receipts, receiptItems, subscriptions, subscriptionPayments, households, householdUsers, users } from '@/lib/db/schema';
+import {
+  receipts,
+  receiptItems,
+  subscriptions,
+  subscriptionPayments,
+  households,
+  householdUsers,
+  users,
+  financialAccounts,
+  accountBalances,
+  incomeSources,
+  planEntries,
+  savingsGoals,
+  savingsGoalContributions,
+} from '@/lib/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
@@ -13,7 +27,8 @@ export const runtime = 'nodejs';
  * Export user data in CSV or JSON format
  * Query params:
  * - format: 'csv' | 'json' (default: csv)
- * - type: 'receipts' | 'subscriptions' | 'all' (default: all)
+ * - type: 'receipts' | 'subscriptions' | 'all' (default: all). 'all' includes the monthly plan:
+ *   income, one-off plan entries, savings goals and contributions, accounts and balances.
  */
 export async function GET(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
@@ -151,6 +166,23 @@ export async function GET(req: NextRequest) {
       .innerJoin(households, eq(householdUsers.householdId, households.id))
       .where(eq(householdUsers.userId, user.id));
 
+    // The monthly plan (everything the user owns; shared rows other members own are theirs)
+    const [userIncome, userEntries, userGoals, userAccounts] = type === 'all'
+      ? await Promise.all([
+        db.select().from(incomeSources).where(eq(incomeSources.userId, user.id)),
+        db.select().from(planEntries).where(eq(planEntries.userId, user.id)).orderBy(planEntries.date),
+        db.select().from(savingsGoals).where(eq(savingsGoals.userId, user.id)),
+        db.select().from(financialAccounts).where(eq(financialAccounts.userId, user.id)),
+      ])
+      : [[], [], [], []];
+    const [userContributions, userBalances] = await Promise.all([
+      userGoals.length === 0 ? [] : db.select().from(savingsGoalContributions)
+        .where(inArray(savingsGoalContributions.goalId, userGoals.map((goal) => goal.id))),
+      userAccounts.length === 0 ? [] : db.select().from(accountBalances)
+        .where(inArray(accountBalances.accountId, userAccounts.map((account) => account.id)))
+        .orderBy(accountBalances.asOfDate),
+    ]);
+
     // Update last exported timestamp
     await db
       .update(users)
@@ -194,6 +226,18 @@ export async function GET(req: NextRequest) {
 
       if (type === 'all') {
         exportData.households = userHouseholds;
+        exportData.plan = {
+          income: userIncome.map(({ userId: _userId, ...income }) => income),
+          entries: userEntries.map(({ userId: _userId, ...entry }) => entry),
+          savingsGoals: userGoals.map(({ userId: _userId, ...goal }) => ({
+            ...goal,
+            contributions: userContributions.filter((c) => c.goalId === goal.id),
+          })),
+          accounts: userAccounts.map(({ userId: _userId, ...account }) => ({
+            ...account,
+            balances: userBalances.filter((b) => b.accountId === account.id),
+          })),
+        };
       }
 
       return NextResponse.json(exportData, {
@@ -308,6 +352,48 @@ export async function GET(req: NextRequest) {
       }
 
       if (type === 'all') {
+        csvContent += 'INCOME\n';
+        csvContent += row(['Name', 'Amount', 'Currency', 'Frequency', 'Pay Day', 'Anchor Date', 'Weekend Rule', 'Primary', 'Status', 'End Date']);
+        userIncome.forEach((income) => {
+          csvContent += row([income.name, income.amount, income.currency, income.frequency, income.payDay, income.anchorDate, income.weekendRule, income.isPrimary ? 'Yes' : 'No', income.status, income.endDate]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'PLAN ENTRIES\n';
+        csvContent += row(['Date', 'Label', 'Amount', 'Currency', 'Direction', 'Category', 'Done', 'Notes']);
+        userEntries.forEach((entry) => {
+          csvContent += row([entry.date, entry.label, entry.amount, entry.currency, entry.direction, entry.category, entry.doneAt ? day(entry.doneAt) : '', entry.notes]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'SAVINGS GOALS\n';
+        csvContent += row(['Name', 'Target', 'Currency', 'Target Date', 'Per Period', 'Saved', 'Status']);
+        userGoals.forEach((goal) => {
+          csvContent += row([goal.name, goal.targetAmount, goal.currency, goal.targetDate, goal.contributionPerCycle, goal.savedAmount, goal.status]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'SAVINGS CONTRIBUTIONS\n';
+        csvContent += row(['Goal', 'Amount', 'Date']);
+        userContributions.forEach((contribution) => {
+          csvContent += row([userGoals.find((goal) => goal.id === contribution.goalId)?.name, contribution.amount, contribution.contributedOn]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'ACCOUNTS\n';
+        csvContent += row(['Name', 'Kind', 'Currency', 'Counts Towards Plan', 'Institution', 'Last 4', 'Archived']);
+        userAccounts.forEach((account) => {
+          csvContent += row([account.name, account.kind, account.currency, account.includeInPlan ? 'Yes' : 'No', account.institution, account.last4, day(account.archivedAt)]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'ACCOUNT BALANCES\n';
+        csvContent += row(['Account', 'Balance', 'As Of']);
+        userBalances.forEach((balance) => {
+          csvContent += row([userAccounts.find((account) => account.id === balance.accountId)?.name, balance.balance, balance.asOfDate]);
+        });
+        csvContent += '\n';
+
         csvContent += 'HOUSEHOLDS\n';
         csvContent += row(['Household Name', 'Role', 'Joined At']);
 

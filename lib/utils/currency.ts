@@ -57,3 +57,8 @@ export function formatCurrency(amount: number, currencyCode: string = DEFAULT_CU
 export function getCurrencySymbol(currencyCode: string = DEFAULT_CURRENCY): string {
   return getCurrencyDetails(currencyCode).symbol;
 }
+
+/** Format an amount held in integer cents (the plan's unit). */
+export function formatCents(cents: number, currencyCode: string = DEFAULT_CURRENCY): string {
+  return formatCurrency(cents / 100, currencyCode);
+}

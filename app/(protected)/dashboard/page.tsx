@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
 import { useRouter } from 'next/navigation';
 import { UpcomingPayments } from '@/components/subscriptions/upcoming-payments';
+import { PlanCard } from '@/components/dashboard/plan-card';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -178,6 +179,8 @@ export default function DashboardPage() {
             )}
           </>
         )}
+
+        <PlanCard />
 
         {subscriptions.length > 0 && (
           <UpcomingPayments subscriptions={subscriptions} daysAhead={7} />

@@ -10,6 +10,8 @@ import { useCurrency } from '@/lib/hooks/use-currency';
 import { localToday } from '@/lib/dates/local-date';
 import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
+import { useFeature } from '@/lib/hooks/use-user';
+import { BillFields, type BillFieldValues, DEFAULT_BILL_FIELDS } from './bill-fields';
 import {
   Dialog,
   DialogContent,
@@ -70,6 +72,8 @@ export function CreateSubscriptionDialog() {
   const { data: households } = useHouseholds();
   const { mutate: createSubscription, isPending } = useCreateSubscription();
   const { currency: userCurrency } = useCurrency();
+  const billsEnabled = useFeature('bills');
+  const [billFields, setBillFields] = useState<BillFieldValues>(DEFAULT_BILL_FIELDS);
 
   const {
     register,
@@ -137,12 +141,18 @@ export function CreateSubscriptionDialog() {
         isBusinessExpense: data.isBusinessExpense,
         website: data.website || undefined,
         notes: data.notes || undefined,
+        ...(billsEnabled ? {
+          kind: billFields.kind,
+          amountType: billFields.amountType,
+          paymentMethod: billFields.paymentMethod || null,
+        } : {}),
       },
       {
         onSuccess: () => {
           toast.success(`${data.name} has been added to your subscriptions`);
           setOpen(false);
           reset();
+          setBillFields(DEFAULT_BILL_FIELDS);
         },
         onError: (error) => {
           toast.error('Failed to create subscription', { description: error.message });
@@ -345,6 +355,8 @@ export function CreateSubscriptionDialog() {
               </div>
             </div>
           </div>
+
+          {billsEnabled && <BillFields value={billFields} onChange={setBillFields} />}
 
           {/* Step 4: Additional Details (Collapsible/Optional) */}
           <div className="space-y-4">

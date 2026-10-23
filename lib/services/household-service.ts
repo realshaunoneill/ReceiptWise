@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { households, householdUsers, householdInvitations, users, receipts, subscriptions, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
+import { households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
 import { eq, and, asc, inArray, count, ne, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { getAppUrl } from '@/lib/app-url';
@@ -45,6 +45,9 @@ export function validateHouseholdName(name: unknown): string {
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Tables of finance rows owned by a user and optionally shared with a household (lib/services/finance-access.ts). */
+const FINANCE_TABLES = [subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals] as const;
 
 export class HouseholdService {
   /**
@@ -506,10 +509,13 @@ export class HouseholdService {
         .set({ householdId: null, updatedAt: new Date() })
         .where(eq(receipts.householdId, householdId));
 
-      await tx
-        .update(subscriptions)
-        .set({ householdId: null, updatedAt: new Date() })
-        .where(eq(subscriptions.householdId, householdId));
+      // Finance rows: subscriptions/bills, accounts, income, plan entries and goals.
+      for (const table of FINANCE_TABLES) {
+        await tx
+          .update(table)
+          .set({ householdId: null, updatedAt: new Date() })
+          .where(eq(table.householdId, householdId));
+      }
 
       await tx
         .update(users)
@@ -690,13 +696,15 @@ export class HouseholdService {
    */
   private static async detachFinanceRows(tx: Tx, householdId: string, userIds: string[]): Promise<void> {
     if (userIds.length === 0) return;
-    await tx
-      .update(subscriptions)
-      .set({ householdId: null, updatedAt: new Date() })
-      .where(and(
-        inArray(subscriptions.userId, userIds),
-        eq(subscriptions.householdId, householdId),
-      ));
+    for (const table of FINANCE_TABLES) {
+      await tx
+        .update(table)
+        .set({ householdId: null, updatedAt: new Date() })
+        .where(and(
+          inArray(table.userId, userIds),
+          eq(table.householdId, householdId),
+        ));
+    }
   }
 
   /**

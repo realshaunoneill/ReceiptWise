@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Receipt, Users, Settings, LogOut, TrendingUp, Menu, ShieldCheck, Repeat } from 'lucide-react';
+import { LayoutDashboard, Receipt, Users, Settings, LogOut, TrendingUp, Menu, ShieldCheck, Repeat, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser, useClerk } from '@clerk/nextjs';
+import { useFeature } from '@/lib/hooks/use-user';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { InvitationNotifications } from '@/components/households/invitation-notifications';
 import { Button } from '@/components/ui/button';
@@ -56,7 +57,15 @@ export function Navigation() {
     }
   }, [user]);
 
-  const displayNavItems = [...navItems];
+  // The bills work, behind its flag: a Plan page, and Subscriptions renamed to Bills.
+  const billsEnabled = useFeature('bills');
+  const displayNavItems = billsEnabled
+    ? navItems.flatMap((item) => {
+      if (item.href === '/dashboard') return [item, { href: '/plan', label: 'Plan', icon: Wallet }];
+      if (item.href === '/subscriptions') return [{ ...item, label: 'Bills' }];
+      return [item];
+    })
+    : [...navItems];
   if (!isCheckingAdmin && isAdmin) {
     displayNavItems.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
   }
@@ -135,12 +144,13 @@ export function Navigation() {
           <div className="flex items-center gap-1">
             {displayNavItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   aria-current={isActive ? 'page' : undefined}
+                  title={item.label}
                   className={cn(
                     'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                     isActive
@@ -149,7 +159,8 @@ export function Navigation() {
                   )}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
-                  <span>{item.label}</span>
+                  {/* Icons only at md, where seven or eight labelled items don't fit. */}
+                  <span className={displayNavItems.length > 6 ? 'sr-only lg:not-sr-only' : undefined}>{item.label}</span>
                 </Link>
               );
             })}
@@ -212,7 +223,7 @@ export function Navigation() {
             <DropdownMenuContent align="end" className="w-48">
               {displayNavItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
                   <DropdownMenuItem key={item.href} asChild>
                     <Link

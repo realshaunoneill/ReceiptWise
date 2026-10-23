@@ -143,3 +143,162 @@ export async function readJson(req: Request): Promise<unknown> {
     return undefined;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The monthly plan: income, one-off entries, savings goals, accounts and balances.
+// ---------------------------------------------------------------------------------------------
+
+export const PAY_FREQUENCY_VALUES = ['monthly', 'last_working_day', 'weekly', 'fortnightly', 'four_weekly'] as const;
+export const WEEKEND_RULE_VALUES = ['previous_business_day', 'next_business_day', 'none'] as const;
+export const ACCOUNT_KINDS = ['current', 'savings', 'cash'] as const;
+export const GOAL_STATUSES = ['active', 'paused', 'achieved', 'archived'] as const;
+
+/** A signed amount (balances can be overdrawn), normalised to two decimals. */
+const signedAmount = z
+  .union([z.string(), z.number()])
+  .transform((value, ctx) => {
+    const cents = toCents(value);
+    if (cents === null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'must be a number' });
+      return z.NEVER;
+    }
+    return fromCents(cents);
+  });
+
+const householdId = z.string().uuid().nullable().optional();
+
+const incomeFields = {
+  name: z.string().trim().min(1, 'is required').max(100),
+  amount,
+  currency: z.enum(CURRENCY_CODES),
+  frequency: z.enum(PAY_FREQUENCY_VALUES),
+  payDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  anchorDate: localDate.nullable().optional(),
+  weekendRule: z.enum(WEEKEND_RULE_VALUES),
+  isPrimary: z.boolean(),
+  intoAccountId: z.string().uuid().nullable().optional(),
+  status: z.enum(['active', 'ended']),
+  endDate: localDate.nullable().optional(),
+  householdId,
+};
+
+function checkPaySchedule(value: { frequency?: string; payDay?: number | null; anchorDate?: string | null }, ctx: z.RefinementCtx) {
+  if (value.frequency === 'monthly' && !value.payDay) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payDay'], message: 'is required for monthly pay' });
+  }
+  if (value.frequency && ['weekly', 'fortnightly', 'four_weekly'].includes(value.frequency) && !value.anchorDate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['anchorDate'], message: 'is required: any date you were paid' });
+  }
+}
+
+export const createIncomeSchema = z
+  .object({
+    ...incomeFields,
+    currency: incomeFields.currency.default('EUR'),
+    frequency: incomeFields.frequency.default('monthly'),
+    weekendRule: incomeFields.weekendRule.default('previous_business_day'),
+    isPrimary: incomeFields.isPrimary.default(true),
+    status: incomeFields.status.default('active'),
+  })
+  .strict()
+  .superRefine(checkPaySchedule);
+
+export const updateIncomeSchema = z.object(incomeFields).partial().strict();
+
+const entryFields = {
+  date: localDate,
+  label: z.string().trim().min(1, 'is required').max(120),
+  amount,
+  currency: z.enum(CURRENCY_CODES),
+  direction: z.enum(['out', 'in']),
+  category: optionalText(50),
+  done: z.boolean(),
+  notes: optionalText(1000),
+  householdId,
+};
+
+export const createEntrySchema = z
+  .object({
+    ...entryFields,
+    currency: entryFields.currency.optional(),
+    direction: entryFields.direction.default('out'),
+    done: entryFields.done.default(false),
+  })
+  .strict();
+
+/** POST /api/plan/entries takes one entry, or many at once (pasted lines). */
+export const createEntriesSchema = z.union([
+  createEntrySchema,
+  z.object({ entries: z.array(createEntrySchema).min(1).max(100) }).strict(),
+]);
+
+export const updateEntrySchema = z.object(entryFields).partial().strict();
+
+const goalFields = {
+  name: z.string().trim().min(1, 'is required').max(100),
+  targetAmount: amount.nullable().optional(),
+  currency: z.enum(CURRENCY_CODES),
+  targetDate: localDate.nullable().optional(),
+  contributionPerCycle: amount.nullable().optional(),
+  savedAmount: amount,
+  linkedAccountId: z.string().uuid().nullable().optional(),
+  status: z.enum(GOAL_STATUSES),
+  householdId,
+};
+
+export const createGoalSchema = z
+  .object({
+    ...goalFields,
+    currency: goalFields.currency.optional(),
+    savedAmount: goalFields.savedAmount.default('0.00'),
+    status: goalFields.status.default('active'),
+  })
+  .strict();
+
+export const updateGoalSchema = z.object(goalFields).partial().strict();
+
+export const createContributionSchema = z
+  .object({ amount, contributedOn: localDate })
+  .strict();
+
+const accountFields = {
+  name: z.string().trim().min(1, 'is required').max(100),
+  kind: z.enum(ACCOUNT_KINDS),
+  currency: z.enum(CURRENCY_CODES),
+  includeInPlan: z.boolean(),
+  institution: optionalText(100),
+  last4: z.string().trim().regex(/^[A-Za-z0-9]{1,4}$/, 'must be the last 4 characters only').nullable().optional()
+    .or(z.literal('').transform(() => null)),
+  sortOrder: z.coerce.number().int().min(0).max(1000),
+  householdId,
+};
+
+export const createAccountSchema = z
+  .object({
+    ...accountFields,
+    kind: accountFields.kind.default('current'),
+    currency: accountFields.currency.optional(),
+    includeInPlan: accountFields.includeInPlan.optional(),
+    sortOrder: accountFields.sortOrder.default(0),
+    /** An opening balance, as of today unless asOfDate says otherwise. */
+    balance: signedAmount.optional(),
+    asOfDate: localDate.optional(),
+  })
+  .strict();
+
+export const updateAccountSchema = z.object(accountFields).partial().strict();
+
+/** POST /api/accounts/balances: a check-in, several accounts at once. */
+export const recordBalancesSchema = z
+  .object({
+    balances: z.array(z.object({ accountId: z.string().uuid(), balance: signedAmount, asOfDate: localDate }).strict()).min(1).max(50),
+  })
+  .strict();
+
+export type CreateIncomeInput = z.infer<typeof createIncomeSchema>;
+export type UpdateIncomeInput = z.infer<typeof updateIncomeSchema>;
+export type CreateEntryInput = z.infer<typeof createEntrySchema>;
+export type UpdateEntryInput = z.infer<typeof updateEntrySchema>;
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
+export type CreateAccountInput = z.infer<typeof createAccountSchema>;
