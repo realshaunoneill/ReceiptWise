@@ -284,6 +284,7 @@ export function CreateSubscriptionDialog() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="bimonthly">Every 2 months</SelectItem>
                     <SelectItem value="quarterly">Every 3 months (Quarterly)</SelectItem>
                     <SelectItem value="six_monthly">Every 6 months</SelectItem>
                     <SelectItem value="yearly">Yearly</SelectItem>

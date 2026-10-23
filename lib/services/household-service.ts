@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
+import { households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, billDocuments, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
 import { eq, and, asc, inArray, count, ne, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { getAppUrl } from '@/lib/app-url';
@@ -47,7 +47,7 @@ export function validateHouseholdName(name: unknown): string {
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Tables of finance rows owned by a user and optionally shared with a household (lib/services/finance-access.ts). */
-const FINANCE_TABLES = [subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals] as const;
+const FINANCE_TABLES = [subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, billDocuments] as const;
 
 export class HouseholdService {
   /**

@@ -2,10 +2,12 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
 import { del } from '@vercel/blob';
+import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import { clerkClient } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { receipts, users } from '@/lib/db/schema';
+import { billDocuments, receipts, users } from '@/lib/db/schema';
+import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { HouseholdService } from '@/lib/services/household-service';
@@ -53,6 +55,25 @@ async function cancelStripeSubscriptions(
 }
 
 /**
+ * Delete every bill file a user brought in (the private store). Like receipt images, the files
+ * are outside the database cascade.
+ */
+async function deleteBillFiles(userId: string, correlationId: CorrelationId): Promise<void> {
+  if (!isPrivateStoreConfigured()) return;
+  const rows = await db
+    .select({ blobPathname: billDocuments.blobPathname })
+    .from(billDocuments)
+    .where(eq(billDocuments.userId, userId));
+  const pathnames = rows.map((row) => row.blobPathname);
+  for (let i = 0; i < pathnames.length; i += 1000) {
+    await deletePrivate(pathnames.slice(i, i + 1000));
+  }
+  if (pathnames.length > 0) {
+    submitLogEvent('user', `Deleted ${pathnames.length} bill files for account deletion`, correlationId, { userId, fileCount: pathnames.length });
+  }
+}
+
+/**
  * Delete every stored receipt image for a user. Blob objects are not covered by the
  * database FK cascade, so without this the images outlive the account.
  */
@@ -67,7 +88,7 @@ async function deleteReceiptBlobs(userId: string, correlationId: CorrelationId):
 
   // del() accepts up to 1000 urls per call.
   for (let i = 0; i < urls.length; i += 1000) {
-    await del(urls.slice(i, i + 1000));
+    await del(urls.slice(i, i + 1000), { token: receiptsBlobToken() });
   }
 
   submitLogEvent('user', `Deleted ${urls.length} receipt blobs for account deletion`, correlationId, {
@@ -142,6 +163,7 @@ export async function GET(req: NextRequest) {
         }
 
         await deleteReceiptBlobs(user.id, correlationId);
+        await deleteBillFiles(user.id, correlationId);
 
         // Before the row goes: a household this person owns passes to its longest-standing
         // other member, or is deleted (keeping everyone else's receipts) if they were alone in

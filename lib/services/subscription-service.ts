@@ -313,13 +313,14 @@ export class SubscriptionService {
     input: UpdatePaymentInput,
     actorUserId: string,
     receipt?: Receipt,
+    options: { amountSource?: 'manual' | 'bill' } = {},
   ): Promise<SubscriptionPayment> {
     const now = new Date();
     const updates: Partial<typeof subscriptionPayments.$inferInsert> = { updatedAt: now };
 
     if (input.expectedAmount !== undefined) {
       updates.expectedAmount = input.expectedAmount;
-      updates.amountSource = 'manual';
+      updates.amountSource = options.amountSource ?? 'manual';
     }
     if (input.dueDate !== undefined) updates.dueDate = input.dueDate;
     if (input.notes !== undefined) updates.notes = input.notes;
@@ -367,6 +368,16 @@ export class SubscriptionService {
     }
 
     return updated;
+  }
+
+  /** The subscription's cycle nearest to `day` (a bill's due date), as YYYY-MM-DD, or null if it has none near. */
+  static nearestCycle(subscription: Subscription, day: string): string | null {
+    const target = toUtcDate(day).getTime();
+    const window = 200 * DAY_MS;
+    const cycles = new BillingSchedule(subscription).cyclesBetween(new Date(target - window), new Date(target + window));
+    if (cycles.length === 0) return null;
+    const nearest = cycles.reduce((best, cycle) => (Math.abs(cycle.getTime() - target) < Math.abs(best.getTime() - target) ? cycle : best));
+    return fromUtcDate(nearest);
   }
 
   /**

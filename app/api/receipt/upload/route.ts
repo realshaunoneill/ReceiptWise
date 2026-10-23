@@ -4,6 +4,7 @@ import { getAuthenticatedUser, requireSubscription, requireNoPendingDeletion } f
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { sanitizeErrorMessage } from '@/lib/errors';
 import { randomUUID } from 'crypto';
+import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
 
 // Route configuration
 export const runtime = 'nodejs';
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
+      token: receiptsBlobToken(),
       onBeforeGenerateToken: async (
         pathname: string,
         clientPayload: string | null,

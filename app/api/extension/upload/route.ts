@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { put } from '@vercel/blob';
+import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
 import { receipts } from '@/lib/db/schema';
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       access: 'public',
       contentType: file.type,
       addRandomSuffix: true,
+      token: receiptsBlobToken(),
     });
 
     submitLogEvent('extension-upload', 'File uploaded to blob storage', correlationId, {

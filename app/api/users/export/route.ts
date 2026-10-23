@@ -15,6 +15,7 @@ import {
   planEntries,
   savingsGoals,
   savingsGoalContributions,
+  billDocuments,
 } from '@/lib/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
@@ -167,14 +168,22 @@ export async function GET(req: NextRequest) {
       .where(eq(householdUsers.userId, user.id));
 
     // The monthly plan (everything the user owns; shared rows other members own are theirs)
-    const [userIncome, userEntries, userGoals, userAccounts] = type === 'all'
+    const [userIncome, userEntries, userGoals, userAccounts, userBills] = type === 'all'
       ? await Promise.all([
         db.select().from(incomeSources).where(eq(incomeSources.userId, user.id)),
         db.select().from(planEntries).where(eq(planEntries.userId, user.id)).orderBy(planEntries.date),
         db.select().from(savingsGoals).where(eq(savingsGoals.userId, user.id)),
         db.select().from(financialAccounts).where(eq(financialAccounts.userId, user.id)),
+        // What was read off each bill; the files themselves are downloadable in the app.
+        db.select({
+          fileName: billDocuments.fileName, source: billDocuments.source, documentType: billDocuments.documentType,
+          provider: billDocuments.provider, amountDue: billDocuments.amountDue, currency: billDocuments.currency,
+          dueDate: billDocuments.dueDate, issueDate: billDocuments.issueDate, periodStart: billDocuments.periodStart,
+          periodEnd: billDocuments.periodEnd, reviewStatus: billDocuments.reviewStatus, appliedAs: billDocuments.appliedAs,
+          createdAt: billDocuments.createdAt,
+        }).from(billDocuments).where(and(eq(billDocuments.userId, user.id), isNull(billDocuments.deletedAt))),
       ])
-      : [[], [], [], []];
+      : [[], [], [], [], []];
     const [userContributions, userBalances] = await Promise.all([
       userGoals.length === 0 ? [] : db.select().from(savingsGoalContributions)
         .where(inArray(savingsGoalContributions.goalId, userGoals.map((goal) => goal.id))),
@@ -237,6 +246,7 @@ export async function GET(req: NextRequest) {
             ...account,
             balances: userBalances.filter((b) => b.accountId === account.id),
           })),
+          bills: userBills,
         };
       }
 
@@ -391,6 +401,13 @@ export async function GET(req: NextRequest) {
         csvContent += row(['Account', 'Balance', 'As Of']);
         userBalances.forEach((balance) => {
           csvContent += row([userAccounts.find((account) => account.id === balance.accountId)?.name, balance.balance, balance.asOfDate]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'BILLS BROUGHT IN\n';
+        csvContent += row(['File', 'Source', 'Type', 'Provider', 'Amount Due', 'Currency', 'Due Date', 'Bill Date', 'Status', 'Filed As', 'Added']);
+        userBills.forEach((bill) => {
+          csvContent += row([bill.fileName, bill.source, bill.documentType, bill.provider, bill.amountDue, bill.currency, bill.dueDate, bill.issueDate, bill.reviewStatus, bill.appliedAs, day(bill.createdAt)]);
         });
         csvContent += '\n';
 

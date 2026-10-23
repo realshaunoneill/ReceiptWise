@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HouseholdSelector } from '@/components/households/household-selector';
 import { BankCheck } from '@/components/plan/bank-check';
+import { BillInbox } from '@/components/plan/bill-inbox';
 import { EntryDialog } from '@/components/plan/entry-dialog';
 import { GoalDialog } from '@/components/plan/goal-dialog';
 import { IncomeDialog } from '@/components/plan/income-dialog';
@@ -133,6 +134,7 @@ function PlanPageContent() {
           <PlanSummary plan={plan} />
           <BankCheck plan={plan} householdId={householdId} />
           <QuickAdd plan={plan} householdId={householdId} />
+          <BillInbox plan={plan} householdId={householdId} />
 
           <PlanLines
             plan={plan}

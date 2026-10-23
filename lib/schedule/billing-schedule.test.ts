@@ -30,6 +30,11 @@ describe('BillingSchedule', () => {
     expect(days(s.cyclesThrough(d('2026-06-01')))).toEqual(['2026-04-05', '2026-05-05']);
   });
 
+  it('steps every two months, clamping the day', () => {
+    expect(days(schedule({ billingFrequency: 'bimonthly', startDate: d('2026-08-31'), billingDay: 31 }).cyclesThrough(d('2027-03-01'))))
+      .toEqual(['2026-08-31', '2026-10-31', '2026-12-31', '2027-02-28']);
+  });
+
   it('steps six-monthly, quarterly and yearly from the anchor', () => {
     expect(days(schedule({ billingFrequency: 'six_monthly', billingDay: 15 }).cyclesThrough(d('2027-08-01'))))
       .toEqual(['2026-01-15', '2026-07-15', '2027-01-15', '2027-07-15']);
@@ -92,6 +97,7 @@ describe('BillingSchedule', () => {
 describe('monthlyEquivalent', () => {
   it('normalises each frequency to a month', () => {
     expect(monthlyEquivalent(12, 'monthly')).toBe(12);
+    expect(monthlyEquivalent(20, 'bimonthly')).toBe(10);
     expect(monthlyEquivalent(30, 'quarterly')).toBe(10);
     expect(monthlyEquivalent(60, 'six_monthly')).toBe(10);
     expect(monthlyEquivalent(120, 'yearly')).toBe(10);

@@ -404,6 +404,73 @@ export const savingsGoalContributions = pgTable('savings_goal_contributions', {
   goalDateIdx: index('savings_goal_contributions_goal_date_idx').on(table.goalId, table.contributedOn),
 }));
 
+// A bill brought in by upload (and, later, by email): the file, what the AI read off it, and what
+// the user did with it. The file is in the private Blob store (BILLS_BLOB_READ_WRITE_TOKEN) at
+// blobPathname, never at a public URL; it's served through an authenticated route.
+export const billDocuments = pgTable('bill_documents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
+  source: text('source').notNull().default('upload'), // 'upload' | 'email' | 'receipt_move'
+
+  // The file
+  blobPathname: text('blob_pathname').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileName: text('file_name'),
+  sizeBytes: integer('size_bytes'),
+  contentHash: text('content_hash'), // sha256 of the bytes: the same file uploaded twice
+  inboundEmailId: uuid('inbound_email_id'),
+  partIndex: integer('part_index'),
+
+  // Reading it (the claim/fail lifecycle of receipts.processing_status)
+  processingStatus: text('processing_status').notNull().default('pending'), // 'pending' | 'processing' | 'completed' | 'failed'
+  processingError: text('processing_error'),
+  processingAttempts: integer('processing_attempts').notNull().default(0),
+  processingTokens: jsonb('processing_tokens'),
+
+  // What it says
+  documentType: text('document_type'), // BILL_DOCUMENT_TYPES in lib/bill-extraction.ts
+  extracted: jsonb('extracted'),
+  provider: text('provider'),
+  providerKey: text('provider_key'),
+  accountReference: text('account_reference'), // last 4 only
+  amountDue: money('amount_due'),
+  currency: text('currency'),
+  dueDate: date('due_date'),
+  issueDate: date('issue_date'),
+  periodStart: date('period_start'),
+  periodEnd: date('period_end'),
+  statementBalance: money('statement_balance'),
+  minimumPayment: money('minimum_payment'),
+  isDirectDebit: boolean('is_direct_debit'),
+  fingerprint: text('fingerprint'), // provider + amount + due date: the same bill sent twice
+  duplicateOfId: uuid('duplicate_of_id').references((): AnyPgColumn => billDocuments.id, { onDelete: 'set null' }),
+
+  // What was done with it
+  reviewStatus: text('review_status').notNull().default('pending_review'), // 'pending_review' | 'needs_document' | 'not_a_bill' | 'applied' | 'dismissed'
+  appliedAs: text('applied_as'), // 'bill' | 'new_bill' | 'one_off'
+  autoApplied: boolean('auto_applied').notNull().default(false),
+  subscriptionId: uuid('subscription_id').references(() => subscriptions.id, { onDelete: 'set null' }),
+  paymentId: uuid('payment_id').references(() => subscriptionPayments.id, { onDelete: 'set null' }),
+  entryId: uuid('entry_id').references(() => planEntries.id, { onDelete: 'set null' }),
+  receiptId: uuid('receipt_id').references(() => receipts.id, { onDelete: 'set null' }),
+  reviewedByUserId: uuid('reviewed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  deletedAt: timestamp('deleted_at'),
+
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userDeletedIdx: index('bill_documents_user_deleted_idx').on(table.userId, table.deletedAt),
+  householdDeletedIdx: index('bill_documents_household_deleted_idx').on(table.householdId, table.deletedAt),
+  processingIdx: index('bill_documents_processing_idx').on(table.processingStatus, table.updatedAt),
+  userFingerprintIdx: index('bill_documents_user_fingerprint_idx').on(table.userId, table.fingerprint),
+  // One document per attachment of a forwarded email; uploads have no email (NULLs don't clash).
+  emailPartUnique: uniqueIndex('bill_documents_email_part_uidx').on(table.inboundEmailId, table.partIndex),
+}));
+
+export type BillDocument = typeof billDocuments.$inferSelect;
+
 export type FinancialAccount = typeof financialAccounts.$inferSelect;
 export type AccountBalance = typeof accountBalances.$inferSelect;
 export type IncomeSource = typeof incomeSources.$inferSelect;

@@ -8,7 +8,7 @@ import { SubscriptionUpsell } from '@/components/subscriptions/subscription-upse
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useUser } from '@/lib/hooks/use-user';
+import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { useCurrency } from '@/lib/hooks/use-currency';
 import { ReceiptHeader } from './detail-modal/receipt-header';
 import { ReceiptBusinessDetails } from './detail-modal/receipt-business-details';
@@ -20,6 +20,7 @@ import { ReceiptFinancialBreakdown } from './detail-modal/receipt-financial-brea
 import { ReceiptImage } from './detail-modal/receipt-image';
 import { LinkedSubscription } from './detail-modal/linked-subscription';
 import { ReportIssueButton } from './detail-modal/report-issue-button';
+import { MoveToBills } from './detail-modal/move-to-bills';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 
 interface ReceiptDetailModalProps {
@@ -37,6 +38,7 @@ export function ReceiptDetailModal({
   const [showItemAnalysis, setShowItemAnalysis] = useState(false);
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
+  const billsEnabled = useFeature('bills');
 
   // Fetch the latest receipt data - this allows us to refresh after retry
   const { data: fetchedReceipt, refetch: refetchReceipt } = useQuery({
@@ -163,6 +165,10 @@ export function ReceiptDetailModal({
 
               {/* Scrollable Content Section - All details and items */}
               <div className="flex-1 md:overflow-y-auto px-4 py-3 space-y-3 sm:px-6 sm:py-4 sm:space-y-4">
+                {billsEnabled && isReceiptOwner && (ocr as { documentKind?: string | null } | null)?.documentKind === 'bill' && (
+                  <MoveToBills receiptId={receipt.id} onMoved={() => onOpenChange(false)} />
+                )}
+
                 <LinkedSubscription subscription={receipt.linkedSubscription} />
 
                 <ReceiptBusinessExpenseInfo receipt={receipt} />

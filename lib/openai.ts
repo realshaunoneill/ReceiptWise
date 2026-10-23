@@ -23,6 +23,8 @@ const receiptItemSchema = z.object({
 
 const receiptDataSchema = z.object({
   isReceipt: z.boolean().default(true).describe('Whether this image appears to be a receipt, invoice, or purchase-related document. False if it\'s a screenshot, meme, random image, etc.'),
+  // A bill asks for a payment not made yet; the app offers to move those to Bills.
+  documentKind: z.enum(['receipt', 'bill', 'other']).nullable().optional(),
   merchant: z.string().nullable().optional(),
   total: z.number().nullable().optional(),
   currency: z.string().nullable().optional(),
@@ -174,7 +176,8 @@ REQUIRED FIELDS:
 - merchant: merchant/store name (or description of image content if not a receipt)
 - total: total amount (number)
 - currency: currency code (e.g., "GBP", "USD", "EUR")
-- date: transaction date or invoice date (format as YYYY-MM-DD). Look for: "Date", "Due date", "Invoice date", "Transaction date", or any visible date on the document. If no date is visible, use today's date: ${currentDate}
+- date: the date of the transaction or document itself (format as YYYY-MM-DD): "Date", "Transaction date", "Invoice date", "Bill date". NOT a due date, which is when a payment is still to be made. If no date is visible, use today's date: ${currentDate}
+- documentKind: "receipt" for proof of a payment already made (a till receipt, a payment confirmation, an order receipt); "bill" for a bill, statement or invoice asking for a payment not made yet (it has an amount due or a due date); "other" for anything else
 - category: spending category based on merchant and items (choose from: "groceries", "dining", "transportation", "shopping", "entertainment", "healthcare", "utilities", "travel", "gas", "coffee", "pharmacy", "clothing", "electronics", "home", "other")
 
 DETAILED EXTRACTION:

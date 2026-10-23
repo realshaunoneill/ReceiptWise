@@ -1,6 +1,6 @@
 import { type Subscription } from '@/lib/db/schema';
 
-export const BILLING_FREQUENCIES = ['monthly', 'quarterly', 'six_monthly', 'yearly', 'custom', 'once'] as const;
+export const BILLING_FREQUENCIES = ['monthly', 'bimonthly', 'quarterly', 'six_monthly', 'yearly', 'custom', 'once'] as const;
 export type BillingFrequency = typeof BILLING_FREQUENCIES[number];
 
 export function isBillingFrequency(value: unknown): value is BillingFrequency {
@@ -11,6 +11,7 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 
 const MONTHS_PER_CYCLE: Record<Exclude<BillingFrequency, 'custom' | 'once'>, number> = {
   monthly: 1,
+  bimonthly: 2, // every two months: how Irish electricity and gas bills come
   quarterly: 3,
   six_monthly: 6,
   yearly: 12,
@@ -182,6 +183,8 @@ export function monthlyEquivalent(
   switch (billingFrequency) {
     case 'monthly':
       return amount;
+    case 'bimonthly':
+      return amount / 2;
     case 'quarterly':
       return amount / 3;
     case 'six_monthly':
@@ -202,6 +205,8 @@ export function frequencyLabel(billingFrequency: string, customFrequencyDays?: n
   switch (billingFrequency) {
     case 'monthly':
       return 'a month';
+    case 'bimonthly':
+      return 'every 2 months';
     case 'quarterly':
       return 'a quarter';
     case 'six_monthly':

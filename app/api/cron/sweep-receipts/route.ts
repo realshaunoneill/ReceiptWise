@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
 import { del } from '@vercel/blob';
+import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import { db } from '@/lib/db';
-import { receipts } from '@/lib/db/schema';
+import { billDocuments, receipts } from '@/lib/db/schema';
+import { processBillDocument } from '@/lib/services/bill-document-service';
+import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 
@@ -20,6 +23,9 @@ const PURGE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_PURGE_PER_RUN = 200;
 
 const STUCK_MESSAGE = "Reading this receipt didn't finish. Try again.";
+/** Bill documents left unread this long (their waitUntil died) are read again here, a few per run. */
+const BILL_REREAD_AFTER_MS = 10 * 60 * 1000;
+const MAX_BILL_REREADS_PER_RUN = 10;
 
 function isBlobUrl(url: string): boolean {
   try {
@@ -83,7 +89,7 @@ export async function GET(req: NextRequest) {
       // than leaving an image nothing points at any more.
       const blobUrls = toPurge.map((r) => r.imageUrl).filter(isBlobUrl);
       for (let i = 0; i < blobUrls.length; i += 1000) {
-        await del(blobUrls.slice(i, i + 1000));
+        await del(blobUrls.slice(i, i + 1000), { token: receiptsBlobToken() });
       }
 
       // receipt_items cascade; subscription_payments.receipt_id is set null.
@@ -94,13 +100,48 @@ export async function GET(req: NextRequest) {
       purged = deleted.length;
     }
 
+    // Bills: read again any that were never read (processBillDocument gives up after its attempts),
+    // and purge deleted ones, file included, after the same 30 days as receipts.
+    const unread = await db
+      .select({ id: billDocuments.id })
+      .from(billDocuments)
+      .where(and(
+        isNull(billDocuments.deletedAt),
+        inArray(billDocuments.processingStatus, ['pending', 'processing']),
+        lt(billDocuments.updatedAt, new Date(now - BILL_REREAD_AFTER_MS)),
+      ))
+      .limit(MAX_BILL_REREADS_PER_RUN);
+    let billsReread = 0;
+    for (const { id } of unread) {
+      if (await processBillDocument(id, correlationId)) billsReread++;
+    }
+
+    let billsPurged = 0;
+    if (isPrivateStoreConfigured()) {
+      const billsToPurge = await db
+        .select({ id: billDocuments.id, blobPathname: billDocuments.blobPathname })
+        .from(billDocuments)
+        .where(and(isNotNull(billDocuments.deletedAt), lt(billDocuments.deletedAt, new Date(now - PURGE_AFTER_MS))))
+        .limit(MAX_PURGE_PER_RUN);
+      if (billsToPurge.length > 0) {
+        await deletePrivate(billsToPurge.map((row) => row.blobPathname));
+        const deleted = await db
+          .delete(billDocuments)
+          .where(inArray(billDocuments.id, billsToPurge.map((row) => row.id)))
+          .returning({ id: billDocuments.id });
+        billsPurged = deleted.length;
+      }
+    }
+
     const summary = {
       stuckProcessing: stuckProcessing.length,
       stuckPending: stuckPending.length,
       purged,
+      billsReread,
+      billsPurged,
     };
 
-    if (summary.stuckProcessing || summary.stuckPending || summary.purged) {
+    if (summary.stuckProcessing || summary.stuckPending || summary.purged || summary.billsReread || summary.billsPurged) {
       submitLogEvent('receipt', 'sweep-receipts cron run', correlationId, summary);
     }
 
