@@ -16,8 +16,6 @@
  * If the app can't be reached, the message is forwarded to FALLBACK_ADDRESS so nothing is lost.
  */
 
-import { put } from '@vercel/blob/client';
-
 interface Env {
   APP_URL: string;
   INBOUND_DOMAIN: string;
@@ -40,6 +38,28 @@ async function post<T>(env: Env, path: string, body: unknown): Promise<T> {
   });
   if (!res.ok) throw new Error(`${path} answered ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+/**
+ * Upload to Vercel Blob with the single-path client token the app issued: the one request
+ * @vercel/blob's put() makes (API version 13). Done with fetch because the SDK's client bundle pulls
+ * in Node-only modules that don't belong in a Worker. The token fixes the pathname, size limit and
+ * overwrite rules; the store id is its fourth underscore-separated part.
+ */
+async function putToBlob(pathname: string, body: ArrayBuffer, clientToken: string): Promise<void> {
+  const res = await fetch(`https://vercel.com/api/blob/?${new URLSearchParams({ pathname })}`, {
+    method: 'PUT',
+    body,
+    headers: {
+      authorization: `Bearer ${clientToken}`,
+      'x-api-version': '13',
+      'x-vercel-blob-access': 'private',
+      'x-content-type': 'message/rfc822',
+      'x-vercel-blob-store-id': clientToken.split('_')[3] ?? '',
+      'x-api-blob-request-id': crypto.randomUUID(),
+    },
+  });
+  if (!res.ok) throw new Error(`Blob upload answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
 function hex(buffer: ArrayBuffer): string {
@@ -72,12 +92,7 @@ export default {
         return;
       }
 
-      // The client token fixes the pathname, size limit and overwrite rules.
-      await put(start.pathname, raw, {
-        access: 'private',
-        token: start.clientToken,
-        contentType: 'message/rfc822',
-      });
+      await putToBlob(start.pathname, raw, start.clientToken);
       await post(env, '/api/webhooks/inbound-email/stored', { emailId: start.emailId });
     } catch (error) {
       console.error('inbound-email: handing over failed, forwarding to the fallback mailbox', error);

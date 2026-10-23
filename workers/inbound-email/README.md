@@ -16,7 +16,8 @@ The app needs the private bills Blob store first (`BILLS_BLOB_READ_WRITE_TOKEN` 
    - Vercel, all environments: `INBOUND_WORKER_SECRET`
    - the Worker: `npx wrangler secret put INBOUND_WORKER_SECRET` (and `--env staging`)
    Also set `INBOUND_EMAIL_DOMAIN=in.receiptwise.io` in Vercel (`in-staging.receiptwise.io` for Preview).
-2. **Deploy:** `npm install && npm run deploy` in this folder.
+2. **Deploy:** `npm install && npm run deploy` in this folder. It has no runtime dependencies: the
+   Blob upload is a plain `fetch` (see `putToBlob`).
 3. **Email Routing on the subdomain only.** In Cloudflare for `receiptwise.io`: Email → Email Routing
    → Settings → Subdomains → add `in.receiptwise.io`. Check exactly which DNS records it will add
    before confirming: they must be MX/TXT records on `in.receiptwise.io`. **The apex MX records
