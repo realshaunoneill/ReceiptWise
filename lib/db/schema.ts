@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, uniqueIndex, date } from 'drizzle-orm/pg-core';
 
 // Users Table
 export const users = pgTable('users', {
@@ -268,6 +268,11 @@ export const subscriptionPayments = pgTable('subscription_payments', {
   receiptIdIdx: index('subscription_payments_receipt_id_idx').on(table.receiptId),
   expectedDateIdx: index('subscription_payments_expected_date_idx').on(table.expectedDate),
   statusIdx: index('subscription_payments_status_idx').on(table.status),
+  // One row per cycle. Generation used to run on every list request with no lock and created
+  // duplicates; inserts now ignore conflicts against this. A uniqueIndex, not unique(): adding a
+  // unique constraint to a table with rows makes `drizzle-kit push` stop at an interactive
+  // prompt, even with --force, which would hang the Vercel build.
+  subscriptionCycleUnique: uniqueIndex('subscription_payments_subscription_cycle_uidx').on(table.subscriptionId, table.expectedDate),
 }));
 
 export type Subscription = typeof subscriptions.$inferSelect;
