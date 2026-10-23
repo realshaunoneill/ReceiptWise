@@ -32,6 +32,7 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
+import { EmailForwardingCard } from '@/components/settings/email-forwarding-card';
 
 const VALID_TABS = ['profile', 'preferences', 'subscription', 'household', 'integrations', 'data'] as const;
 
@@ -734,6 +735,8 @@ export default function SettingsPage() {
 
           {/* Integrations Tab */}
           <TabsContent value="integrations" className="space-y-6 mt-6">
+            <EmailForwardingCard />
+
             <Card>
               <CardHeader>
                 <CardTitle>Chrome Extension</CardTitle>

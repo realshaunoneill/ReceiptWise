@@ -419,7 +419,7 @@ export const billDocuments = pgTable('bill_documents', {
   fileName: text('file_name'),
   sizeBytes: integer('size_bytes'),
   contentHash: text('content_hash'), // sha256 of the bytes: the same file uploaded twice
-  inboundEmailId: uuid('inbound_email_id'),
+  inboundEmailId: uuid('inbound_email_id').references((): AnyPgColumn => inboundEmails.id, { onDelete: 'set null' }),
   partIndex: integer('part_index'),
 
   // Reading it (the claim/fail lifecycle of receipts.processing_status)
@@ -470,6 +470,50 @@ export const billDocuments = pgTable('bill_documents', {
 }));
 
 export type BillDocument = typeof billDocuments.$inferSelect;
+
+// Each user's forwarding address, <token>@in.receiptwise.io. The token is the whole local part
+// (16 random bytes, base32) and is the only thing that identifies the user: never the From header,
+// which anyone can set. Rotating replaces it; mail to the old one is then refused.
+export const inboundAddresses = pgTable('inbound_addresses', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  rotatedAt: timestamp('rotated_at'),
+  disabledAt: timestamp('disabled_at'),
+}, (table) => ({
+  userUnique: uniqueIndex('inbound_addresses_user_uidx').on(table.userId),
+  tokenUnique: uniqueIndex('inbound_addresses_token_uidx').on(table.token),
+}));
+
+// One forwarded email. The raw message sits in the private store until processed (+7 days); this
+// row keeps who it was from and what happened, for the Settings list, for 90 days.
+export const inboundEmails = pgTable('inbound_emails', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The Message-ID header, or a hash of the raw message without one: the same email delivered twice is one row.
+  messageKey: text('message_key').notNull(),
+  rawBlobPathname: text('raw_blob_pathname'),
+  fromAddress: text('from_address'),
+  subject: text('subject'),
+  sizeBytes: integer('size_bytes'),
+  status: text('status').notNull().default('receiving'), // 'receiving' | 'stored' | 'processed' | 'rejected_limit' | 'no_content' | 'forwarding_confirmation' | 'failed'
+  error: text('error'),
+  // Gmail's "confirm forwarding" email: its code and link, shown in Settings.
+  confirmationCode: text('confirmation_code'),
+  confirmationUrl: text('confirmation_url'),
+  partCount: integer('part_count'),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  processedAt: timestamp('processed_at'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  messageKeyUnique: uniqueIndex('inbound_emails_message_key_uidx').on(table.userId, table.messageKey),
+  userReceivedIdx: index('inbound_emails_user_received_idx').on(table.userId, table.receivedAt),
+  statusIdx: index('inbound_emails_status_idx').on(table.status, table.updatedAt),
+}));
+
+export type InboundAddress = typeof inboundAddresses.$inferSelect;
+export type InboundEmail = typeof inboundEmails.$inferSelect;
 
 export type FinancialAccount = typeof financialAccounts.$inferSelect;
 export type AccountBalance = typeof accountBalances.$inferSelect;

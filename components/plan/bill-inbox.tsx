@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import Link from 'next/link';
 import { CheckCircle2, ExternalLink, FileText, Loader2, RotateCcw, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -77,6 +78,7 @@ export function BillInbox({ plan, householdId }: BillInboxProps) {
         {documents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Upload a bill or statement (PDF or a photo) and it&apos;s read for you: the amount and due date go into the right month.
+            Or <Link href="/settings?tab=integrations" className="text-primary underline-offset-2 hover:underline">forward them by email</Link>.
           </p>
         ) : (
           documents.map((document) => <BillDocumentCard key={document.id} document={document} plan={plan} />)

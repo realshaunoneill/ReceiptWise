@@ -4,7 +4,8 @@ import { and, eq, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
 import { del } from '@vercel/blob';
 import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import { db } from '@/lib/db';
-import { billDocuments, receipts } from '@/lib/db/schema';
+import { billDocuments, inboundEmails, receipts } from '@/lib/db/schema';
+import { processInboundEmail } from '@/lib/inbound-email/ingest';
 import { processBillDocument } from '@/lib/services/bill-document-service';
 import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 import { isCronAuthorized } from '@/lib/cron-auth';
@@ -26,6 +27,9 @@ const STUCK_MESSAGE = "Reading this receipt didn't finish. Try again.";
 /** Bill documents left unread this long (their waitUntil died) are read again here, a few per run. */
 const BILL_REREAD_AFTER_MS = 10 * 60 * 1000;
 const MAX_BILL_REREADS_PER_RUN = 10;
+/** Forwarded emails: the raw message is kept this long after processing, the record this long in all. */
+const RAW_EMAIL_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+const EMAIL_RECORD_KEEP_MS = 90 * 24 * 60 * 60 * 1000;
 
 function isBlobUrl(url: string): boolean {
   try {
@@ -133,15 +137,52 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Forwarded emails: read any the Worker handed over that were never read; delete raw messages a
+    // week after processing, and the records after 90 days.
+    let emailsReread = 0;
+    let rawEmailsPurged = 0;
+    let emailRecordsPurged = 0;
+    if (isPrivateStoreConfigured()) {
+      const unreadEmails = await db
+        .select({ id: inboundEmails.id })
+        .from(inboundEmails)
+        .where(and(eq(inboundEmails.status, 'stored'), lt(inboundEmails.updatedAt, new Date(now - BILL_REREAD_AFTER_MS))))
+        .limit(MAX_BILL_REREADS_PER_RUN);
+      for (const { id } of unreadEmails) {
+        await processInboundEmail(id, correlationId);
+        emailsReread++;
+      }
+
+      const rawToPurge = await db
+        .select({ id: inboundEmails.id, rawBlobPathname: inboundEmails.rawBlobPathname })
+        .from(inboundEmails)
+        .where(and(isNotNull(inboundEmails.rawBlobPathname), isNotNull(inboundEmails.processedAt), lt(inboundEmails.processedAt, new Date(now - RAW_EMAIL_KEEP_MS))))
+        .limit(MAX_PURGE_PER_RUN);
+      if (rawToPurge.length > 0) {
+        await deletePrivate(rawToPurge.map((row) => row.rawBlobPathname!));
+        await db.update(inboundEmails).set({ rawBlobPathname: null, updatedAt: new Date() }).where(inArray(inboundEmails.id, rawToPurge.map((row) => row.id)));
+        rawEmailsPurged = rawToPurge.length;
+      }
+
+      const oldRecords = await db
+        .delete(inboundEmails)
+        .where(and(isNull(inboundEmails.rawBlobPathname), lt(inboundEmails.receivedAt, new Date(now - EMAIL_RECORD_KEEP_MS))))
+        .returning({ id: inboundEmails.id });
+      emailRecordsPurged = oldRecords.length;
+    }
+
     const summary = {
       stuckProcessing: stuckProcessing.length,
       stuckPending: stuckPending.length,
       purged,
       billsReread,
       billsPurged,
+      emailsReread,
+      rawEmailsPurged,
+      emailRecordsPurged,
     };
 
-    if (summary.stuckProcessing || summary.stuckPending || summary.purged || summary.billsReread || summary.billsPurged) {
+    if (Object.values(summary).some((value) => value > 0)) {
       submitLogEvent('receipt', 'sweep-receipts cron run', correlationId, summary);
     }
 

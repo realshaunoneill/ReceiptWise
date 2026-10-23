@@ -29,7 +29,8 @@ const billDataSchema = z.object({
   documentType: z.enum(BILL_DOCUMENT_TYPES).describe(
     'utility_bill: electricity, gas, broadband, phone, water, bin, TV licence. credit_card_statement: a card statement. '
     + 'invoice: any other bill to pay. receipt: proof of something already paid. bill_notification: an email saying a bill '
-    + 'is ready to view online, without the amounts. bank_statement: a current/savings account statement. other: none of these.',
+    + 'is ready to view online that does NOT say how much is due (if it states the amount due, it is a utility_bill or invoice). '
+    + 'bank_statement: a current/savings account statement. other: none of these.',
   ),
   provider: z.string().nullable().describe('Who the bill is from, as they name themselves, e.g. "Electric Ireland".'),
   amountDue: z.number().nullable().describe('The total to pay for this bill. For a card statement, the statement balance.'),
@@ -103,9 +104,14 @@ export async function analyzeBillDocument(
   });
 
   const last4 = result.object.accountNumberLast4?.replace(/\s/g, '').slice(-4) || null;
+  // "Your bill is ready" emails that do give the amount and due date are bills, whatever the model called them.
+  const documentType = result.object.documentType === 'bill_notification' && result.object.amountDue !== null && result.object.dueDate
+    ? 'utility_bill'
+    : result.object.documentType;
   return {
     data: {
       ...result.object,
+      documentType,
       dueDate: normalizeReceiptDate(result.object.dueDate),
       issueDate: normalizeReceiptDate(result.object.issueDate),
       periodStart: normalizeReceiptDate(result.object.periodStart),

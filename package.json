@@ -76,6 +76,7 @@
     "next-themes": "latest",
     "nuqs": "^2.8.6",
     "openai": "^6.9.1",
+    "postal-mime": "^4.1.4",
     "postgres": "^3.4.7",
     "posthog-js": "^1.309.1",
     "posthog-node": "^5.17.4",

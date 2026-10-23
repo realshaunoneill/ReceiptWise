@@ -1,0 +1,21 @@
+# ReceiptWise inbound email (see src/index.ts and README.md).
+# Secret, set once per environment:  npx wrangler secret put INBOUND_WORKER_SECRET [--env staging]
+name = "receiptwise-inbound-email"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_URL = "https://www.receiptwise.io"
+INBOUND_DOMAIN = "in.receiptwise.io"
+# Must be a verified destination address in Email Routing.
+FALLBACK_ADDRESS = "support@receiptwise.io"
+
+# A staging Worker on in-staging.receiptwise.io pointing at a preview deployment, if wanted:
+# [env.staging]
+# name = "receiptwise-inbound-email-staging"
+#
+# [env.staging.vars]
+# APP_URL = "<the staging deployment's URL>"
+# INBOUND_DOMAIN = "in-staging.receiptwise.io"
+# FALLBACK_ADDRESS = "support@receiptwise.io"

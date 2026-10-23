@@ -11,6 +11,8 @@ export default tseslint.config(
       '.vercel/**',
       '.claude/**',
       'next-env.d.ts',
+      // Cloudflare Worker with its own tsconfig and dependencies, deployed separately.
+      'workers/**',
       // Plain Node (CommonJS) build script for the extension's icons, not app code.
       'chrome-extension/scripts/**',
     ],
