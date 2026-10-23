@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { randomUUID, timingSafeEqual } from 'crypto';
+import { randomUUID } from 'crypto';
 import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import { del } from '@vercel/blob';
 import { db } from '@/lib/db';
 import { receipts } from '@/lib/db/schema';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 
 export const runtime = 'nodejs';
@@ -19,23 +20,6 @@ const PURGE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_PURGE_PER_RUN = 200;
 
 const STUCK_MESSAGE = "Reading this receipt didn't finish. Try again.";
-
-/**
- * Constant-time comparison of the cron bearer token. Fails closed when CRON_SECRET is
- * unset so a misconfigured deploy can't expose an unauthenticated destructive endpoint.
- */
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-
-  const provided = req.headers.get('authorization') ?? '';
-  const expected = `Bearer ${secret}`;
-
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 function isBlobUrl(url: string): boolean {
   try {
@@ -57,7 +41,7 @@ function isBlobUrl(url: string): boolean {
 export async function GET(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
 
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     submitLogEvent('receipt', 'Unauthorized call to sweep-receipts cron', correlationId, {}, true);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

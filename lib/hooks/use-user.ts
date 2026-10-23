@@ -3,8 +3,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser as useClerkUser } from '@clerk/nextjs';
 import type { User } from '@/lib/db/schema';
+import type { Feature, FeatureFlags } from '@/lib/features';
 
-type UserResponse = User
+type UserResponse = User & { features?: FeatureFlags }
 
 interface BlockedUserError {
   isBlocked: true;
@@ -84,6 +85,7 @@ export function useUser() {
     error,
     refetch,
     isSubscribed: user?.subscribed ?? false,
+    features: user?.features,
     isBlocked,
     blockedReason,
   };
@@ -102,4 +104,10 @@ export function useUpdateUser() {
       queryClient.setQueryData(['user', data.clerkId], data);
     },
   });
+}
+
+/** Whether a server-side feature flag (lib/features.ts) is on for the signed-in user. False while loading. */
+export function useFeature(feature: Feature): boolean {
+  const { user } = useUser();
+  return user?.features?.[feature] ?? false;
 }

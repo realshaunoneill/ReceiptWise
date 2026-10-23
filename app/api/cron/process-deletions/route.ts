@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqual } from 'crypto';
 import { randomUUID } from 'crypto';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
 import { del } from '@vercel/blob';
@@ -7,6 +6,7 @@ import { clerkClient } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { receipts, users } from '@/lib/db/schema';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { HouseholdService } from '@/lib/services/household-service';
 
@@ -23,23 +23,6 @@ const MAX_USERS_PER_RUN = 25;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-12-15.clover',
 });
-
-/**
- * Constant-time comparison of the cron bearer token. Fails closed when CRON_SECRET is
- * unset so a misconfigured deploy can't expose an unauthenticated destructive endpoint.
- */
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-
-  const provided = req.headers.get('authorization') ?? '';
-  const expected = `Bearer ${secret}`;
-
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>(['canceled', 'incomplete_expired']);
 
@@ -124,7 +107,7 @@ async function deleteClerkUser(clerkId: string, correlationId: CorrelationId): P
 export async function GET(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
 
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     submitLogEvent('user', 'Unauthorized call to process-deletions cron', correlationId, {}, true);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

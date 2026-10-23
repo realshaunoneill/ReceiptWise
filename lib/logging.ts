@@ -43,7 +43,12 @@ export type EventType =
   | 'admin'
   | 'api-key'
   | 'extension-upload'
-  | 'extension-process';
+  | 'extension-process'
+  | 'finance'
+  | 'plan'
+  | 'bill-document'
+  | 'inbound-email'
+  | 'cron';
 export type CorrelationId = `${string}-${string}-${string}-${string}-${string}`;
 
 const LOG_TOKEN = process.env.LOG_TOKEN;
