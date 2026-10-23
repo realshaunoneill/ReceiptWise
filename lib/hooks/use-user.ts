@@ -4,8 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser as useClerkUser } from '@clerk/nextjs';
 import type { User } from '@/lib/db/schema';
 import type { Feature, FeatureFlags } from '@/lib/features';
+import type { FinanceEntitlements } from '@/lib/services/finance-access';
 
-type UserResponse = User & { features?: FeatureFlags }
+type UserResponse = User & { features?: FeatureFlags; entitlements?: FinanceEntitlements }
 
 interface BlockedUserError {
   isBlocked: true;
@@ -86,6 +87,10 @@ export function useUser() {
     refetch,
     isSubscribed: user?.subscribed ?? false,
     features: user?.features,
+    entitlements: user?.entitlements,
+    // Personal Premium, or membership of a household another member pays for: either unlocks
+    // the subscriptions/bills pages (shared rows only, in the second case).
+    hasFinanceAccess: Boolean(user?.subscribed || (user?.entitlements?.householdIds.length ?? 0) > 0 || user?.entitlements?.personal),
     isBlocked,
     blockedReason,
   };

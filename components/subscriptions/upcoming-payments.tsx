@@ -7,7 +7,15 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { type Subscription } from '@/lib/db/schema';
 import { useCurrency } from '@/lib/hooks/use-currency';
-import { differenceInDays, format, isToday, isTomorrow, addDays } from 'date-fns';
+import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { frequencyLabel } from '@/lib/schedule/billing-schedule';
+import { formatCurrency } from '@/lib/utils/currency';
+import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
+
+/** Days from today to a subscription's next billing day (stored as midnight UTC of that day). */
+function daysUntilBilling(subscription: Subscription, today: string): number {
+  return daysBetween(today, fromUtcDate(new Date(subscription.nextBillingDate)));
+}
 
 type UpcomingPaymentsProps = {
   subscriptions: Subscription[];
@@ -21,22 +29,18 @@ export function UpcomingPayments({
   onSelectSubscription,
 }: UpcomingPaymentsProps) {
   const router = useRouter();
-  const { format: formatCurrency } = useCurrency();
+  const { currency: userCurrency } = useCurrency();
 
-  // Filter for active subscriptions with upcoming payments in the next X days.
-  // Billing dates are stored as midnight UTC, so compare from the start of today — comparing
-  // against the current time dropped anything due today.
-  const now = new Date();
-  now.setUTCHours(0, 0, 0, 0);
-  const futureDate = addDays(now, daysAhead);
+  // Active subscriptions due in the next X days, counted in calendar days from the user's today.
+  const today = localToday();
 
   const upcomingPayments = subscriptions
     .filter(sub => {
       if (sub.status !== 'active') return false;
       if (!sub.nextBillingDate) return false;
 
-      const billingDate = new Date(sub.nextBillingDate);
-      return billingDate >= now && billingDate <= futureDate;
+      const days = daysUntilBilling(sub, today);
+      return days >= 0 && days <= daysAhead;
     })
     .sort((a, b) => {
       const dateA = new Date(a.nextBillingDate!);
@@ -48,14 +52,16 @@ export function UpcomingPayments({
     return null;
   }
 
-  const totalUpcoming = upcomingPayments.reduce((sum, sub) => sum + parseFloat(sub.amount), 0);
+  const totalUpcoming = totalsByCurrency(
+    upcomingPayments.map((sub) => ({ amount: sub.amount, currency: sub.currency })),
+    userCurrency,
+  );
 
-  const getDateLabel = (date: Date) => {
-    if (isToday(date)) return 'Today';
-    if (isTomorrow(date)) return 'Tomorrow';
-    const days = differenceInDays(date, now);
+  const getDateLabel = (subscription: Subscription, days: number) => {
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Tomorrow';
     if (days <= 7) return `In ${days} day${days === 1 ? '' : 's'}`;
-    return format(date, 'MMM dd');
+    return formatLocalDate(fromUtcDate(new Date(subscription.nextBillingDate)), { day: '2-digit', month: 'short' });
   };
 
   const handleClick = (subscriptionId: string) => {
@@ -81,15 +87,14 @@ export function UpcomingPayments({
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalUpcoming)}</p>
+            <p className="amount text-2xl font-bold">{formatTotals(totalUpcoming, userCurrency)}</p>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
           {upcomingPayments.map((subscription) => {
-            const billingDate = new Date(subscription.nextBillingDate!);
-            const daysUntil = differenceInDays(billingDate, now);
+            const daysUntil = daysUntilBilling(subscription, today);
             const isUrgent = daysUntil <= 2;
 
             return (
@@ -109,18 +114,18 @@ export function UpcomingPayments({
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>{getDateLabel(billingDate)}</span>
+                    <span>{getDateLabel(subscription, daysUntil)}</span>
                     {isUrgent && (
                       <Badge variant="destructive" className="text-xs">
-                        {isToday(billingDate) ? 'Due Today' : 'Due Soon'}
+                        {daysUntil === 0 ? 'Due Today' : 'Due Soon'}
                       </Badge>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <p className="font-semibold">{formatCurrency(parseFloat(subscription.amount))}</p>
-                    <p className="text-xs text-muted-foreground">{subscription.billingFrequency}</p>
+                    <p className="amount font-semibold">{formatCurrency(parseFloat(subscription.amount), subscription.currency)}</p>
+                    <p className="text-xs text-muted-foreground">{frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}</p>
                   </div>
                 </div>
               </div>

@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Plus, CreditCard, Calendar, Tag, Settings } from 'lucide-react';
 import { useCreateSubscription } from '@/hooks/use-subscriptions';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
+import { useCurrency } from '@/lib/hooks/use-currency';
+import { localToday } from '@/lib/dates/local-date';
+import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
+import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 import {
   Dialog,
   DialogContent,
@@ -36,7 +40,7 @@ type FormData = {
   category: string;
   amount: string;
   currency: string;
-  billingFrequency: 'monthly' | 'quarterly' | 'yearly' | 'custom';
+  billingFrequency: BillingFrequency;
   billingDay: string;
   customFrequencyDays: string;
   startDate: string;
@@ -65,6 +69,7 @@ export function CreateSubscriptionDialog() {
   const [open, setOpen] = useState(false);
   const { data: households } = useHouseholds();
   const { mutate: createSubscription, isPending } = useCreateSubscription();
+  const { currency: userCurrency } = useCurrency();
 
   const {
     register,
@@ -75,15 +80,22 @@ export function CreateSubscriptionDialog() {
     formState: { errors },
   } = useForm<FormData>({
     defaultValues: {
-      currency: 'EUR',
+      currency: userCurrency,
       billingFrequency: 'monthly',
       billingDay: '1',
-      startDate: new Date().toISOString().split('T')[0],
+      // The local day, not toISOString's UTC one, which is yesterday or tomorrow near midnight.
+      startDate: localToday(),
       isBusinessExpense: false,
     },
   });
 
   const billingFrequency = watch('billingFrequency');
+  const currency = watch('currency');
+
+  // The user's currency loads after the form mounts; default to it until they pick another.
+  useEffect(() => {
+    if (open) setValue('currency', userCurrency);
+  }, [open, userCurrency, setValue]);
 
   const onSubmit = (data: FormData) => {
     const amount = parseFloat(data.amount);
@@ -120,7 +132,7 @@ export function CreateSubscriptionDialog() {
         billingFrequency: data.billingFrequency,
         billingDay,
         customFrequencyDays,
-        startDate: new Date(data.startDate),
+        startDate: data.startDate,
         householdId: data.householdId || undefined,
         isBusinessExpense: data.isBusinessExpense,
         website: data.website || undefined,
@@ -132,8 +144,8 @@ export function CreateSubscriptionDialog() {
           setOpen(false);
           reset();
         },
-        onError: () => {
-          toast.error('Failed to create subscription. Please try again.');
+        onError: (error) => {
+          toast.error('Failed to create subscription', { description: error.message });
         },
       },
     );
@@ -231,15 +243,17 @@ export function CreateSubscriptionDialog() {
                   <Label htmlFor="currency">Currency</Label>
                   <Select
                     onValueChange={(value) => setValue('currency', value)}
-                    defaultValue="EUR"
+                    value={currency}
                   >
                     <SelectTrigger className="w-[100px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="EUR">€ EUR</SelectItem>
-                      <SelectItem value="USD">$ USD</SelectItem>
-                      <SelectItem value="GBP">£ GBP</SelectItem>
+                      {SUPPORTED_CURRENCIES.map((option) => (
+                        <SelectItem key={option.code} value={option.code}>
+                          {option.symbol} {option.code}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -261,6 +275,7 @@ export function CreateSubscriptionDialog() {
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="quarterly">Every 3 months (Quarterly)</SelectItem>
+                    <SelectItem value="six_monthly">Every 6 months</SelectItem>
                     <SelectItem value="yearly">Yearly</SelectItem>
                     <SelectItem value="custom">Custom frequency</SelectItem>
                   </SelectContent>

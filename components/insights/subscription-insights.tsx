@@ -5,15 +5,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
 import { useCurrency } from '@/lib/hooks/use-currency';
-import { Loader2, TrendingUp, Calendar, DollarSign, AlertCircle, ArrowRight } from 'lucide-react';
-import { differenceInDays, format } from 'date-fns';
+import { Loader2, TrendingUp, Calendar, Coins, AlertCircle, ArrowRight } from 'lucide-react';
+import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { monthlyEquivalent } from '@/lib/schedule/billing-schedule';
+import { formatCurrency } from '@/lib/utils/currency';
+import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
 import { cn } from '@/lib/utils';
 import { urgencySurfaceClass } from '@/lib/utils/urgency';
 import Link from 'next/link';
 
 export function SubscriptionInsights() {
   const { data: subscriptions, isLoading } = useSubscriptions(undefined, 'active', true);
-  const { format: formatCurrency } = useCurrency();
+  const { currency: userCurrency } = useCurrency();
 
   if (isLoading) {
     return (
@@ -37,43 +40,35 @@ export function SubscriptionInsights() {
   }
 
   const activeSubscriptions = subscriptions?.filter(s => s.status === 'active') || [];
-  const totalMonthly = activeSubscriptions.reduce((sum, sub) => {
-    const amount = parseFloat(sub.amount);
-    if (sub.billingFrequency === 'monthly') return sum + amount;
-    if (sub.billingFrequency === 'quarterly') return sum + (amount / 3);
-    if (sub.billingFrequency === 'yearly') return sum + (amount / 12);
-    if (sub.billingFrequency === 'custom' && sub.customFrequencyDays) {
-      return sum + (amount / sub.customFrequencyDays * 30);
-    }
-    return sum;
-  }, 0);
+  const monthlyOf = (sub: (typeof activeSubscriptions)[number]) =>
+    monthlyEquivalent(parseFloat(sub.amount), sub.billingFrequency, sub.customFrequencyDays);
 
-  const totalYearly = totalMonthly * 12;
+  // Per currency; amounts in different currencies are never added together.
+  const monthlyTotals = totalsByCurrency(
+    activeSubscriptions.map((sub) => ({ amount: monthlyOf(sub), currency: sub.currency })),
+    userCurrency,
+  );
+  const yearlyTotals = monthlyTotals.map((total) => ({ ...total, amount: total.amount * 12 }));
   const missingPaymentsCount = subscriptions?.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0) || 0;
 
-  // Find subscriptions due soon
-  const now = new Date();
+  // Find subscriptions due soon, in calendar days from the user's today
+  const today = localToday();
   const upcomingSubs = activeSubscriptions
     .filter(s => s.nextBillingDate)
     .map(s => ({
       ...s,
-      daysUntil: differenceInDays(new Date(s.nextBillingDate!), now),
+      billingDay: fromUtcDate(new Date(s.nextBillingDate)),
+      daysUntil: daysBetween(today, fromUtcDate(new Date(s.nextBillingDate))),
     }))
     .filter(s => s.daysUntil >= 0 && s.daysUntil <= 7)
     .sort((a, b) => a.daysUntil - b.daysUntil);
 
-  // Category breakdown
-  const categoryTotals = activeSubscriptions.reduce((acc, sub) => {
+  // Category breakdown, in the user's own currency only (others can't be compared without rates)
+  const inUserCurrency = activeSubscriptions.filter((sub) => sub.currency === userCurrency);
+  const totalMonthlyInUserCurrency = inUserCurrency.reduce((sum, sub) => sum + monthlyOf(sub), 0);
+  const categoryTotals = inUserCurrency.reduce((acc, sub) => {
     const category = sub.category || 'Other';
-    const amount = parseFloat(sub.amount);
-    const monthlyAmount =
-      sub.billingFrequency === 'monthly' ? amount :
-      sub.billingFrequency === 'quarterly' ? amount / 3 :
-      sub.billingFrequency === 'yearly' ? amount / 12 :
-      sub.billingFrequency === 'custom' && sub.customFrequencyDays ? amount / sub.customFrequencyDays * 30 :
-      amount;
-
-    acc[category] = (acc[category] || 0) + monthlyAmount;
+    acc[category] = (acc[category] || 0) + monthlyOf(sub);
     return acc;
   }, {} as Record<string, number>);
 
@@ -101,11 +96,11 @@ export function SubscriptionInsights() {
           </div>
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Monthly Total</p>
-            <p className="amount text-2xl font-semibold">{formatCurrency(totalMonthly)}</p>
+            <p className="amount text-2xl font-semibold">{formatTotals(monthlyTotals, userCurrency)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Yearly Total</p>
-            <p className="amount text-2xl font-semibold">{formatCurrency(totalYearly)}</p>
+            <p className="amount text-2xl font-semibold">{formatTotals(yearlyTotals, userCurrency)}</p>
           </div>
           {missingPaymentsCount > 0 && (
             <div className="space-y-1">
@@ -136,9 +131,9 @@ export function SubscriptionInsights() {
                     {category}
                   </Badge>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{formatCurrency(amount)}/mo</span>
+                    <span className="amount text-sm font-medium">{formatCurrency(amount, userCurrency)}/mo</span>
                     <span className="text-xs text-muted-foreground">
-                      ({((amount / totalMonthly) * 100).toFixed(0)}%)
+                      ({totalMonthlyInUserCurrency > 0 ? ((amount / totalMonthlyInUserCurrency) * 100).toFixed(0) : 0}%)
                     </span>
                   </div>
                 </div>
@@ -172,9 +167,9 @@ export function SubscriptionInsights() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="amount font-semibold">{formatCurrency(parseFloat(sub.amount))}</p>
+                    <p className="amount font-semibold">{formatCurrency(parseFloat(sub.amount), sub.currency)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(sub.nextBillingDate!), 'MMM dd')}
+                      {formatLocalDate(sub.billingDay, { day: '2-digit', month: 'short' })}
                     </p>
                   </div>
                 </div>
@@ -185,7 +180,7 @@ export function SubscriptionInsights() {
 
         {activeSubscriptions.length === 0 && (
           <div className="text-center py-8">
-            <DollarSign className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+            <Coins className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-sm text-muted-foreground">
               No active subscriptions tracked yet.
             </p>

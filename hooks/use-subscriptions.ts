@@ -1,54 +1,81 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
+import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
 
-type SubscriptionWithPayments = Subscription & {
+export type SubscriptionWithPayments = Subscription & {
   missingPayments?: number;
   recentPayments?: SubscriptionPayment[];
 };
 
-type SubscriptionDetail = Subscription & {
+export type SubscriptionDetail = Subscription & {
   payments: SubscriptionPayment[];
+  /** False for a member of the household it is shared with: they can mark payments, not edit it. */
+  canEdit?: boolean;
 };
+
+type SubscriptionKind = 'subscription' | 'bill';
+type PaymentMethod = 'direct_debit' | 'standing_order' | 'card' | 'manual';
 
 type CreateSubscriptionData = {
   name: string;
   description?: string;
   category?: string;
-  amount: number;
+  amount: number | string;
   currency?: string;
-  billingFrequency: 'monthly' | 'quarterly' | 'yearly' | 'custom';
-  billingDay: number;
+  billingFrequency: BillingFrequency;
+  billingDay?: number;
   customFrequencyDays?: number;
-  startDate: Date;
+  /** YYYY-MM-DD */
+  startDate: string;
   householdId?: string;
   isBusinessExpense?: boolean;
   website?: string;
   notes?: string;
+  kind?: SubscriptionKind;
+  amountType?: 'fixed' | 'variable';
+  paymentMethod?: PaymentMethod | null;
 };
 
 type UpdateSubscriptionData = Partial<{
   name: string;
-  description: string;
-  category: string;
-  amount: number;
+  description: string | null;
+  category: string | null;
+  amount: number | string;
   currency: string;
-  billingFrequency: 'monthly' | 'quarterly' | 'yearly' | 'custom';
+  billingFrequency: BillingFrequency;
   billingDay: number;
-  customFrequencyDays: number;
+  customFrequencyDays: number | null;
+  /** YYYY-MM-DD */
+  startDate: string;
   status: 'active' | 'paused' | 'cancelled';
-  endDate: Date | null;
+  /** YYYY-MM-DD, or null to clear */
+  endDate: string | null;
+  householdId: string | null;
   isBusinessExpense: boolean;
-  website: string;
-  notes: string;
+  website: string | null;
+  notes: string | null;
+  kind: SubscriptionKind;
+  amountType: 'fixed' | 'variable';
+  paymentMethod: PaymentMethod | null;
 }>;
 
-type UpdatePaymentData = {
+export type UpdatePaymentData = {
   receiptId?: string;
-  status?: 'pending' | 'paid' | 'missed' | 'cancelled';
-  actualDate?: Date;
-  actualAmount?: number;
-  notes?: string;
+  status?: 'pending' | 'paid' | 'missed' | 'skipped' | 'cancelled';
+  /** YYYY-MM-DD */
+  actualDate?: string | null;
+  actualAmount?: number | string | null;
+  expectedAmount?: number | string;
+  /** YYYY-MM-DD */
+  dueDate?: string | null;
+  notes?: string | null;
 };
+
+/** Throw the server's `{ error }` message rather than a generic one, so toasts say what went wrong. */
+async function throwResponseError(res: Response, fallback: string): Promise<never> {
+  const body = await res.json().catch(() => null) as { error?: unknown } | null;
+  throw new Error(typeof body?.error === 'string' ? body.error : fallback);
+}
 
 // Fetch all subscriptions
 export function useSubscriptions(
@@ -65,7 +92,7 @@ export function useSubscriptions(
       if (includePayments) params.append('includePayments', 'true');
 
       const res = await fetch(`/api/subscriptions?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch subscriptions');
+      if (!res.ok) await throwResponseError(res, 'Failed to fetch subscriptions');
       return res.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - subscriptions don't change frequently
@@ -80,7 +107,7 @@ export function useSubscription(id: string) {
     queryKey: ['subscription', id],
     queryFn: async () => {
       const res = await fetch(`/api/subscriptions/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch subscription');
+      if (!res.ok) await throwResponseError(res, 'Failed to fetch subscription');
       return res.json();
     },
     enabled: !!id,
@@ -99,7 +126,7 @@ export function useCreateSubscription() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to create subscription');
+      if (!res.ok) await throwResponseError(res, 'Failed to create subscription');
       return res.json();
     },
     onSuccess: () => {
@@ -119,7 +146,7 @@ export function useUpdateSubscription(id: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to update subscription');
+      if (!res.ok) await throwResponseError(res, 'Failed to update subscription');
       return res.json();
     },
     onSuccess: () => {
@@ -138,7 +165,7 @@ export function useDeleteSubscription() {
       const res = await fetch(`/api/subscriptions/${id}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete subscription');
+      if (!res.ok) await throwResponseError(res, 'Failed to delete subscription');
       return res.json();
     },
     onSuccess: () => {
@@ -158,7 +185,7 @@ export function useUpdatePayment(subscriptionId?: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to update payment');
+      if (!res.ok) await throwResponseError(res, 'Failed to update payment');
       return res.json();
     },
     onSuccess: () => {
@@ -179,7 +206,7 @@ export function useUnlinkPayment(subscriptionId?: string) {
       const res = await fetch(`/api/subscriptions/payments/${paymentId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to unlink payment');
+      if (!res.ok) await throwResponseError(res, 'Failed to unlink payment');
       return res.json();
     },
     onSuccess: () => {
@@ -187,6 +214,27 @@ export function useUnlinkPayment(subscriptionId?: string) {
       if (subscriptionId) {
         queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
       }
+    },
+  });
+}
+
+// Act on one cycle by its date (YYYY-MM-DD), creating its row if it has none yet
+export function useUpdateOccurrence(subscriptionId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ expectedDate, data }: { expectedDate: string; data: Omit<UpdatePaymentData, 'receiptId'> }) => {
+      const res = await fetch(`/api/subscriptions/${subscriptionId}/occurrences`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedDate, ...data }),
+      });
+      if (!res.ok) await throwResponseError(res, 'Failed to update payment');
+      return res.json() as Promise<SubscriptionPayment>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
     },
   });
 }

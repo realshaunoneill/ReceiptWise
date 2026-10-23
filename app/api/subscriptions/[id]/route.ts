@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, requireSubscription } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { subscriptions, subscriptionPayments } from '@/lib/db/schema';
-import { eq, and, desc, inArray } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
-import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { eq, desc } from 'drizzle-orm';
+import { submitLogEvent } from '@/lib/logging';
+import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
+import { canFileFinanceRowUnder, canOwnFinanceRow, canReadFinanceRow } from '@/lib/services/finance-access';
 import { SubscriptionService } from '@/lib/services/subscription-service';
+import { utcDay } from '@/lib/schedule/billing-schedule';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
+import { parseBody, readJson, updateSubscriptionSchema } from '@/lib/validation/finance';
 
 export const runtime = 'nodejs';
 
@@ -16,30 +18,27 @@ type RouteParams = {
   }>;
 };
 
-// GET /api/subscriptions/[id] - Get single subscription
+const NOT_FOUND = { error: 'Subscription not found' };
+
+/** Same instant, or both empty. */
+function sameTime(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  return (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
+}
+
+// GET /api/subscriptions/[id] - One subscription or bill with its recent payments. Readable by
+// its owner and, when shared, by every member of a covered household.
 export async function GET(req: NextRequest, { params }: RouteParams) {
-  const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
+  const guard = await guardFinanceRoute(req, { mutating: false });
+  if (guard instanceof NextResponse) return guard;
+  const { user, correlationId, entitlements } = guard;
   const { id } = await params;
 
   try {
-    const authResult = await getAuthenticatedUser(correlationId);
-    if (authResult instanceof NextResponse) return authResult;
-    const { user } = authResult;
-
-    // Require active subscription
-    const subCheck = await requireSubscription(user);
-    if (subCheck) return subCheck;
-
-    const subscription = await SubscriptionService.getSubscriptionByIdAndUserId(id, user.id);
-
-    if (!subscription) {
-      return NextResponse.json(
-        { error: 'Subscription not found' },
-        { status: 404 },
-      );
+    const subscription = await SubscriptionService.getById(id);
+    if (!subscription || !canReadFinanceRow(subscription, user.id, entitlements)) {
+      return NextResponse.json(NOT_FOUND, { status: 404 });
     }
 
-    // Fetch payment history
     const payments = await db
       .select()
       .from(subscriptionPayments)
@@ -47,10 +46,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .orderBy(desc(subscriptionPayments.expectedDate))
       .limit(24);
 
-    return NextResponse.json({
-      ...subscription,
-      payments,
-    });
+    return NextResponse.json(
+      { ...subscription, payments, canEdit: canOwnFinanceRow(subscription, user.id, entitlements) },
+      { headers: PRIVATE_NO_STORE },
+    );
   } catch (error) {
     submitLogEvent('subscription', `Error fetching subscription: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(
@@ -60,137 +59,111 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /api/subscriptions/[id] - Update subscription
+// PATCH /api/subscriptions/[id] - Update (owner only)
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
+  const guard = await guardFinanceRoute(req, { mutating: true });
+  if (guard instanceof NextResponse) return guard;
+  const { user, correlationId, entitlements } = guard;
   const { id } = await params;
 
   try {
-    const authResult = await getAuthenticatedUser(correlationId);
-    if (authResult instanceof NextResponse) return authResult;
-    const { user } = authResult;
-
-    // Require active subscription (GET and DELETE already did; PATCH was the odd one out)
-    const subCheck = await requireSubscription(user);
-    if (subCheck) return subCheck;
-
-    // Verify ownership
-    const [existing] = await db
-      .select()
-      .from(subscriptions)
-      .where(
-        and(
-          eq(subscriptions.id, id),
-          eq(subscriptions.userId, user.id),
-        ),
-      );
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: 'Subscription not found' },
-        { status: 404 },
-      );
+    const existing = await SubscriptionService.getById(id);
+    if (!existing || !canReadFinanceRow(existing, user.id, entitlements)) {
+      return NextResponse.json(NOT_FOUND, { status: 404 });
+    }
+    if (!canOwnFinanceRow(existing, user.id, entitlements)) {
+      return NextResponse.json({ error: 'Only the person who added this can change it' }, { status: 403 });
     }
 
-    const body = await req.json();
-    const {
-      name,
-      description,
-      category,
-      amount,
-      currency,
-      billingFrequency,
-      billingDay,
-      customFrequencyDays,
-      status,
-      endDate,
-      isBusinessExpense,
-      website,
-      notes,
-    } = body;
+    const parsed = parseBody(updateSubscriptionSchema, await readJson(req));
+    if (parsed instanceof NextResponse) return parsed;
+    const input = parsed.data;
 
-    // Build update object with only provided fields
+    if (input.householdId !== undefined && input.householdId !== existing.householdId) {
+      if (!(await canFileFinanceRowUnder(input.householdId ?? null, user.id, entitlements))) {
+        return NextResponse.json(
+          { error: input.householdId ? 'Not a member of this household' : 'Active subscription required' },
+          { status: 403 },
+        );
+      }
+    }
+
     const updates: Partial<typeof subscriptions.$inferInsert> = {};
-
-    if (name !== undefined) updates.name = name;
-    if (description !== undefined) updates.description = description;
-    if (category !== undefined) updates.category = category;
-    if (amount !== undefined) updates.amount = amount;
-    if (currency !== undefined) updates.currency = currency;
-    if (billingFrequency !== undefined) {
-      if (!['monthly', 'quarterly', 'yearly', 'custom'].includes(billingFrequency)) {
-        return NextResponse.json({ error: 'billingFrequency must be monthly, quarterly, yearly or custom' }, { status: 400 });
-      }
-      updates.billingFrequency = billingFrequency;
-    }
-    if (billingDay !== undefined) {
-      if (!Number.isInteger(Number(billingDay)) || billingDay < 1 || billingDay > 31) {
-        return NextResponse.json({ error: 'billingDay must be between 1 and 31' }, { status: 400 });
-      }
-      updates.billingDay = Number(billingDay);
-    }
-    if (customFrequencyDays !== undefined) updates.customFrequencyDays = customFrequencyDays;
-    if (status !== undefined) updates.status = status;
-    if (endDate !== undefined) updates.endDate = endDate ? new Date(endDate) : null;
-    if (isBusinessExpense !== undefined) updates.isBusinessExpense = isBusinessExpense;
-    if (website !== undefined) updates.website = website;
-    if (notes !== undefined) updates.notes = notes;
-
-    // Handle status changes
-    if (status === 'cancelled' && !endDate && !existing.endDate) {
-      updates.endDate = new Date();
+    for (const key of [
+      'name', 'description', 'category', 'amount', 'currency', 'billingFrequency', 'billingDay',
+      'customFrequencyDays', 'startDate', 'endDate', 'householdId', 'isBusinessExpense', 'website',
+      'notes', 'kind', 'amountType', 'paymentMethod', 'accountReference',
+    ] as const) {
+      if (input[key] !== undefined) (updates as Record<string, unknown>)[key] = input[key];
     }
 
-    updates.updatedAt = new Date();
+    const frequency = input.billingFrequency ?? existing.billingFrequency;
+    if (frequency === 'custom' && !(input.customFrequencyDays ?? existing.customFrequencyDays)) {
+      return NextResponse.json({ error: 'customFrequencyDays is required for a custom frequency' }, { status: 400 });
+    }
+    if (frequency === 'once' && (input.startDate || input.billingFrequency)) {
+      updates.billingDay = (input.startDate ?? existing.startDate).getUTCDate();
+    }
 
+    // Status changes
+    const now = new Date();
+    const status = input.status ?? existing.status;
+    if (input.status !== undefined) updates.status = input.status;
+    if (status === 'cancelled' && existing.status !== 'cancelled' && input.endDate === undefined && !existing.endDate) {
+      updates.endDate = utcDay(now);
+    }
+    // Resuming a cancelled subscription must clear the end date cancelling set, or the schedule
+    // still stops there and nextBillingDate stays in the past.
+    if (status === 'active' && existing.status === 'cancelled' && input.endDate === undefined) {
+      updates.endDate = null;
+    }
+    if (status === 'paused' && existing.status !== 'paused') updates.pausedAt = now;
+    if (status !== 'paused' && existing.status === 'paused') updates.pausedAt = null;
+
+    // Only regenerate when the schedule really changed. The edit dialog used to send every field,
+    // so renaming a subscription deleted its pending and missed rows (and their notes).
+    const scheduleChanged =
+      (updates.billingFrequency !== undefined && updates.billingFrequency !== existing.billingFrequency) ||
+      (updates.billingDay !== undefined && updates.billingDay !== existing.billingDay) ||
+      (updates.customFrequencyDays !== undefined && updates.customFrequencyDays !== existing.customFrequencyDays) ||
+      (updates.startDate !== undefined && !sameTime(updates.startDate, existing.startDate)) ||
+      (updates.endDate !== undefined && !sameTime(updates.endDate, existing.endDate));
+    const amountChanged = updates.amount !== undefined && updates.amount !== existing.amount;
+
+    updates.updatedAt = now;
     const [updated] = await db
       .update(subscriptions)
       .set(updates)
-      .where(
-        and(
-          eq(subscriptions.id, id),
-          eq(subscriptions.userId, user.id),
-        ),
-      )
+      .where(eq(subscriptions.id, id))
       .returning();
 
-    // If billing details changed and subscription is active, regenerate expected payments
-    const billingDetailsChanged = amount !== undefined ||
-                                   billingFrequency !== undefined ||
-                                   billingDay !== undefined ||
-                                   customFrequencyDays !== undefined;
-
-    const reactivated = status === 'active' && existing.status !== 'active';
-
-    if ((billingDetailsChanged || reactivated) && updated.status === 'active') {
-      if (billingDetailsChanged) {
-        // Drop the unreconciled cycles (pending and missed) so they are regenerated on the new
-        // schedule. Only 'pending' was removed before, so old 'missed' rows stayed at the old
-        // dates alongside the new ones. Paid and cancelled cycles are the user's record and stay.
-        await db
-          .delete(subscriptionPayments)
-          .where(
-            and(
-              eq(subscriptionPayments.subscriptionId, id),
-              inArray(subscriptionPayments.status, ['pending', 'missed']),
-            ),
-          );
-      }
-
-      // Regenerates cycles up to today and recomputes nextBillingDate.
-      const paymentsCreated = await SubscriptionService.generateExpectedPayments(id, 12);
-      submitLogEvent('subscription', `Regenerated ${paymentsCreated} payments after billing details change`, correlationId, { subscriptionId: id });
-
-      const [refreshed] = await db.select().from(subscriptions).where(eq(subscriptions.id, id)).limit(1);
-      if (refreshed) Object.assign(updated, refreshed);
+    if (amountChanged) {
+      await SubscriptionService.updateEstimatedAmounts(id, updated.amount);
     }
+
+    // The cycles that fell while it was paused are marked skipped, not backfilled as missed.
+    if (existing.status === 'paused' && updated.status === 'active' && existing.pausedAt) {
+      await SubscriptionService.skipCyclesBetween(updated, existing.pausedAt, new Date(utcDay(now).getTime() - 1));
+    }
+
+    const reactivated = updated.status === 'active' && existing.status !== 'active';
+    if (scheduleChanged) {
+      await SubscriptionService.dropRegenerableRows(id);
+    }
+    if (updated.status === 'active' && (scheduleChanged || reactivated)) {
+      const paymentsCreated = await SubscriptionService.generateExpectedPayments(id);
+      submitLogEvent('subscription', `Regenerated ${paymentsCreated} payments after a schedule change`, correlationId, { subscriptionId: id });
+    } else if (scheduleChanged || status !== existing.status) {
+      await SubscriptionService.refreshNextBillingDate(id);
+    }
+
+    const refreshed = await SubscriptionService.getById(id);
 
     submitLogEvent('subscription', `Updated subscription: ${id}`, correlationId, { subscriptionId: id });
 
-    // Invalidate insights cache
     await invalidateInsightsCache(user.id, existing.householdId || undefined, correlationId);
 
-    return NextResponse.json(updated);
+    return NextResponse.json(refreshed ?? updated, { headers: PRIVATE_NO_STORE });
   } catch (error) {
     submitLogEvent('subscription', `Error updating subscription: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(
@@ -200,48 +173,26 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/subscriptions/[id] - Delete subscription
+// DELETE /api/subscriptions/[id] - Delete (owner only). Its payments go with it (FK cascade).
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
-  const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
+  const guard = await guardFinanceRoute(req, { mutating: false });
+  if (guard instanceof NextResponse) return guard;
+  const { user, correlationId, entitlements } = guard;
   const { id } = await params;
 
   try {
-    const authResult = await getAuthenticatedUser(correlationId);
-    if (authResult instanceof NextResponse) return authResult;
-    const { user } = authResult;
-
-    // Require active subscription
-    const subCheck = await requireSubscription(user);
-    if (subCheck) return subCheck;
-
-    // Verify ownership
-    const existing = await SubscriptionService.getSubscriptionByIdAndUserId(id, user.id);
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: 'Subscription not found' },
-        { status: 404 },
-      );
+    const existing = await SubscriptionService.getById(id);
+    if (!existing || !canReadFinanceRow(existing, user.id, entitlements)) {
+      return NextResponse.json(NOT_FOUND, { status: 404 });
+    }
+    if (!canOwnFinanceRow(existing, user.id, entitlements)) {
+      return NextResponse.json({ error: 'Only the person who added this can delete it' }, { status: 403 });
     }
 
-    // Delete associated payments first
-    await db
-      .delete(subscriptionPayments)
-      .where(eq(subscriptionPayments.subscriptionId, id));
-
-    // Delete subscription
-    await db
-      .delete(subscriptions)
-      .where(
-        and(
-          eq(subscriptions.id, id),
-          eq(subscriptions.userId, user.id),
-        ),
-      );
+    await db.delete(subscriptions).where(eq(subscriptions.id, id));
 
     submitLogEvent('subscription', `Deleted subscription: ${id}`, correlationId, { subscriptionId: id });
 
-    // Invalidate insights cache
     await invalidateInsightsCache(user.id, existing.householdId || undefined, correlationId);
 
     return NextResponse.json({ success: true });

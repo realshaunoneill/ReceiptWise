@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useUpdateSubscription } from '@/hooks/use-subscriptions';
-import { useHouseholds } from '@/lib/hooks/use-households';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +25,10 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { type Subscription } from '@/lib/db/schema';
+import { fromUtcDate } from '@/lib/dates/local-date';
+import { toCents } from '@/lib/money';
+import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
+import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 
 type EditSubscriptionDialogProps = {
   subscription: Subscription;
@@ -39,9 +42,10 @@ type FormData = {
   category: string;
   amount: string;
   currency: string;
-  billingFrequency: 'monthly' | 'quarterly' | 'yearly' | 'custom';
+  billingFrequency: BillingFrequency;
   billingDay: string;
   customFrequencyDays: string;
+  startDate: string;
   website: string;
   notes: string;
   isBusinessExpense: boolean;
@@ -63,13 +67,29 @@ const categories = [
   'Other',
 ];
 
+function formValues(subscription: Subscription): FormData {
+  return {
+    name: subscription.name,
+    description: subscription.description || '',
+    category: subscription.category || '',
+    amount: subscription.amount,
+    currency: subscription.currency,
+    billingFrequency: subscription.billingFrequency as BillingFrequency,
+    billingDay: subscription.billingDay.toString(),
+    customFrequencyDays: subscription.customFrequencyDays?.toString() || '',
+    startDate: fromUtcDate(new Date(subscription.startDate)),
+    website: subscription.website || '',
+    notes: subscription.notes || '',
+    isBusinessExpense: subscription.isBusinessExpense || false,
+  };
+}
+
 export function EditSubscriptionDialog({
   subscription,
   open,
   onOpenChange,
 }: EditSubscriptionDialogProps) {
   const { mutate: updateSubscription, isPending } = useUpdateSubscription(subscription.id);
-  useHouseholds();
 
   const {
     register,
@@ -79,19 +99,7 @@ export function EditSubscriptionDialog({
     reset,
     formState: { errors },
   } = useForm<FormData>({
-    defaultValues: {
-      name: subscription.name,
-      description: subscription.description || '',
-      category: subscription.category || '',
-      amount: subscription.amount,
-      currency: subscription.currency,
-      billingFrequency: subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-      billingDay: subscription.billingDay.toString(),
-      customFrequencyDays: subscription.customFrequencyDays?.toString() || '',
-      website: subscription.website || '',
-      notes: subscription.notes || '',
-      isBusinessExpense: subscription.isBusinessExpense || false,
-    },
+    defaultValues: formValues(subscription),
   });
 
   const billingFrequency = watch('billingFrequency');
@@ -99,36 +107,36 @@ export function EditSubscriptionDialog({
 
   // Reset form when subscription changes
   useEffect(() => {
-    reset({
-      name: subscription.name,
-      description: subscription.description || '',
-      category: subscription.category || '',
-      amount: subscription.amount,
-      currency: subscription.currency,
-      billingFrequency: subscription.billingFrequency as 'monthly' | 'quarterly' | 'yearly' | 'custom',
-      billingDay: subscription.billingDay.toString(),
-      customFrequencyDays: subscription.customFrequencyDays?.toString() || '',
-      website: subscription.website || '',
-      notes: subscription.notes || '',
-      isBusinessExpense: subscription.isBusinessExpense || false,
-    });
+    reset(formValues(subscription));
   }, [subscription, reset]);
 
   const onSubmit = (data: FormData) => {
+    // Send only what changed. Sending every field made the server treat any edit, a rename
+    // included, as a billing change and rebuild the payment history.
+    const before = formValues(subscription);
+    const changes: Parameters<typeof updateSubscription>[0] = {};
+    if (data.name !== before.name) changes.name = data.name;
+    if (data.description !== before.description) changes.description = data.description || null;
+    if (data.category !== before.category) changes.category = data.category || null;
+    if (toCents(data.amount) !== toCents(before.amount)) changes.amount = data.amount;
+    if (data.currency !== before.currency) changes.currency = data.currency;
+    if (data.billingFrequency !== before.billingFrequency) changes.billingFrequency = data.billingFrequency;
+    if (data.billingDay !== before.billingDay) changes.billingDay = parseInt(data.billingDay);
+    if (data.billingFrequency === 'custom' && data.customFrequencyDays !== before.customFrequencyDays) {
+      changes.customFrequencyDays = parseInt(data.customFrequencyDays);
+    }
+    if (data.startDate !== before.startDate) changes.startDate = data.startDate;
+    if (data.website !== before.website) changes.website = data.website || null;
+    if (data.notes !== before.notes) changes.notes = data.notes || null;
+    if (data.isBusinessExpense !== before.isBusinessExpense) changes.isBusinessExpense = data.isBusinessExpense;
+
+    if (Object.keys(changes).length === 0) {
+      onOpenChange(false);
+      return;
+    }
+
     updateSubscription(
-      {
-        name: data.name,
-        description: data.description || undefined,
-        category: data.category || undefined,
-        amount: parseFloat(data.amount),
-        currency: data.currency,
-        billingFrequency: data.billingFrequency,
-        billingDay: parseInt(data.billingDay),
-        customFrequencyDays: data.billingFrequency === 'custom' ? parseInt(data.customFrequencyDays) : undefined,
-        website: data.website || undefined,
-        notes: data.notes || undefined,
-        isBusinessExpense: data.isBusinessExpense,
-      },
+      changes,
       {
         onSuccess: () => {
           toast.success(`${data.name} has been updated successfully`);
@@ -227,9 +235,11 @@ export function EditSubscriptionDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="EUR">EUR (€)</SelectItem>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        {currency.code} ({currency.symbol})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -240,7 +250,7 @@ export function EditSubscriptionDialog({
                 <Label htmlFor="billingFrequency">Billing Frequency *</Label>
                 <Select
                   value={watch('billingFrequency')}
-                  onValueChange={(value) => setValue('billingFrequency', value as 'monthly' | 'quarterly' | 'yearly' | 'custom')}
+                  onValueChange={(value) => setValue('billingFrequency', value as BillingFrequency)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -248,6 +258,7 @@ export function EditSubscriptionDialog({
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="six_monthly">Every 6 months</SelectItem>
                     <SelectItem value="yearly">Yearly</SelectItem>
                     <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
@@ -272,6 +283,21 @@ export function EditSubscriptionDialog({
                   <p className="text-sm text-destructive mt-1">{errors.billingDay.message}</p>
                 )}
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="startDate">Start Date *</Label>
+              <Input
+                id="startDate"
+                type="date"
+                {...register('startDate', { required: 'Start date is required' })}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Changing the start date or schedule rebuilds the expected payments that are still open.
+              </p>
+              {errors.startDate && (
+                <p className="text-sm text-destructive mt-1">{errors.startDate.message}</p>
+              )}
             </div>
 
             {billingFrequency === 'custom' && (

@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
 import {
   Calendar,
-  DollarSign,
+  Check,
   ExternalLink,
   MoreVertical,
   Trash2,
@@ -17,15 +16,26 @@ import {
   Link as LinkIcon,
   Unlink,
   Eye,
+  SkipForward,
+  Undo2,
 } from 'lucide-react';
-import { useSubscription, useDeleteSubscription, useUpdateSubscription, useUnlinkPayment } from '@/hooks/use-subscriptions';
+import {
+  useSubscription,
+  useDeleteSubscription,
+  useUpdateSubscription,
+  useUnlinkPayment,
+  useUpdatePayment,
+  type UpdatePaymentData,
+} from '@/hooks/use-subscriptions';
+import { type SubscriptionPayment } from '@/lib/db/schema';
+import { formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { formatCurrency } from '@/lib/utils/currency';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +51,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { LinkReceiptDialog } from './link-receipt-dialog';
 import { EditSubscriptionDialog } from './edit-subscription-dialog';
+
+/** A midnight-UTC timestamp column as its calendar day, formatted without shifting it a day west of UTC. */
+function formatDay(value: Date | string): string {
+  return formatLocalDate(fromUtcDate(new Date(value)));
+}
+
+const PAID_VIA_LABEL: Record<string, string> = {
+  assumed: 'Assumed paid',
+  manual: 'Marked paid',
+};
 
 type SubscriptionDetailModalProps = {
   subscriptionId: string | null;
@@ -58,6 +78,7 @@ export function SubscriptionDetailModal({
   const { mutate: deleteSubscription } = useDeleteSubscription();
   const { mutate: updateSubscription } = useUpdateSubscription(subscriptionId || '');
   const { mutate: unlinkPayment } = useUnlinkPayment(subscriptionId || '');
+  const { mutate: updatePayment, isPending: isUpdatingPayment } = useUpdatePayment(subscriptionId || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
 
@@ -70,8 +91,8 @@ export function SubscriptionDetailModal({
         onOpenChange(false);
         setShowDeleteConfirm(false);
       },
-      onError: () => {
-        toast.error('Failed to delete. Please try again.');
+      onError: (error) => {
+        toast.error('Failed to delete', { description: error.message });
       },
     });
   };
@@ -87,8 +108,8 @@ export function SubscriptionDetailModal({
         onSuccess: () => {
           toast.success(`${subscription.name} is now ${newStatus}`);
         },
-        onError: () => {
-          toast.error('Failed to update status. Please try again.');
+        onError: (error) => {
+          toast.error('Failed to update status', { description: error.message });
         },
       },
     );
@@ -97,14 +118,15 @@ export function SubscriptionDetailModal({
   const handleCancel = () => {
     if (!subscription) return;
 
+    // The server ends it today when no end date is given.
     updateSubscription(
-      { status: 'cancelled', endDate: new Date() },
+      { status: 'cancelled' },
       {
         onSuccess: () => {
           toast.success(`${subscription.name} has been cancelled`);
         },
-        onError: () => {
-          toast.error('Failed to cancel. Please try again.');
+        onError: (error) => {
+          toast.error('Failed to cancel', { description: error.message });
         },
       },
     );
@@ -119,6 +141,16 @@ export function SubscriptionDetailModal({
         toast.error('Failed to unlink. Please try again.');
       },
     });
+  };
+
+  const handlePaymentChange = (payment: SubscriptionPayment, data: UpdatePaymentData, message: string) => {
+    updatePayment(
+      { paymentId: payment.id, data },
+      {
+        onSuccess: () => toast.success(message),
+        onError: (error) => toast.error('Failed to update payment', { description: error.message }),
+      },
+    );
   };
 
   const handleViewReceipt = (receiptId: string) => {
@@ -182,7 +214,7 @@ export function SubscriptionDetailModal({
                   >
                     {subscription.status}
                   </Badge>
-                  <DropdownMenu>
+                  {subscription.canEdit !== false && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
                         <MoreVertical className="w-4 h-4" />
@@ -222,7 +254,7 @@ export function SubscriptionDetailModal({
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
-                  </DropdownMenu>
+                  </DropdownMenu>}
                 </div>
               </div>
             </DialogHeader>
@@ -236,10 +268,8 @@ export function SubscriptionDetailModal({
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Amount</span>
-                    <div className="flex items-center gap-2 text-2xl font-bold">
-                      <DollarSign className="w-5 h-5" />
-                      {subscription.currency === 'EUR' ? '€' : subscription.currency === 'USD' ? '$' : '£'}
-                      {parseFloat(subscription.amount).toFixed(2)}
+                    <div className="amount text-2xl font-bold">
+                      {formatCurrency(parseFloat(subscription.amount), subscription.currency)}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -273,7 +303,7 @@ export function SubscriptionDetailModal({
                     <span className="text-muted-foreground">Start Date</span>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      {format(new Date(subscription.startDate), 'MMM d, yyyy')}
+                      {formatDay(subscription.startDate)}
                     </div>
                   </div>
                   {subscription.nextBillingDate && (
@@ -281,7 +311,7 @@ export function SubscriptionDetailModal({
                       <span className="text-muted-foreground">Next Billing</span>
                       <div className="flex items-center gap-2 font-medium">
                         <Calendar className="w-4 h-4" />
-                        {format(new Date(subscription.nextBillingDate), 'MMM d, yyyy')}
+                        {formatDay(subscription.nextBillingDate)}
                       </div>
                     </div>
                   )}
@@ -290,7 +320,7 @@ export function SubscriptionDetailModal({
                       <span className="text-muted-foreground">Last Payment</span>
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        {format(new Date(subscription.lastPaymentDate), 'MMM d, yyyy')}
+                        {formatDay(subscription.lastPaymentDate)}
                       </div>
                     </div>
                   )}
@@ -299,7 +329,7 @@ export function SubscriptionDetailModal({
                       <span className="text-muted-foreground">End Date</span>
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        {format(new Date(subscription.endDate), 'MMM d, yyyy')}
+                        {formatDay(subscription.endDate)}
                       </div>
                     </div>
                   )}
@@ -332,13 +362,12 @@ export function SubscriptionDetailModal({
                             <ReceiptIcon className="w-4 h-4 text-muted-foreground" />
                             <div>
                               <p className="font-medium">
-                                {format(
-                                  new Date(payment.expectedDate),
-                                  'MMM d, yyyy',
-                                )}
+                                {payment.dueDate ? formatLocalDate(payment.dueDate) : formatDay(payment.expectedDate)}
                               </p>
-                              <p className="text-sm text-muted-foreground">
-                                Expected: €{payment.expectedAmount ? parseFloat(payment.expectedAmount.toString()).toFixed(2) : '0.00'}
+                              <p className="amount text-sm text-muted-foreground">
+                                {payment.status === 'paid' && payment.actualAmount
+                                  ? `Paid: ${formatCurrency(parseFloat(payment.actualAmount), payment.currency ?? subscription.currency)}`
+                                  : `Expected: ${formatCurrency(parseFloat(payment.expectedAmount || '0'), payment.currency ?? subscription.currency)}`}
                               </p>
                             </div>
                           </div>
@@ -352,8 +381,45 @@ export function SubscriptionDetailModal({
                                   : 'secondary'
                               }
                             >
-                              {payment.status}
+                              {(payment.status === 'paid' && payment.paidVia && PAID_VIA_LABEL[payment.paidVia]) || payment.status}
                             </Badge>
+                            {(payment.status === 'pending' || payment.status === 'missed') && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8"
+                                  disabled={isUpdatingPayment}
+                                  onClick={() => handlePaymentChange(payment, { status: 'paid', actualDate: localToday() }, 'Marked as paid')}
+                                  title="Mark paid without a receipt"
+                                >
+                                  <Check className="w-4 h-4 mr-1" />
+                                  Paid
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled={isUpdatingPayment}
+                                  onClick={() => handlePaymentChange(payment, { status: 'skipped' }, 'Skipped')}
+                                  title="Skip this payment"
+                                >
+                                  <SkipForward className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                            {((payment.status === 'paid' && !payment.receiptId) || payment.status === 'skipped') && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={isUpdatingPayment}
+                                onClick={() => handlePaymentChange(payment, { status: 'pending' }, 'Undone')}
+                                title={payment.paidVia === 'assumed' ? "Didn't go out? Undo" : 'Undo'}
+                              >
+                                <Undo2 className="w-4 h-4" />
+                              </Button>
+                            )}
                             {payment.receiptId && (
                               <>
                                 <Badge variant="outline">
@@ -435,26 +501,6 @@ export function SubscriptionDetailModal({
           onOpenChange={setShowEditDialog}
         />
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Subscription</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this subscription? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 }

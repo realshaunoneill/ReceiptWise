@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, date } from 'drizzle-orm/pg-core';
 
 // Users Table
 export const users = pgTable('users', {
@@ -170,6 +170,11 @@ export type InsightsCache = typeof insightsCache.$inferSelect;
 export type NewInsightsCache = typeof insightsCache.$inferInsert;
 
 // Subscriptions Table
+//
+// Every recurring payment the user tracks: subscriptions, and since the bills work, bills too
+// (the UI calls the whole table "Bills"). The table and column names stay as they are because
+// the build applies the schema with `drizzle-kit push --force`, which turns a rename into a drop
+// and re-create. Only add nullable columns, or NOT NULL ones with a default.
 export const subscriptions = pgTable('subscriptions', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -187,13 +192,23 @@ export const subscriptions = pgTable('subscriptions', {
   currency: text('currency').notNull().default('EUR'),
 
   // Recurrence
-  billingFrequency: text('billing_frequency').notNull(), // 'monthly', 'quarterly', 'yearly', 'custom'
+  billingFrequency: text('billing_frequency').notNull(), // BILLING_FREQUENCIES in lib/schedule/billing-schedule.ts
   billingDay: integer('billing_day').notNull(), // Day of month (1-31)
   customFrequencyDays: integer('custom_frequency_days'), // For custom frequency
 
   // Status
   status: text('status').notNull().default('active'), // 'active', 'paused', 'cancelled'
   isBusinessExpense: boolean('is_business_expense').default(false),
+  // When it was last paused, so resuming can mark the cycles it skipped instead of backfilling
+  // them as missed. Cleared on resume.
+  pausedAt: timestamp('paused_at'),
+
+  // Bills
+  kind: text('kind').notNull().default('subscription'), // 'subscription' | 'bill'
+  amountType: text('amount_type').notNull().default('fixed'), // 'fixed' | 'variable' (amount is then the typical bill)
+  paymentMethod: text('payment_method'), // 'direct_debit' | 'standing_order' | 'card' | 'manual'; null = not said (older rows)
+  providerKey: text('provider_key'), // normalised provider name, for matching uploaded bills
+  accountReference: text('account_reference'), // last 4 characters of the account/reference number only
 
   // Dates
   startDate: timestamp('start_date').notNull(),
@@ -224,12 +239,24 @@ export const subscriptionPayments = pgTable('subscription_payments', {
   expectedDate: timestamp('expected_date').notNull(),
   expectedAmount: text('expected_amount').notNull(),
 
-  // Status
-  status: text('status').notNull().default('pending'), // 'pending', 'paid', 'missed', 'cancelled'
+  // The real due date when a bill gives one that differs from the schedule's cycle date. The
+  // cycle date (expectedDate) stays the key that identifies the occurrence.
+  dueDate: date('due_date'),
+  // Where expectedAmount came from: 'estimate' (the item's usual amount), 'bill' (read from an
+  // uploaded bill), 'manual' (typed in for this occurrence) or 'receipt'.
+  amountSource: text('amount_source').notNull().default('estimate'),
+  currency: text('currency'), // null = the subscription's currency
 
-  // Actual payment (if receipt linked)
+  // Status
+  status: text('status').notNull().default('pending'), // 'pending', 'paid', 'missed', 'skipped', 'cancelled'
+
+  // Actual payment
   actualDate: timestamp('actual_date'),
   actualAmount: text('actual_amount'),
+  // How it came to be paid: 'receipt' (a receipt was linked), 'manual' (someone marked it), or
+  // 'assumed' (a direct debit or standing order whose collection date passed). Null on older rows.
+  paidVia: text('paid_via'),
+  markedByUserId: uuid('marked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 
   // Metadata
   notes: text('notes'),

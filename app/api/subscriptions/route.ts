@@ -1,111 +1,93 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, getHouseholdMembership, requireSubscription } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { subscriptions, subscriptionPayments } from '@/lib/db/schema';
-import { eq, and, or, desc, inArray } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
-import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { eq, and, asc, desc, inArray } from 'drizzle-orm';
+import { submitLogEvent } from '@/lib/logging';
+import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
+import { canFileFinanceRowUnder, financeScopeCondition, type FinanceScope } from '@/lib/services/finance-access';
 import { SubscriptionService } from '@/lib/services/subscription-service';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
+import { createSubscriptionSchema, parseBody, readJson, SUBSCRIPTION_KINDS, SUBSCRIPTION_STATUSES } from '@/lib/validation/finance';
 
 export const runtime = 'nodejs';
 
-// GET /api/subscriptions - List all subscriptions
+/** Unsettled payments returned per subscription with ?includePayments=true. */
+const RECENT_PAYMENTS = 12;
+
+// GET /api/subscriptions - List subscriptions and bills
+//   ?householdId=  that household's shared rows, from every member (else: your own rows)
+//   ?status=       active | paused | cancelled
+//   ?kind=         subscription | bill
+//   ?includePayments=true  adds recentPayments (unsettled) and missingPayments (overdue count)
 export async function GET(req: NextRequest) {
-  const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
+  const guard = await guardFinanceRoute(req, { mutating: false });
+  if (guard instanceof NextResponse) return guard;
+  const { user, correlationId, entitlements } = guard;
 
   try {
-    const authResult = await getAuthenticatedUser(correlationId);
-    if (authResult instanceof NextResponse) return authResult;
-    const { user } = authResult;
-
-    // Require active subscription
-    const subCheck = await requireSubscription(user);
-    if (subCheck) return subCheck;
-
-    // Note: Payment generation moved to after fetching user's subscriptions
-    // to avoid processing all subscriptions in the system
-
     const { searchParams } = new URL(req.url);
     const householdId = searchParams.get('householdId');
-    const status = searchParams.get('status'); // 'active', 'paused', 'cancelled'
+    const status = searchParams.get('status');
+    const kind = searchParams.get('kind');
     const includePayments = searchParams.get('includePayments') === 'true';
 
-    // Build query conditions
-    const conditions = [eq(subscriptions.userId, user.id)];
-
-    if (householdId) {
-      conditions.push(eq(subscriptions.householdId, householdId));
+    if (status && !(SUBSCRIPTION_STATUSES as readonly string[]).includes(status)) {
+      return NextResponse.json({ error: 'status must be active, paused or cancelled' }, { status: 400 });
+    }
+    if (kind && !(SUBSCRIPTION_KINDS as readonly string[]).includes(kind)) {
+      return NextResponse.json({ error: 'kind must be subscription or bill' }, { status: 400 });
     }
 
-    if (status) {
-      conditions.push(eq(subscriptions.status, status));
+    const scope: FinanceScope = householdId ? { type: 'household', householdId } : { type: 'mine' };
+    const scopeCondition = financeScopeCondition(subscriptions, user.id, scope, entitlements);
+    if (!scopeCondition) {
+      return NextResponse.json({ error: householdId ? 'Not a member of this household' : 'Active subscription required' }, { status: 403 });
     }
 
-    // Fetch subscriptions (re-sorted below once nextBillingDate is corrected)
-    const userSubscriptions = await db
+    const conditions = [scopeCondition];
+    if (status) conditions.push(eq(subscriptions.status, status));
+    if (kind) conditions.push(eq(subscriptions.kind, kind));
+
+    // Payment rows are created by the daily job (/api/cron/bills-daily), not here: doing it on
+    // every list request, with no lock, is how two tabs created the same cycle twice.
+    const rows = await db
       .select()
       .from(subscriptions)
       .where(and(...conditions))
-      .orderBy(desc(subscriptions.nextBillingDate));
+      .orderBy(asc(subscriptions.nextBillingDate));
 
-    // Fill in any billing cycles that have come round since the last visit and correct each
-    // nextBillingDate, then flag overdue ones — both scoped to this user's subscriptions.
-    const { nextBillingDates } = await SubscriptionService.generateExpectedPaymentsBatch(userSubscriptions);
-    for (const subscription of userSubscriptions) {
-      const corrected = nextBillingDates.get(subscription.id);
-      if (corrected) subscription.nextBillingDate = corrected;
+    if (!includePayments || rows.length === 0) {
+      return NextResponse.json(rows, { headers: PRIVATE_NO_STORE });
     }
-    await SubscriptionService.updateMissedPayments(userSubscriptions.map(s => s.id));
-    userSubscriptions.sort((a, b) => new Date(b.nextBillingDate).getTime() - new Date(a.nextBillingDate).getTime());
 
-    // Optionally include payment information
-    if (includePayments && userSubscriptions.length > 0) {
-      // Get all subscription IDs
-      const subscriptionIds = userSubscriptions.map(s => s.id);
+    const unsettled = await db
+      .select()
+      .from(subscriptionPayments)
+      .where(and(
+        inArray(subscriptionPayments.subscriptionId, rows.map((s) => s.id)),
+        inArray(subscriptionPayments.status, ['pending', 'missed']),
+      ))
+      .orderBy(desc(subscriptionPayments.expectedDate));
 
-      // Fetch all payments in one query using inArray
-      const allPayments = await db
-        .select()
-        .from(subscriptionPayments)
-        .where(
-          and(
-            inArray(subscriptionPayments.subscriptionId, subscriptionIds),
-            or(
-              eq(subscriptionPayments.status, 'pending'),
-              eq(subscriptionPayments.status, 'missed'),
-            ),
-          ),
-        )
-        .orderBy(desc(subscriptionPayments.expectedDate))
-        .limit(12 * subscriptionIds.length);
+    const paymentsBySubscription = new Map<string, typeof unsettled>();
+    for (const payment of unsettled) {
+      const list = paymentsBySubscription.get(payment.subscriptionId) ?? [];
+      if (list.length < RECENT_PAYMENTS) list.push(payment);
+      paymentsBySubscription.set(payment.subscriptionId, list);
+    }
 
-      // Group payments by subscription ID
-      const paymentsBySubscription = new Map<string, typeof allPayments>();
-      allPayments.forEach(payment => {
-        if (!paymentsBySubscription.has(payment.subscriptionId)) {
-          paymentsBySubscription.set(payment.subscriptionId, []);
-        }
-        const subPayments = paymentsBySubscription.get(payment.subscriptionId)!;
-        if (subPayments.length < 12) {
-          subPayments.push(payment);
-        }
-      });
-
-      // Map payments to subscriptions
-      const subsWithPayments = userSubscriptions.map(subscription => {
-        const payments = paymentsBySubscription.get(subscription.id) || [];
+    const now = new Date();
+    return NextResponse.json(
+      rows.map((subscription) => {
+        const payments = paymentsBySubscription.get(subscription.id) ?? [];
         return {
           ...subscription,
-          missingPayments: payments.filter(p => p.status === 'pending' || p.status === 'missed').length,
+          missingPayments: payments.filter((p) => SubscriptionService.isOverdue(p, now, subscription.paymentMethod)).length,
           recentPayments: payments,
         };
-      });
-
-      return NextResponse.json(subsWithPayments);
-    }
-
-    return NextResponse.json(userSubscriptions);
+      }),
+      { headers: PRIVATE_NO_STORE },
+    );
   } catch (error) {
     submitLogEvent('subscription', `Error fetching subscriptions: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(
@@ -115,124 +97,67 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/subscriptions - Create new subscription
+// POST /api/subscriptions - Create a subscription or bill
 export async function POST(req: NextRequest) {
-  const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
+  const guard = await guardFinanceRoute(req, { mutating: true });
+  if (guard instanceof NextResponse) return guard;
+  const { user, correlationId, entitlements } = guard;
 
   try {
-    const authResult = await getAuthenticatedUser(correlationId);
-    if (authResult instanceof NextResponse) return authResult;
-    const { user } = authResult;
+    const parsed = parseBody(createSubscriptionSchema, await readJson(req));
+    if (parsed instanceof NextResponse) return parsed;
+    const input = parsed.data;
 
-    // Require active subscription
-    const subCheck = await requireSubscription(user);
-    if (subCheck) return subCheck;
+    const householdId = input.householdId ?? null;
+    if (!(await canFileFinanceRowUnder(householdId, user.id, entitlements))) {
+      return NextResponse.json(
+        { error: householdId ? 'Not a member of this household' : 'Active subscription required' },
+        { status: 403 },
+      );
+    }
 
-    const body = await req.json();
-    const {
-      name,
-      description,
-      category,
-      amount,
-      currency = 'EUR',
-      billingFrequency,
+    // A one-off falls on its start date, so its "billing day" is that day.
+    const billingDay = input.billingFrequency === 'once' ? input.startDate.getUTCDate() : input.billingDay!;
+    const schedule = {
+      startDate: input.startDate,
+      billingFrequency: input.billingFrequency,
       billingDay,
-      customFrequencyDays,
-      startDate,
-      householdId,
-      isBusinessExpense = false,
-      website,
-      notes,
-    } = body;
+      customFrequencyDays: input.billingFrequency === 'custom' ? input.customFrequencyDays ?? null : null,
+      endDate: input.endDate ?? null,
+    };
 
-    // Validation
-    if (!name || !amount || !billingFrequency || !billingDay || !startDate) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, amount, billingFrequency, billingDay, startDate' },
-        { status: 400 },
-      );
-    }
-
-    if (!['monthly', 'quarterly', 'yearly', 'custom'].includes(billingFrequency)) {
-      return NextResponse.json(
-        { error: 'billingFrequency must be monthly, quarterly, yearly or custom' },
-        { status: 400 },
-      );
-    }
-
-    const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
-      return NextResponse.json({ error: 'amount must be a number' }, { status: 400 });
-    }
-
-    // Validate billingDay is within valid range
-    if (!Number.isInteger(Number(billingDay)) || billingDay < 1 || billingDay > 31) {
-      return NextResponse.json(
-        { error: 'billingDay must be between 1 and 31' },
-        { status: 400 },
-      );
-    }
-
-    // Validate customFrequencyDays if using custom frequency
-    if (billingFrequency === 'custom' && (!customFrequencyDays || customFrequencyDays < 1)) {
-      return NextResponse.json(
-        { error: 'customFrequencyDays must be at least 1 for custom billing frequency' },
-        { status: 400 },
-      );
-    }
-
-    const start = new Date(startDate);
-    if (Number.isNaN(start.getTime())) {
-      return NextResponse.json({ error: 'startDate is not a valid date' }, { status: 400 });
-    }
-
-    // A subscription filed under a household must be filed under one the caller belongs to.
-    if (householdId) {
-      const membership = await getHouseholdMembership(householdId, user.id);
-      if (!membership) {
-        return NextResponse.json({ error: 'Not a member of this household' }, { status: 403 });
-      }
-    }
-
-    const nextBilling = SubscriptionService.computeNextBillingDate({
-      startDate: start,
-      billingFrequency,
-      billingDay: Number(billingDay),
-      customFrequencyDays: customFrequencyDays ?? null,
-      endDate: null,
-    });
-
-    // Create subscription
     const [newSubscription] = await db
       .insert(subscriptions)
       .values({
         userId: user.id,
-        householdId: householdId || null,
-        name,
-        description,
-        category,
-        amount: String(amount),
-        currency,
-        billingFrequency,
-        billingDay: Number(billingDay),
-        customFrequencyDays,
-        startDate: start,
-        nextBillingDate: nextBilling,
-        isBusinessExpense,
-        website,
-        notes,
+        householdId,
+        name: input.name,
+        description: input.description ?? null,
+        category: input.category ?? null,
+        amount: input.amount,
+        currency: input.currency,
+        ...schedule,
+        status: input.status ?? 'active',
+        nextBillingDate: SubscriptionService.computeNextBillingDate(schedule),
+        isBusinessExpense: input.isBusinessExpense,
+        website: input.website ?? null,
+        notes: input.notes ?? null,
+        kind: input.kind,
+        amountType: input.amountType,
+        paymentMethod: input.paymentMethod ?? null,
+        accountReference: input.accountReference ?? null,
       })
       .returning();
 
-    // Generate historical payments from start date to today (for past billing cycles)
-    const paymentsCreated = await SubscriptionService.generateExpectedPayments(newSubscription.id, 12, true);
+    // Rows for the cycles already past (a start date in the past), so they can be reconciled.
+    const paymentsCreated = await SubscriptionService.generateExpectedPayments(newSubscription.id);
 
-    submitLogEvent('subscription', `Created subscription: ${name} with ${paymentsCreated} expected payments`, correlationId, { subscriptionId: newSubscription.id });
+    submitLogEvent('subscription', `Created subscription ${newSubscription.id} with ${paymentsCreated} expected payments`, correlationId, { subscriptionId: newSubscription.id });
 
-    // Invalidate insights cache
-    await invalidateInsightsCache(user.id, householdId || undefined, correlationId);
+    await invalidateInsightsCache(user.id, householdId ?? undefined, correlationId);
 
-    return NextResponse.json(newSubscription, { status: 201 });
+    const [created] = await db.select().from(subscriptions).where(eq(subscriptions.id, newSubscription.id)).limit(1);
+    return NextResponse.json(created ?? newSubscription, { status: 201, headers: PRIVATE_NO_STORE });
   } catch (error) {
     submitLogEvent('subscription', `Error creating subscription: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {}, true);
     return NextResponse.json(

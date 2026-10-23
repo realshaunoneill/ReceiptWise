@@ -11,13 +11,16 @@ import { randomUUID } from 'crypto';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { featureFlagsFor } from '@/lib/features';
 import { type User } from '@/lib/db/schema';
+import { getFinanceEntitlements } from '@/lib/services/finance-access';
 
 /**
- * The user row plus what the client needs to decide what to show. PATCH returns the same shape,
- * because useUpdateUser writes its response straight into the cached user.
+ * The user row plus what the client needs to decide what to show: feature flags, and where the
+ * user can use the finance features (their own Premium, or a household another member pays for).
+ * PATCH returns the same shape, because useUpdateUser writes its response straight into the
+ * cached user.
  */
-function toUserResponse(user: User) {
-  return { ...user, features: featureFlagsFor(user) };
+async function toUserResponse(user: User) {
+  return { ...user, features: featureFlagsFor(user), entitlements: await getFinanceEntitlements(user) };
 }
 
 /**
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
       requestId,
       userId: user.id,
     });
-    return NextResponse.json(toUserResponse(user), {
+    return NextResponse.json(await toUserResponse(user), {
       headers: {
         // Not cached: subscription state, pending deletion and currency all change through
         // mutations, and a cached copy made the UI lag them by up to a minute.
@@ -121,7 +124,7 @@ export async function PATCH(req: NextRequest) {
         userId: user.id,
         context: { updatedFields: Object.keys(updates).filter(k => k !== 'updatedAt') },
       });
-      return NextResponse.json(toUserResponse(updatedUser));
+      return NextResponse.json(await toUserResponse(updatedUser));
     }
 
     // If no valid fields to update, return current user
@@ -129,7 +132,7 @@ export async function PATCH(req: NextRequest) {
       requestId,
       userId: user.id,
     });
-    return NextResponse.json(toUserResponse(user));
+    return NextResponse.json(await toUserResponse(user));
   } catch (error) {
     Logger.error('Error updating user profile', error as Error, { requestId });
     const errorResponse = createErrorResponse(

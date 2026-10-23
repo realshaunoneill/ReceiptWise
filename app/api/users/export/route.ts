@@ -100,11 +100,17 @@ export async function GET(req: NextRequest) {
         currency: subscriptions.currency,
         billingFrequency: subscriptions.billingFrequency,
         billingDay: subscriptions.billingDay,
+        customFrequencyDays: subscriptions.customFrequencyDays,
         status: subscriptions.status,
         startDate: subscriptions.startDate,
+        endDate: subscriptions.endDate,
         nextBillingDate: subscriptions.nextBillingDate,
         lastPaymentDate: subscriptions.lastPaymentDate,
         isBusinessExpense: subscriptions.isBusinessExpense,
+        kind: subscriptions.kind,
+        amountType: subscriptions.amountType,
+        paymentMethod: subscriptions.paymentMethod,
+        accountReference: subscriptions.accountReference,
         website: subscriptions.website,
         notes: subscriptions.notes,
         createdAt: subscriptions.createdAt,
@@ -120,9 +126,12 @@ export async function GET(req: NextRequest) {
         subscriptionId: subscriptionPayments.subscriptionId,
         expectedDate: subscriptionPayments.expectedDate,
         expectedAmount: subscriptionPayments.expectedAmount,
+        amountSource: subscriptionPayments.amountSource,
+        dueDate: subscriptionPayments.dueDate,
         status: subscriptionPayments.status,
         actualDate: subscriptionPayments.actualDate,
         actualAmount: subscriptionPayments.actualAmount,
+        paidVia: subscriptionPayments.paidVia,
         notes: subscriptionPayments.notes,
         createdAt: subscriptionPayments.createdAt,
       })
@@ -251,19 +260,23 @@ export async function GET(req: NextRequest) {
 
       if (type === 'subscriptions' || type === 'all') {
         csvContent += 'SUBSCRIPTIONS\n';
-        csvContent += row(['Name', 'Description', 'Category', 'Amount', 'Currency', 'Billing Frequency', 'Billing Day', 'Status', 'Start Date', 'Next Billing', 'Last Payment', 'Business Expense', 'Website', 'Notes', 'Created At']);
+        csvContent += row(['Name', 'Kind', 'Description', 'Category', 'Amount', 'Amount Type', 'Currency', 'Billing Frequency', 'Billing Day', 'Payment Method', 'Status', 'Start Date', 'End Date', 'Next Billing', 'Last Payment', 'Business Expense', 'Website', 'Notes', 'Created At']);
 
         userSubscriptions.forEach(sub => {
           csvContent += row([
             sub.name,
+            sub.kind,
             sub.description,
             sub.category,
             sub.amount,
+            sub.amountType,
             sub.currency,
             sub.billingFrequency,
             sub.billingDay,
+            sub.paymentMethod,
             sub.status,
             day(sub.startDate),
+            day(sub.endDate),
             day(sub.nextBillingDate),
             day(sub.lastPaymentDate),
             sub.isBusinessExpense ? 'Yes' : 'No',
@@ -275,15 +288,17 @@ export async function GET(req: NextRequest) {
         csvContent += '\n';
 
         csvContent += 'SUBSCRIPTION PAYMENTS\n';
-        csvContent += row(['Subscription', 'Expected Date', 'Expected Amount', 'Status', 'Actual Date', 'Actual Amount', 'Notes']);
+        csvContent += row(['Subscription', 'Expected Date', 'Due Date', 'Expected Amount', 'Status', 'Paid Via', 'Actual Date', 'Actual Amount', 'Notes']);
 
         payments.forEach(payment => {
           const sub = userSubscriptions.find(s => s.id === payment.subscriptionId);
           csvContent += row([
             sub?.name,
             day(payment.expectedDate),
+            payment.dueDate,
             payment.expectedAmount,
             payment.status,
+            payment.paidVia,
             day(payment.actualDate),
             payment.actualAmount,
             payment.notes,

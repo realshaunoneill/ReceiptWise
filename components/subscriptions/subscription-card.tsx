@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LinkReceiptDialog } from './link-receipt-dialog';
 import { type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
-import { useCurrency } from '@/lib/hooks/use-currency';
-import { differenceInDays, format, isToday, isTomorrow, startOfDay } from 'date-fns';
+import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { frequencyLabel } from '@/lib/schedule/billing-schedule';
+import { formatCurrency } from '@/lib/utils/currency';
 import { cn } from '@/lib/utils';
 
 type SubscriptionWithPayments = Subscription & {
@@ -21,21 +22,19 @@ type SubscriptionCardProps = {
 };
 
 export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProps) {
-  const { format: formatCurrency } = useCurrency();
-
-  // Calculate next payment info
+  // Calculate next payment info. nextBillingDate is midnight UTC of the billing day; read it as
+  // that calendar day, not as an instant in the browser's time zone (a day early west of UTC).
   let nextPaymentInfo = null;
   if (subscription.nextBillingDate) {
-    const billingDate = startOfDay(new Date(subscription.nextBillingDate));
-    const today = startOfDay(new Date());
-    const daysUntil = differenceInDays(billingDate, today);
+    const billingDay = fromUtcDate(new Date(subscription.nextBillingDate));
+    const daysUntil = daysBetween(localToday(), billingDay);
 
     if (daysUntil >= 0) {
       const getDateLabel = () => {
-        if (isToday(billingDate)) return 'Today';
-        if (isTomorrow(billingDate)) return 'Tomorrow';
+        if (daysUntil === 0) return 'Today';
+        if (daysUntil === 1) return 'Tomorrow';
         if (daysUntil <= 7) return `In ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
-        return format(billingDate, 'MMM dd');
+        return formatLocalDate(billingDay, { day: '2-digit', month: 'short' });
       };
 
       const getBadgeVariant = () => {
@@ -47,7 +46,7 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
 
       nextPaymentInfo = {
         label: getDateLabel(),
-        date: format(billingDate, 'MMM dd, yyyy'),
+        date: formatLocalDate(billingDay),
         variant: getBadgeVariant(),
         daysUntil,
       };
@@ -90,11 +89,11 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
         <div className="space-y-3 border-t pt-4">
           <div className="flex items-baseline gap-2">
             <TrendingUp className="w-5 h-5 text-muted-foreground" />
-            <span className="text-3xl font-bold tracking-tight">
-              {formatCurrency(parseFloat(subscription.amount))}
+            <span className="amount text-3xl font-bold tracking-tight">
+              {formatCurrency(parseFloat(subscription.amount), subscription.currency)}
             </span>
             <span className="text-sm text-muted-foreground font-medium">
-              per {subscription.billingFrequency}
+              {frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}
             </span>
           </div>
 

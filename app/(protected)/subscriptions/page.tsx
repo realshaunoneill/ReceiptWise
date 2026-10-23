@@ -17,6 +17,9 @@ import { Clock, Calendar, AlertCircle, Crown, Check, CreditCard, PieChart, Arrow
 import { addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { useCurrency } from '@/lib/hooks/use-currency';
+import { monthlyEquivalent } from '@/lib/schedule/billing-schedule';
+import { totalsByCurrency } from '@/lib/utils/currency-totals';
 
 type Status = 'active' | 'paused' | 'cancelled' | undefined;
 
@@ -24,6 +27,10 @@ function SubscriptionsPageContent() {
   const trialDays = useTrialDays();
   const [statusFilter, setStatusFilter] = useState<Status>('active');
   const { data: subscriptions, isLoading } = useSubscriptions(undefined, statusFilter, true);
+  // Stats and "upcoming" are about active subscriptions whichever tab is open; on the Active tab
+  // this is the same query as the list.
+  const { data: activeList } = useSubscriptions(undefined, 'active', true);
+  const { currency: userCurrency } = useCurrency();
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
   const searchParams = useSearchParams();
@@ -43,7 +50,8 @@ function SubscriptionsPageContent() {
   }, [searchParams]);
 
   // Calculate stats
-  const activeSubscriptions = subscriptions?.filter(s => s.status === 'active') || [];
+  const activeSubscriptions = activeList ?? [];
+  const hasAnySubscriptions = activeSubscriptions.length > 0 || (subscriptions?.length ?? 0) > 0 || statusFilter !== 'active';
 
   // Get upcoming payments. Billing dates are midnight UTC, so count from the start of today.
   const now = new Date();
@@ -66,19 +74,16 @@ function SubscriptionsPageContent() {
     return billingDate >= now && billingDate <= futureDate;
   }).length;
 
-  const totalMonthly = activeSubscriptions.reduce((sum, sub) => {
-    const amount = parseFloat(sub.amount);
-    if (sub.billingFrequency === 'monthly') return sum + amount;
-    if (sub.billingFrequency === 'quarterly') return sum + (amount / 3);
-    if (sub.billingFrequency === 'yearly') return sum + (amount / 12);
-    if (sub.billingFrequency === 'custom' && sub.customFrequencyDays) {
-      return sum + (amount / sub.customFrequencyDays * 30);
-    }
-    return sum;
-  }, 0);
-
-  const totalYearly = totalMonthly * 12;
-  const missingPaymentsCount = subscriptions?.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0) || 0;
+  // Per currency: adding €10 and $10 used to show €20.
+  const monthlyTotals = totalsByCurrency(
+    activeSubscriptions.map((sub) => ({
+      amount: monthlyEquivalent(parseFloat(sub.amount), sub.billingFrequency, sub.customFrequencyDays),
+      currency: sub.currency,
+    })),
+    userCurrency,
+  );
+  const yearlyTotals = monthlyTotals.map((total) => ({ ...total, amount: total.amount * 12 }));
+  const missingPaymentsCount = activeSubscriptions.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0);
 
   // Filter subscriptions with missing payments
   const subscriptionsWithMissing = subscriptions?.filter(sub => (sub.missingPayments || 0) > 0) || [];
@@ -293,7 +298,7 @@ function SubscriptionsPageContent() {
       </div>
 
       {/* Empty State - No Subscriptions */}
-      {!isLoading && (!subscriptions || subscriptions.length === 0) && (
+      {!isLoading && !hasAnySubscriptions && (
         <div className="text-center py-12">
           <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" aria-hidden="true" />
           <h3 className="text-lg font-semibold mb-2 text-foreground">No subscriptions yet</h3>
@@ -303,12 +308,12 @@ function SubscriptionsPageContent() {
       )}
 
       {/* Stats Grid */}
-      {subscriptions && subscriptions.length > 0 && (
+      {hasAnySubscriptions && (
         <div className="mb-6">
           <SubscriptionStats
             activeCount={activeSubscriptions.length}
-            monthlyTotal={totalMonthly}
-            yearlyTotal={totalYearly}
+            monthlyTotals={monthlyTotals}
+            yearlyTotals={yearlyTotals}
             missingPayments={missingPaymentsCount}
             onMissingPaymentsClick={() => {
               setShowMissingOnly(true);
@@ -353,7 +358,7 @@ function SubscriptionsPageContent() {
       )}
 
       {/* Upcoming Payments Section */}
-      {subscriptions && subscriptions.length > 0 && upcomingPayments.length > 0 && (
+      {upcomingPayments.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-5 w-5 text-primary" />
@@ -376,8 +381,8 @@ function SubscriptionsPageContent() {
         </div>
       )}
 
-      {/* Tabs */}
-      {subscriptions && subscriptions.length > 0 && (
+      {/* Tabs: kept even when the open tab is empty, or there was no way back from an empty Paused tab */}
+      {hasAnySubscriptions && (
         <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status)} className="w-full">
           <TabsList className="grid w-full md:w-auto grid-cols-3">
             <TabsTrigger value="active">Active</TabsTrigger>

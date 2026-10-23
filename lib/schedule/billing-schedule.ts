@@ -196,3 +196,23 @@ export function monthlyEquivalent(
       return amount;
   }
 }
+
+/** How often, for display after an amount: "€9.99 a month", "€120.00 every 6 months". */
+export function frequencyLabel(billingFrequency: string, customFrequencyDays?: number | null): string {
+  switch (billingFrequency) {
+    case 'monthly':
+      return 'a month';
+    case 'quarterly':
+      return 'a quarter';
+    case 'six_monthly':
+      return 'every 6 months';
+    case 'yearly':
+      return 'a year';
+    case 'custom':
+      return `every ${customFrequencyDays || 30} days`;
+    case 'once':
+      return 'once';
+    default:
+      return billingFrequency;
+  }
+}

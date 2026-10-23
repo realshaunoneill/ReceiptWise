@@ -5,11 +5,13 @@ import { AlertCircle, TrendingUp, Calendar, Coins, Receipt } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { type CurrencyTotal, formatTotals } from '@/lib/utils/currency-totals';
 
 type SubscriptionStatsProps = {
   activeCount: number;
-  monthlyTotal: number;
-  yearlyTotal: number;
+  /** One total per currency: amounts in different currencies are never added together. */
+  monthlyTotals: CurrencyTotal[];
+  yearlyTotals: CurrencyTotal[];
   missingPayments: number;
   onMissingPaymentsClick?: () => void;
 };
@@ -69,12 +71,12 @@ function StatCard({ label, value, icon, alert, onClick }: StatCardProps) {
 
 export function SubscriptionStats({
   activeCount,
-  monthlyTotal,
-  yearlyTotal,
+  monthlyTotals,
+  yearlyTotals,
   missingPayments,
   onMissingPaymentsClick,
 }: SubscriptionStatsProps) {
-  const { format: formatCurrency } = useCurrency();
+  const { currency } = useCurrency();
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -86,13 +88,13 @@ export function SubscriptionStats({
 
       <StatCard
         label="Monthly Cost"
-        value={formatCurrency(monthlyTotal)}
+        value={formatTotals(monthlyTotals, currency)}
         icon={<Calendar className="h-5 w-5" />}
       />
 
       <StatCard
         label="Yearly Cost"
-        value={formatCurrency(yearlyTotal)}
+        value={formatTotals(yearlyTotals, currency)}
         icon={<Coins className="h-5 w-5" />}
       />
 

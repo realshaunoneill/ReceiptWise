@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { format } from 'date-fns';
-import { Link as LinkIcon, Search, Receipt as ReceiptIcon, Calendar, DollarSign, Unlink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link as LinkIcon, Search, Receipt as ReceiptIcon, Calendar, Unlink } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useUpdatePayment, useUnlinkPayment } from '@/hooks/use-subscriptions';
 import {
@@ -20,6 +19,16 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
+import { addDays, formatLocalDate, fromUtcDate, isLocalDate } from '@/lib/dates/local-date';
+import { formatCurrency } from '@/lib/utils/currency';
+
+/** Receipts this many days either side of the selected payment are offered. */
+const MATCH_WINDOW_DAYS = 10;
+const RECEIPTS_SHOWN = 50;
+
+function paymentDay(payment: SubscriptionPayment): string {
+  return payment.dueDate ?? fromUtcDate(new Date(payment.expectedDate));
+}
 
 type LinkReceiptDialogProps = {
   subscription: Subscription;
@@ -46,30 +55,34 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
   const { mutate: linkReceipt, isPending } = useUpdatePayment(subscription.id);
   const { mutate: unlinkReceipt, isPending: isUnlinking } = useUnlinkPayment(subscription.id);
 
-  // Fetch user's receipts
+  // Debounce the search so typing doesn't send a request per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const selectedPayment = payments.find((payment) => payment.id === selectedPaymentId);
+  const around = selectedPayment ? paymentDay(selectedPayment) : null;
+
+  // Receipts near the selected payment's date (or the most recent, before one is picked), searched
+  // on the server. It used to fetch page 1 of /api/receipts, the 10 most recent, and filter
+  // those in the browser, so anything older could never be linked.
   const { data: receipts, isLoading: loadingReceipts } = useQuery<Receipt[]>({
-    queryKey: ['receipts', 'unlinked'],
+    queryKey: ['receipts', 'link-candidates', around, debouncedSearch],
     queryFn: async () => {
-      const res = await fetch('/api/receipts');
+      const params = new URLSearchParams({ limit: String(RECEIPTS_SHOWN) });
+      if (around && !debouncedSearch) {
+        params.set('startDate', addDays(around, -MATCH_WINDOW_DAYS));
+        params.set('endDate', addDays(around, MATCH_WINDOW_DAYS));
+      }
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      const res = await fetch(`/api/receipts?${params}`);
       if (!res.ok) throw new Error('Failed to fetch receipts');
       const data = await res.json();
       return data.receipts || [];
     },
     enabled: open,
-  });
-
-  // Get all payments (show linked ones for unlinking)
-  const allPayments = payments;
-
-  // Filter receipts by search query
-  const filteredReceipts = receipts?.filter((receipt) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      receipt.merchantName?.toLowerCase().includes(query) ||
-      receipt.category?.toLowerCase().includes(query) ||
-      receipt.totalAmount?.includes(query)
-    );
   });
 
   const handleLink = () => {
@@ -91,8 +104,8 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
           setSelectedReceiptId(null);
           setSearchQuery('');
         },
-        onError: () => {
-          toast.error('Failed to link receipt. Please try again.');
+        onError: (error) => {
+          toast.error('Failed to link receipt', { description: error.message });
         },
       },
     );
@@ -104,8 +117,8 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
       onSuccess: () => {
         toast.success('Receipt unlinked');
       },
-      onError: () => {
-        toast.error('Failed to unlink receipt. Please try again.');
+      onError: (error) => {
+        toast.error('Failed to unlink receipt', { description: error.message });
       },
     });
   };
@@ -139,13 +152,13 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
             </div>
 
             <ScrollArea className="h-[400px] pr-4">
-              {allPayments.length === 0 ? (
+              {payments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No payments found</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {allPayments.map((payment) => {
+                  {payments.map((payment) => {
                     const isLinked = !!(payment.receiptId && payment.status === 'paid');
                     return (
                       <div
@@ -167,7 +180,7 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
                               <span className="font-medium">
-                                {format(new Date(payment.expectedDate), 'MMM d, yyyy')}
+                                {formatLocalDate(paymentDay(payment))}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -190,10 +203,8 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <DollarSign className="w-3 h-3" />
-                            Expected: {subscription.currency === 'EUR' ? '€' : '$'}
-                            {payment.expectedAmount ? parseFloat(payment.expectedAmount.toString()).toFixed(2) : '0.00'}
+                          <div className="amount text-sm text-muted-foreground">
+                            Expected: {formatCurrency(parseFloat(payment.expectedAmount || '0'), payment.currency ?? subscription.currency)}
                           </div>
                         </button>
                         {isLinked && (
@@ -220,6 +231,11 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
           <div className="space-y-3">
             <div>
               <h3 className="font-semibold mb-2">Your Receipts</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                {around && !debouncedSearch
+                  ? `Within ${MATCH_WINDOW_DAYS} days of ${formatLocalDate(around)}`
+                  : debouncedSearch ? 'Matching your search' : 'Most recent'}
+              </p>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -236,9 +252,9 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                 <div className="text-center py-8 text-muted-foreground">
                   Loading receipts...
                 </div>
-              ) : filteredReceipts && filteredReceipts.length > 0 ? (
+              ) : receipts && receipts.length > 0 ? (
                 <div className="space-y-2">
-                  {filteredReceipts.map((receipt) => (
+                  {receipts.map((receipt) => (
                     <button
                       key={receipt.id}
                       onClick={() => setSelectedReceiptId(receipt.id)}
@@ -259,13 +275,12 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                             {receipt.merchantName || 'Unknown Merchant'}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {receipt.transactionDate
-                              ? format(new Date(receipt.transactionDate), 'MMM d, yyyy')
-                              : format(new Date(receipt.createdAt), 'MMM d, yyyy')}
+                            {receipt.transactionDate && isLocalDate(receipt.transactionDate)
+                              ? formatLocalDate(receipt.transactionDate)
+                              : formatLocalDate(fromUtcDate(new Date(receipt.createdAt)))}
                           </div>
-                          <div className="text-sm font-medium mt-1">
-                            {receipt.currency === 'EUR' ? '€' : '$'}
-                            {receipt.totalAmount ? parseFloat(receipt.totalAmount).toFixed(2) : '0.00'}
+                          <div className="amount text-sm font-medium mt-1">
+                            {formatCurrency(parseFloat(receipt.totalAmount || '0'), receipt.currency ?? subscription.currency)}
                           </div>
                         </div>
                       </div>

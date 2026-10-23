@@ -4,10 +4,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, TrendingUp } from 'lucide-react';
 import { type Subscription } from '@/lib/db/schema';
-import { useCurrency } from '@/lib/hooks/use-currency';
 import { urgencyTextClass } from '@/lib/utils/urgency';
 import { cn } from '@/lib/utils';
-import { differenceInDays, format, isToday, isTomorrow, startOfDay } from 'date-fns';
+import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { frequencyLabel } from '@/lib/schedule/billing-schedule';
+import { formatCurrency } from '@/lib/utils/currency';
 
 type UpcomingSubscriptionCardProps = {
   subscription: Subscription;
@@ -15,19 +16,17 @@ type UpcomingSubscriptionCardProps = {
 };
 
 export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubscriptionCardProps) {
-  const { format: formatCurrency } = useCurrency();
-
   if (!subscription.nextBillingDate) return null;
 
-  const billingDate = startOfDay(new Date(subscription.nextBillingDate));
-  const today = startOfDay(new Date());
-  const daysUntil = differenceInDays(billingDate, today);
+  // Midnight UTC of the billing day, read as that calendar day rather than in the browser's zone.
+  const billingDay = fromUtcDate(new Date(subscription.nextBillingDate));
+  const daysUntil = daysBetween(localToday(), billingDay);
 
   const getDateLabel = () => {
-    if (isToday(billingDate)) return 'Today';
-    if (isTomorrow(billingDate)) return 'Tomorrow';
+    if (daysUntil === 0) return 'Today';
+    if (daysUntil === 1) return 'Tomorrow';
     if (daysUntil <= 7) return `In ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
-    return format(billingDate, 'MMM dd, yyyy');
+    return formatLocalDate(billingDay);
   };
 
   return (
@@ -64,7 +63,7 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
             {getDateLabel()}
           </span>
           <span className="text-muted-foreground">
-            • {format(billingDate, 'MMM dd, yyyy')}
+            • {formatLocalDate(billingDay)}
           </span>
         </div>
 
@@ -72,12 +71,12 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
         <div className="flex items-baseline justify-between border-t pt-3">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground capitalize">
-              {subscription.billingFrequency}
+            <span className="text-sm text-muted-foreground">
+              {frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}
             </span>
           </div>
           <span className="amount text-3xl font-semibold tracking-tight">
-            {formatCurrency(parseFloat(subscription.amount))}
+            {formatCurrency(parseFloat(subscription.amount), subscription.currency)}
           </span>
         </div>
       </CardContent>

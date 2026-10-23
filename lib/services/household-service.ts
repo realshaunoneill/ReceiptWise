@@ -472,6 +472,7 @@ export class HouseholdService {
       }
 
       await this.clearDefaultHousehold(tx, householdId, [userId]);
+      await this.detachFinanceRows(tx, householdId, [userId]);
     });
   }
 
@@ -571,6 +572,7 @@ export class HouseholdService {
         ));
 
       await this.clearDefaultHousehold(tx, householdId, [userId]);
+      await this.detachFinanceRows(tx, householdId, [userId]);
     });
 
     return { deletedHousehold: false };
@@ -677,6 +679,23 @@ export class HouseholdService {
       .where(and(
         inArray(users.id, userIds),
         eq(users.defaultHouseholdId, householdId),
+      ));
+  }
+
+  /**
+   * Take a departing member's finance rows (tracked subscriptions and bills) out of the household
+   * they left, back to their personal view. Shared finance rows are readable by every member, so
+   * leaving them shared would keep showing the leaver's bills to the people they left. Receipts
+   * keep their existing behaviour.
+   */
+  private static async detachFinanceRows(tx: Tx, householdId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    await tx
+      .update(subscriptions)
+      .set({ householdId: null, updatedAt: new Date() })
+      .where(and(
+        inArray(subscriptions.userId, userIds),
+        eq(subscriptions.householdId, householdId),
       ));
   }
 

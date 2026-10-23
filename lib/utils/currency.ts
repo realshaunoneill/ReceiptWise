@@ -29,7 +29,19 @@ export function getCurrencyDetails(code: string) {
  * Format a number as currency
  */
 export function formatCurrency(amount: number, currencyCode: string = DEFAULT_CURRENCY): string {
-  const currency = getCurrencyDetails(currencyCode);
+  const supported = SUPPORTED_CURRENCIES.find(c => c.code === currencyCode);
+
+  // A code outside the list (say INR, read off a bill) is formatted as itself. Falling back to
+  // the first entry, as getCurrencyDetails does, would label it with a euro sign.
+  if (!supported) {
+    try {
+      return new Intl.NumberFormat('en-IE', { style: 'currency', currency: currencyCode }).format(amount);
+    } catch {
+      // Not a currency code at all: fall through to the default formatting.
+    }
+  }
+
+  const currency = supported ?? getCurrencyDetails(currencyCode);
 
   return new Intl.NumberFormat(currency.locale, {
     style: 'currency',
