@@ -1,16 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Privacy Policy - ReceiptWise',
-  description: 'Learn how ReceiptWise collects, uses, and protects your personal information. Our commitment to your privacy and data security.',
-  openGraph: {
-    title: 'Privacy Policy - ReceiptWise',
-    description: 'Learn how ReceiptWise collects, uses, and protects your personal information.',
-  },
-  alternates: {
-    canonical: '/privacy',
-  },
-};
+  description: 'What ReceiptWise collects, why, who processes it for us, how long we keep it, and your rights.',
+  path: '/privacy',
+});
 
 export default function PrivacyLayout({
   children,

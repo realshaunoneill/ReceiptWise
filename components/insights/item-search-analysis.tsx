@@ -28,9 +28,9 @@ export function ItemSearchAnalysis({ householdId }: ItemSearchAnalysisProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Item Spending Analysis
+          <CardTitle role="heading" aria-level={2} className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" aria-hidden="true" />
+            Item spending analysis
           </CardTitle>
           <CardDescription>
             Search for any item to see your spending patterns over the past year
@@ -41,6 +41,7 @@ export function ItemSearchAnalysis({ householdId }: ItemSearchAnalysisProps) {
             <Input
               type="text"
               placeholder="e.g., Coke, Coffee, Bread..."
+              aria-label="Item to analyse"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1"

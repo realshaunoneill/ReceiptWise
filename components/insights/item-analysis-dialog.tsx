@@ -16,8 +16,9 @@ import { Loader2, TrendingUp, ShoppingCart, Calendar, Store, ShoppingBag, AlertC
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
 import { ReceiptDetailModal } from '@/components/receipts/receipt-detail-modal';
+import { formatCurrency } from '@/lib/utils/currency';
+import { formatDisplayDate } from '@/components/receipts/format';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 
 interface ItemAnalysisDialogProps {
@@ -51,6 +52,9 @@ export function ItemAnalysisDialog({
   const handleRefresh = () => {
     refetch();
   };
+
+  // Every figure was `{currency} {n.toFixed(2)}` ("EUR 7.50"); formatCurrency gives "€7.50".
+  const money = (amount: number) => formatCurrency(amount, analysis?.summary.currency ?? userCurrency);
 
   const handleViewReceipt = async (receiptId: string) => {
     setIsLoadingReceipt(true);
@@ -86,8 +90,8 @@ export function ItemAnalysisDialog({
         <div className="h-full overflow-y-auto p-6">
           <DialogHeader className="mb-6">
             <DialogTitle className="flex items-center gap-2 text-2xl">
-              <TrendingUp className="h-6 w-6" />
-              Spending Analysis: {itemName}
+              <TrendingUp className="h-6 w-6 shrink-0" aria-hidden="true" />
+              Spending analysis: {itemName}
             </DialogTitle>
             <DialogDescription className="text-base">
               View your spending patterns for this item over time
@@ -183,7 +187,7 @@ export function ItemAnalysisDialog({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive">
                   <AlertCircle className="h-5 w-5" />
-                  Unable to Load Analysis
+                  Unable to load analysis
                 </CardTitle>
                 <CardDescription>
                   We couldn't retrieve spending data for this item
@@ -191,7 +195,7 @@ export function ItemAnalysisDialog({
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-md bg-background/50 p-4 space-y-2">
-                  <p className="text-sm font-medium">Error Details:</p>
+                  <p className="text-sm font-medium">Error details:</p>
                   <p className="text-sm text-muted-foreground">
                     {error.message || 'An unexpected error occurred'}
                   </p>
@@ -214,7 +218,7 @@ export function ItemAnalysisDialog({
                     className="gap-2"
                   >
                     <RefreshCcw className="h-4 w-4" />
-                    Try Again
+                    Try again
                   </Button>
                   <Button
                     onClick={() => onOpenChange(false)}
@@ -235,8 +239,8 @@ export function ItemAnalysisDialog({
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4" />
-                    Total Purchases
+                    <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+                    Total purchases
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -249,14 +253,14 @@ export function ItemAnalysisDialog({
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total spent</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {analysis.summary.currency} {analysis.summary.totalSpent.toFixed(2)}
+                  <div className="amount text-2xl font-bold">
+                    {money(analysis.summary.totalSpent)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Avg: {analysis.summary.currency} {analysis.summary.averagePrice.toFixed(2)} per purchase
+                  <p className="amount text-xs text-muted-foreground mt-1">
+                    Avg {money(analysis.summary.averagePrice)} per purchase
                   </p>
                 </CardContent>
               </Card>
@@ -264,14 +268,15 @@ export function ItemAnalysisDialog({
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Time Period
+                    <Calendar className="h-4 w-4" aria-hidden="true" />
+                    Time period
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{analysis.searchPeriod.months} months</div>
+                  {/* Was the browser's default format ("10/21/2026"). */}
                   <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(analysis.searchPeriod.startDate).toLocaleDateString()} - {new Date(analysis.searchPeriod.endDate).toLocaleDateString()}
+                    {formatDisplayDate(analysis.searchPeriod.startDate)} – {formatDisplayDate(analysis.searchPeriod.endDate)}
                   </p>
                 </CardContent>
               </Card>
@@ -279,7 +284,7 @@ export function ItemAnalysisDialog({
               {analysis.recentPurchases.length >= 2 && (
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Price Trend</CardTitle>
+                    <CardTitle className="text-sm font-medium">Price trend</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {(() => {
@@ -311,8 +316,8 @@ export function ItemAnalysisDialog({
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <ShoppingBag className="h-5 w-5" />
-                    Item Variants
+                    <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+                    Item variants
                   </CardTitle>
                   <CardDescription>
                     {analysis.itemVariants.length === 1
@@ -331,12 +336,12 @@ export function ItemAnalysisDialog({
                               {variant.count} purchase{variant.count !== 1 ? 's' : ''}
                             </div>
                           </div>
-                          <div className="text-right ml-4">
-                            <div className="font-semibold">
-                              {analysis.summary.currency} {variant.totalSpent.toFixed(2)}
+                          <div className="text-right ml-4 shrink-0">
+                            <div className="amount font-semibold">
+                              {money(variant.totalSpent)}
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              Avg: {analysis.summary.currency} {variant.averagePrice.toFixed(2)}
+                            <div className="amount text-xs text-muted-foreground">
+                              Avg {money(variant.averagePrice)}
                             </div>
                           </div>
                         </div>
@@ -360,8 +365,8 @@ export function ItemAnalysisDialog({
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Store className="h-5 w-5" />
-                    Top Merchants
+                    <Store className="h-5 w-5" aria-hidden="true" />
+                    Top merchants
                   </CardTitle>
                   <CardDescription>Where you've purchased these items most frequently</CardDescription>
                 </CardHeader>
@@ -380,12 +385,12 @@ export function ItemAnalysisDialog({
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-semibold">
-                            {analysis.summary.currency} {merchant.total.toFixed(2)}
+                        <div className="text-right shrink-0">
+                          <div className="amount font-semibold">
+                            {money(merchant.total)}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            Avg: {analysis.summary.currency} {merchant.average.toFixed(2)}
+                          <div className="amount text-xs text-muted-foreground">
+                            Avg {money(merchant.average)}
                           </div>
                         </div>
                       </div>
@@ -402,8 +407,8 @@ export function ItemAnalysisDialog({
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Receipt className="h-5 w-5" />
-                    Recent Purchases
+                    <Receipt className="h-5 w-5" aria-hidden="true" />
+                    Recent purchases
                   </CardTitle>
                   <CardDescription>
                     {analysis.recentPurchases.length} recent purchase{analysis.recentPurchases.length !== 1 ? 's' : ''} of this item
@@ -419,16 +424,19 @@ export function ItemAnalysisDialog({
                         <div className="flex items-start gap-4">
                           {/* Receipt Thumbnail */}
                           {purchase.imageUrl ? (
-                            <div 
-                              className="shrink-0 w-16 h-20 sm:w-20 sm:h-24 rounded-md overflow-hidden bg-muted border cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                            <button
+                              type="button"
+                              className="shrink-0 w-16 h-20 sm:w-20 sm:h-24 rounded-md overflow-hidden bg-muted border cursor-pointer outline-none hover:ring-2 hover:ring-primary/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-all"
                               onClick={() => purchase.receiptId && handleViewReceipt(purchase.receiptId)}
+                              disabled={!purchase.receiptId || isLoadingReceipt}
+                              aria-label={`View the receipt from ${purchase.merchant || 'this shop'}`}
                             >
-                              <img 
-                                src={purchase.imageUrl} 
-                                alt="Receipt" 
+                              <img
+                                src={purchase.imageUrl}
+                                alt=""
                                 className="w-full h-full object-cover"
                               />
-                            </div>
+                            </button>
                           ) : (
                             <div className="shrink-0 w-16 h-20 sm:w-20 sm:h-24 rounded-md bg-muted border flex items-center justify-center">
                               <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
@@ -439,7 +447,7 @@ export function ItemAnalysisDialog({
                           <div className="flex-1 min-w-0 space-y-2">
                             <div className="flex items-center gap-2 flex-wrap">
                               <Store className="h-4 w-4 text-muted-foreground shrink-0" />
-                              <span className="font-medium truncate">{purchase.merchant || 'Unknown Merchant'}</span>
+                              <span className="font-medium truncate">{purchase.merchant || 'Unknown merchant'}</span>
                               {index === 0 && (
                                 <Badge variant="secondary" className="text-xs">
                                   Latest
@@ -449,8 +457,8 @@ export function ItemAnalysisDialog({
 
                             <div className="flex items-center gap-4 flex-wrap text-sm text-muted-foreground">
                               <div className="flex items-center gap-1.5">
-                                <Calendar className="h-3.5 w-3.5" />
-                                {purchase.date ? format(new Date(purchase.date), 'MMM dd, yyyy') : 'Date unknown'}
+                                <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                                {purchase.date ? formatDisplayDate(purchase.date) : 'Date unknown'}
                               </div>
                               {purchase.quantity && (
                                 <div className="flex items-center gap-1.5">
@@ -460,9 +468,9 @@ export function ItemAnalysisDialog({
                               )}
                             </div>
 
-                            <div className="flex items-center justify-between pt-1">
-                              <div className="font-semibold text-lg">
-                                {analysis.summary.currency} {parseFloat(purchase.price).toFixed(2)}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                              <div className="amount font-semibold text-lg">
+                                {formatCurrency(parseFloat(purchase.price) || 0, purchase.currency || analysis.summary.currency)}
                               </div>
 
                               {purchase.receiptId && (
@@ -471,8 +479,10 @@ export function ItemAnalysisDialog({
                                   size="sm"
                                   onClick={() => handleViewReceipt(purchase.receiptId)}
                                   disabled={isLoadingReceipt}
-                                  className="gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="gap-2"
                                 >
+                                  {/* Was opacity-0 until hover: invisible on a touch screen and
+                                      to anyone tabbing to it. */}
                                   {isLoadingReceipt ? (
                                     <>
                                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -480,8 +490,8 @@ export function ItemAnalysisDialog({
                                     </>
                                   ) : (
                                     <>
-                                      View Receipt
-                                      <ExternalLink className="h-3.5 w-3.5" />
+                                      View receipt
+                                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                                     </>
                                   )}
                                 </Button>

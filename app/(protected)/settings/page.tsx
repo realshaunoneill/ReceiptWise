@@ -22,7 +22,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useSession } from '@/lib/auth-client';
-import { useUser as useUserData } from '@/lib/hooks/use-user';
+import { useFeature, useUser as useUserData } from '@/lib/hooks/use-user';
 import { useOnboarding } from '@/components/onboarding/onboarding-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -34,7 +34,19 @@ import { useHouseholds } from '@/lib/hooks/use-households';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 import { EmailForwardingCard } from '@/components/settings/email-forwarding-card';
 
+// 'subscription' is the Premium tab: the label changed so it isn't confused with the
+// subscriptions tracker, but the value stays so ?tab=subscription links keep working.
 const VALID_TABS = ['profile', 'preferences', 'subscription', 'household', 'integrations', 'data'] as const;
+
+/** A calendar date in en-IE ("24 Oct 2026") in the viewer's time zone. Was toLocaleDateString(), US format here. */
+function formatDay(value: string | Date): string {
+  return new Date(value).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** A moment in en-IE ("24 Oct 2026, 02:08"). */
+function formatMoment(value: string | Date): string {
+  return new Date(value).toLocaleString('en-IE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -42,6 +54,7 @@ export default function SettingsPage() {
   const authUser = session?.user;
   const { user: userData, isLoading: userDataLoading, refetch: refetchUser } = useUserData();
   const { startOnboarding } = useOnboarding();
+  const billsEnabled = useFeature('bills');
   const [selectedHousehold, setSelectedHousehold] = useState<string>('none');
   const [selectedCurrency, setSelectedCurrency] = useState<string>('EUR');
   const [isExporting, setIsExporting] = useState(false);
@@ -443,7 +456,7 @@ export default function SettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="subscription" className="gap-2">
               <CreditCard className="hidden h-4 w-4 sm:block" aria-hidden="true" />
-              Subscription
+              Premium
             </TabsTrigger>
             <TabsTrigger value="household" className="gap-2">
               <Home className="hidden h-4 w-4 sm:block" aria-hidden="true" />
@@ -509,17 +522,13 @@ export default function SettingsPage() {
                   <div>
                     <Label className="text-sm font-medium">Member Since</Label>
                     <p className="text-sm text-muted-foreground">
-                      {userData?.createdAt
-                        ? new Date(userData.createdAt).toLocaleDateString()
-                        : 'Unknown'}
+                      {userData?.createdAt ? formatDay(userData.createdAt) : 'Unknown'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Last Updated</Label>
                     <p className="text-sm text-muted-foreground">
-                      {userData?.updatedAt
-                        ? new Date(userData.updatedAt).toLocaleDateString()
-                        : 'Unknown'}
+                      {userData?.updatedAt ? formatDay(userData.updatedAt) : 'Unknown'}
                     </p>
                   </div>
                 </div>
@@ -606,8 +615,12 @@ export default function SettingsPage() {
           <TabsContent value="subscription" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Subscription Plan</CardTitle>
-                <CardDescription>Manage your ReceiptWise subscription</CardDescription>
+                <CardTitle>Premium</CardTitle>
+                <CardDescription>
+                  {billsEnabled
+                    ? 'Your ReceiptWise plan: receipts, bills and the monthly plan'
+                    : 'Manage your ReceiptWise plan'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -625,7 +638,9 @@ export default function SettingsPage() {
                         </div>
                         <p className="text-sm text-muted-foreground">
                           {userData?.subscribed
-                            ? 'Unlimited receipts, advanced analytics, and household sharing'
+                            ? billsEnabled
+                              ? 'Unlimited receipts, bills and the monthly plan, analytics, and household sharing'
+                              : 'Unlimited receipts, advanced analytics, and household sharing'
                             : 'View-only access to existing data'}
                         </p>
                       </div>
@@ -641,7 +656,7 @@ export default function SettingsPage() {
                           onClick={handleManageSubscription}
                           disabled={billingPortalMutation.isPending}
                         >
-                          {billingPortalMutation.isPending ? 'Loading...' : 'Manage Subscription'}
+                          {billingPortalMutation.isPending ? 'Loading...' : 'Manage billing'}
                         </Button>
                       )}
                     </div>
@@ -649,20 +664,25 @@ export default function SettingsPage() {
 
                   {userData?.subscribed && (
                     <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                      <h4 className="font-medium text-sm">Premium Features</h4>
+                      <h4 className="font-medium text-sm">Premium features</h4>
                       <ul className="space-y-1 text-sm text-muted-foreground">
-                        <li className="flex items-center gap-2">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                          Unlimited receipt storage
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                          Advanced spending analytics
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                          Household sharing & collaboration
-                        </li>
+                        {[
+                          'Unlimited receipt storage',
+                          ...(billsEnabled
+                            ? [
+                              'Bills and subscriptions: what is due next, with direct debits and card payments ticked off for you',
+                              'The monthly plan: pay, bills and savings, payday to payday',
+                              'Bills read from uploads and forwarded email',
+                            ]
+                            : []),
+                          'Advanced spending analytics',
+                          'Household sharing & collaboration',
+                        ].map((feature) => (
+                          <li key={feature} className="flex items-center gap-2">
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            {feature}
+                          </li>
+                        ))}
                       </ul>
                     </div>
                   )}
@@ -713,6 +733,12 @@ export default function SettingsPage() {
                 >
                   {updateDefaultHousehold.isPending ? 'Saving...' : 'Save Default Household'}
                 </Button>
+                {billsEnabled && (
+                  <p className="text-xs text-muted-foreground">
+                    This only sets where new receipts go. Shared bills and the household&apos;s plan are
+                    managed from the Plan and Bills pages.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -738,7 +764,8 @@ export default function SettingsPage() {
           <TabsContent value="integrations" className="space-y-6 mt-6">
             <EmailForwardingCard />
 
-            <Card>
+            {/* Hidden on phones: Chrome on mobile doesn't run extensions. */}
+            <Card className="hidden md:flex">
               <CardHeader>
                 <CardTitle>Chrome Extension</CardTitle>
                 <CardDescription>
@@ -873,12 +900,12 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    Created {new Date(key.createdAt).toLocaleDateString()}
+                                    Created {formatDay(key.createdAt)}
                                   </span>
                                   {key.lastUsedAt && (
                                     <span className="flex items-center gap-1">
                                       <Clock className="h-3 w-3" />
-                                      Last used {new Date(key.lastUsedAt).toLocaleDateString()}
+                                      Last used {formatDay(key.lastUsedAt)}
                                     </span>
                                   )}
                                   {!key.lastUsedAt && <span className="text-warning">Never used</span>}
@@ -891,8 +918,9 @@ export default function SettingsPage() {
                                     size="sm"
                                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                     disabled={isLoadingApiKeys}
+                                    aria-label={`Delete the key ${key.name}`}
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -968,14 +996,14 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">Last Export</span>
                     <span className="text-sm text-muted-foreground">
-                      {userData?.lastExportedAt
-                        ? new Date(userData.lastExportedAt).toLocaleString()
-                        : 'Never'}
+                      {userData?.lastExportedAt ? formatMoment(userData.lastExportedAt) : 'Never'}
                     </span>
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Export all your receipts, subscriptions, and payment history in CSV or JSON format. &quot;All data&quot; includes your plan: income, bills, savings, balances and what was read off your bills.
+                  {billsEnabled
+                    ? <>Export your receipts, bills and subscriptions, and payment history in CSV or JSON format. &quot;All data&quot; includes your plan: income, bills, savings, balances and what was read off your bills.</>
+                    : <>Export all your receipts, subscriptions, and payment history in CSV or JSON format.</>}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Button
@@ -1003,7 +1031,7 @@ export default function SettingsPage() {
                     className="justify-start"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? 'Exporting...' : 'Receipts Only'}
+                    {isExporting ? 'Exporting...' : 'Receipts only'}
                   </Button>
                   <Button
                     variant="outline"
@@ -1012,7 +1040,7 @@ export default function SettingsPage() {
                     className="justify-start"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? 'Exporting...' : 'Subscriptions Only'}
+                    {isExporting ? 'Exporting...' : billsEnabled ? 'Bills & subscriptions only' : 'Subscriptions only'}
                   </Button>
                 </div>
                 <div className="border-t pt-4 mt-4">
@@ -1055,7 +1083,7 @@ export default function SettingsPage() {
                           <p className="text-sm text-muted-foreground">
                             Your account is scheduled to be permanently deleted on{' '}
                             <strong className="text-foreground">
-                              {deletionDate?.toLocaleString(undefined, {
+                              {deletionDate?.toLocaleString('en-IE', {
                                 dateStyle: 'full',
                                 timeStyle: 'short',
                               })}
@@ -1089,7 +1117,9 @@ export default function SettingsPage() {
                 ) : (
                   <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
                     <p className="mb-4 text-sm text-muted-foreground">
-                      Deleting your account will permanently remove all your data, including receipts, households, and settings. This action cannot be undone.
+                      Deleting your account will permanently remove all your data: receipts, subscription
+                      tracking, {billsEnabled ? 'your plan (income, bills, savings goals, balances and uploaded bills), ' : ''}household
+                      memberships, and settings. This action cannot be undone.
                     </p>
                     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                       <AlertDialogTrigger asChild>
@@ -1114,7 +1144,9 @@ export default function SettingsPage() {
                                 <ul className="text-sm list-disc list-inside space-y-1 text-muted-foreground">
                                   <li>All your receipts and images</li>
                                   <li>Subscription tracking data</li>
-                                  <li>Your plan: income, bills, savings goals, balances, and the bills you uploaded or forwarded</li>
+                                  {billsEnabled && (
+                                    <li>Your plan: income, bills, savings goals, balances, and the bills you uploaded or forwarded</li>
+                                  )}
                                   <li>Household memberships</li>
                                   <li>Account settings and preferences</li>
                                 </ul>

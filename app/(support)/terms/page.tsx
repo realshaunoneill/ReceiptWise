@@ -18,7 +18,7 @@ export default function TermsPage() {
         <div>
           <h1 id="terms-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Terms of Service</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: October 23, 2026
+            Last updated: October 24, 2026
           </p>
         </div>
 
@@ -26,7 +26,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>1. Acceptance of Terms</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               By accessing and using ReceiptWise ("the Service"), you accept and agree to be bound by the terms and
               provision of this agreement. If you do not agree to these terms, please do not use the Service.
@@ -38,7 +38,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>2. Description of Service</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               ReceiptWise provides receipt management and expense tracking services, including AI-powered OCR
               (Optical Character Recognition) for extracting data from receipt images, spending analytics,
@@ -57,10 +57,10 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>3. User Accounts</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              You are responsible for maintaining the confidentiality of your account and password. You agree to
-              accept responsibility for all activities that occur under your account.
+              You sign in with your Google account, so keep that account secure. You are responsible for all
+              activity under your ReceiptWise account.
             </p>
             <p>
               You must provide accurate and complete information when creating your account and keep this
@@ -73,7 +73,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>4. Subscription and Payment</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               <strong>One plan:</strong> ReceiptWise has a single paid plan, Premium, billed monthly or annually at
               the price shown on the pricing page when you subscribe. There is no free tier. Prices include any
@@ -112,7 +112,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>5. User Content</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               You retain all rights to the content you upload to the Service, including receipt images and associated
               data. By uploading content, you grant us a license to process, store, and display this content solely
@@ -129,7 +129,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>6. Acceptable Use</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>You agree not to:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Use the Service for any illegal purpose or in violation of any laws</li>
@@ -145,13 +145,13 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>7. AI and OCR Processing</CardTitle>
+            <CardTitle>7. Reading receipts and bills</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              Our Service uses AI-powered OCR technology to extract information from receipt images. While we strive
-              for accuracy, we cannot guarantee that all extracted data will be 100% accurate. Users are responsible
-              for reviewing and verifying the accuracy of extracted data.
+              The Service uses AI to read receipts, and bills and statements you upload or forward: the merchant,
+              items and totals, or the provider, amount due and due date. We cannot guarantee that what is read is
+              always accurate. Check it, particularly amounts and dates before relying on them in your plan.
             </p>
           </CardContent>
         </Card>
@@ -160,7 +160,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>8. Data Privacy and Security</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               We take data privacy and security seriously. Please review our Privacy Policy to understand how we
               collect, use, and protect your personal information.
@@ -176,11 +176,11 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>9. Household Sharing</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              Premium users may create households and invite other users to share receipts. By creating or joining
-              a household, you agree that other household members will have access to shared receipts and associated
-              data.
+              Premium users may create households and invite other people to share receipts, and bills, income,
+              goals and plan items they choose to share. By creating or joining a household, you agree that other
+              members can see what is shared with it.
             </p>
             <p>
               The household owner is responsible for who they invite, and can remove members.
@@ -192,7 +192,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>10. Intellectual Property</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               The Service and its original content, features, and functionality are owned by ReceiptWise and are
               protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.
@@ -204,7 +204,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>11. Disclaimer of Warranties</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               The Service is provided "as is" and "as available" without any warranties of any kind, either express
               or implied. We do not warrant that the Service will be uninterrupted, secure, or error-free.
@@ -216,7 +216,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>12. Limitation of Liability</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               To the fullest extent permitted by law, ReceiptWise shall not be liable for any indirect, incidental,
               special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred
@@ -233,7 +233,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>13. Termination</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               We may terminate or suspend your account and access to the Service immediately, without prior notice,
               for conduct that we believe violates these Terms or is harmful to other users, us, or third parties.
@@ -251,7 +251,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>14. Changes to Terms</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               We may modify these terms. If we make material changes, we will show a notice in the Service before
               they take effect. If you do not agree to the changes, you can cancel before they apply; continuing to
@@ -264,7 +264,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>15. Governing Law</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               These Terms are governed by the laws of Ireland, and the Irish courts have jurisdiction. If you are a
               consumer living elsewhere in the EU or in the UK, you also keep the protection of the mandatory
@@ -277,7 +277,7 @@ export default function TermsPage() {
           <CardHeader>
             <CardTitle>16. Contact Information</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               If you have any questions about these Terms, please contact us at:
             </p>

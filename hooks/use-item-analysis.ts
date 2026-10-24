@@ -12,6 +12,13 @@ interface TopItem {
   lastPurchased?: string;
   category?: string | null;
   merchantCount?: number;
+  merchantBreakdown?: MerchantTotals[];
+}
+
+interface MerchantTotals {
+  merchant: string;
+  count: number;
+  total: number;
 }
 
 export interface RecentPurchase {
@@ -73,6 +80,30 @@ interface UseItemAnalysisOptions {
   months?: number;
   enabled?: boolean;
   userCurrency?: string;
+}
+
+/**
+ * Purchases and spend per merchant across every matched item variant, most purchases first.
+ *
+ * Was the merchant names alone with `count: 0, total: 0`, so every row of "Top merchants" read
+ * "0 purchases · EUR 0.00".
+ */
+export function topMerchantsFor(items: Pick<TopItem, 'merchantBreakdown'>[]): ItemAnalysis['topMerchants'] {
+  const byMerchant = new Map<string, { count: number; total: number }>();
+  for (const item of items) {
+    for (const { merchant, count, total } of item.merchantBreakdown ?? []) {
+      const entry = byMerchant.get(merchant) ?? { count: 0, total: 0 };
+      entry.count += count;
+      entry.total += total;
+      byMerchant.set(merchant, entry);
+    }
+  }
+  return Array.from(byMerchant, ([merchant, { count, total }]) => ({
+    merchant,
+    count,
+    total: parseFloat(total.toFixed(2)),
+    average: count > 0 ? parseFloat((total / count).toFixed(2)) : 0,
+  })).sort((a, b) => b.count - a.count || b.total - a.total);
 }
 
 async function analyzeItem(
@@ -181,7 +212,6 @@ async function analyzeItem(
       let totalPurchases = 0;
       let totalSpent = 0;
       let totalQuantity = 0;
-      const merchantsSet = new Set<string>();
       const itemVariants: Array<{
         name: string;
         count: number;
@@ -194,7 +224,6 @@ async function analyzeItem(
         totalPurchases += item.count;
         totalSpent += item.totalSpent;
         totalQuantity += item.totalQuantity;
-        item.merchants.forEach((m: string) => merchantsSet.add(m));
 
         itemVariants.push({
           name: item.name,
@@ -227,12 +256,7 @@ async function analyzeItem(
           averageQuantity: totalQuantity / totalPurchases,
           currency,
         },
-        topMerchants: Array.from(merchantsSet).map((merchant) => ({
-          merchant,
-          count: 0,
-          total: 0,
-          average: averagePrice,
-        })),
+        topMerchants: topMerchantsFor(matchedItems),
         monthlyTrend: [],
         // Use actual purchase history if available, otherwise use synthetic data
         recentPurchases: purchaseHistory.length > 0

@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { savingsGoals } from '@/lib/db/schema';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE, scopeFromSearchParams } from '@/lib/route-guards';
+import { canUseAccount } from '@/lib/services/account-service';
 import { canFileFinanceRowUnder, financeScopeCondition } from '@/lib/services/finance-access';
 import { createGoalSchema, parseBody, readJson } from '@/lib/validation/finance';
 
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
     const householdId = input.householdId ?? null;
     if (!(await canFileFinanceRowUnder(householdId, user.id, entitlements))) {
       return NextResponse.json({ error: householdId ? 'Not a member of this household' : 'Active subscription required' }, { status: 403 });
+    }
+    if (!(await canUseAccount(input.linkedAccountId, user.id, entitlements))) {
+      return NextResponse.json({ error: 'linkedAccountId is not one of your accounts' }, { status: 400 });
     }
 
     const [created] = await db

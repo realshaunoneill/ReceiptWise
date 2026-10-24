@@ -22,49 +22,36 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
   const billingDay = fromUtcDate(new Date(subscription.nextBillingDate));
   const daysUntil = daysBetween(localToday(), billingDay);
 
-  const getDateLabel = () => {
-    if (daysUntil === 0) return 'Today';
-    if (daysUntil === 1) return 'Tomorrow';
-    if (daysUntil <= 7) return `In ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
-    return formatLocalDate(billingDay);
-  };
+  // "In 3 days · 27 Oct 2026", or just the date further out: it used to show
+  // "Nov 1, 2026 • Nov 1, 2026", and "Due Today" in the corner as well as "Today" here.
+  const date = formatLocalDate(billingDay, { day: 'numeric', month: 'short', year: 'numeric' }, 'en-IE');
+  const relative = daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : daysUntil <= 7 ? `In ${daysUntil} days` : null;
 
   return (
     <Card
       className="cursor-pointer transition-colors hover:border-primary/50"
       onClick={onClick}
     >
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="space-y-4 p-4 sm:p-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h3 className="mb-1 truncate text-xl font-semibold">{subscription.name}</h3>
             {subscription.category && (
-              <Badge variant="outline" className="text-xs capitalize">
+              <Badge variant="outline" className="text-xs">
                 {subscription.category}
               </Badge>
             )}
           </div>
-          {daysUntil === 0 ? (
-            <Badge variant="destructive" className="shrink-0">
-              Due Today
-            </Badge>
-          ) : daysUntil === 1 ? (
-            <Badge variant="secondary" className="shrink-0">
-              Tomorrow
-            </Badge>
-          ) : null}
         </div>
 
         {/* Date */}
         <div className="flex items-center gap-2 text-sm border-t pt-3">
           <Calendar className="w-4 h-4 text-muted-foreground" />
           <span className={cn('font-semibold', urgencyTextClass(daysUntil))}>
-            {getDateLabel()}
+            {relative ?? date}
           </span>
-          <span className="text-muted-foreground">
-            • {formatLocalDate(billingDay)}
-          </span>
+          {relative && <span className="text-muted-foreground">· {date}</span>}
         </div>
 
         {/* Amount */}

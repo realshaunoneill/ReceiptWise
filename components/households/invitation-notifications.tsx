@@ -35,7 +35,7 @@ export function InvitationNotifications() {
 
       if (action === 'accept') {
         toast.success(`Joined "${householdName}"!`, {
-          description: 'You can now view shared receipts.',
+          description: 'Everything shared with it is now on your dashboard.',
         });
       } else {
         toast.success('Invitation declined');
@@ -59,8 +59,13 @@ export function InvitationNotifications() {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
-          <Bell className="h-5 w-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9"
+          aria-label={pendingCount > 0 ? `Invitations (${pendingCount} pending)` : 'Invitations'}
+        >
+          <Bell className="h-5 w-5" aria-hidden="true" />
           {pendingCount > 0 && (
             <Badge
               className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full px-1.5 text-xs bg-primary text-primary-foreground animate-in zoom-in-50"

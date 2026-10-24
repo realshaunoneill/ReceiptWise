@@ -7,8 +7,23 @@ export type SubscriptionWithPayments = Subscription & {
   recentPayments?: SubscriptionPayment[];
 };
 
+/** A bill filed against the item; its file opens at /api/bills/documents/[id]/file. */
+export type FiledBill = {
+  id: string;
+  paymentId: string | null;
+  fileName: string | null;
+  provider: string | null;
+  amountDue: string | null;
+  currency: string | null;
+  dueDate: string | null;
+  issueDate: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+};
+
 export type SubscriptionDetail = Subscription & {
   payments: SubscriptionPayment[];
+  bills?: FiledBill[];
   /** False for a member of the household it is shared with: they can mark payments, not edit it. */
   canEdit?: boolean;
 };
@@ -27,13 +42,15 @@ type CreateSubscriptionData = {
   customFrequencyDays?: number;
   /** YYYY-MM-DD */
   startDate: string;
-  householdId?: string;
+  householdId?: string | null;
   isBusinessExpense?: boolean;
   website?: string;
   notes?: string;
   kind?: SubscriptionKind;
   amountType?: 'fixed' | 'variable';
   paymentMethod?: PaymentMethod | null;
+  /** The account it comes out of; null = the main one. */
+  paidFromAccountId?: string | null;
 };
 
 type UpdateSubscriptionData = Partial<{
@@ -57,6 +74,7 @@ type UpdateSubscriptionData = Partial<{
   kind: SubscriptionKind;
   amountType: 'fixed' | 'variable';
   paymentMethod: PaymentMethod | null;
+  paidFromAccountId: string | null;
 }>;
 
 export type UpdatePaymentData = {

@@ -4,7 +4,8 @@ import { subscriptions, subscriptionPayments } from '@/lib/db/schema';
 import { eq, and, asc, desc, inArray } from 'drizzle-orm';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
-import { canFileFinanceRowUnder, financeScopeCondition, type FinanceScope } from '@/lib/services/finance-access';
+import { getAccount } from '@/lib/services/account-service';
+import { canFileFinanceRowUnder, canReadFinanceRow, financeScopeCondition, type FinanceScope } from '@/lib/services/finance-access';
 import { SubscriptionService } from '@/lib/services/subscription-service';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
 import { createSubscriptionSchema, parseBody, readJson, SUBSCRIPTION_KINDS, SUBSCRIPTION_STATUSES } from '@/lib/validation/finance';
@@ -116,6 +117,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (input.paidFromAccountId) {
+      const account = await getAccount(input.paidFromAccountId);
+      if (!account || !canReadFinanceRow(account, user.id, entitlements)) {
+        return NextResponse.json({ error: 'paidFromAccountId is not one of your accounts' }, { status: 400 });
+      }
+    }
+
     // A one-off falls on its start date, so its "billing day" is that day.
     const billingDay = input.billingFrequency === 'once' ? input.startDate.getUTCDate() : input.billingDay!;
     const schedule = {
@@ -146,6 +154,7 @@ export async function POST(req: NextRequest) {
         amountType: input.amountType,
         paymentMethod: input.paymentMethod ?? null,
         accountReference: input.accountReference ?? null,
+        paidFromAccountId: input.paidFromAccountId ?? null,
       })
       .returning();
 

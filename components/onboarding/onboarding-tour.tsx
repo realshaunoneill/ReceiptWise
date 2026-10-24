@@ -29,7 +29,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFeature } from '@/lib/hooks/use-user';
+import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { toast } from 'sonner';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from '@/lib/utils/currency';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
@@ -93,7 +93,7 @@ const onboardingSteps: OnboardingStep[] = [
     color: 'text-primary',
     bgColor: 'bg-primary/10',
     features: [
-      { icon: Users, text: 'Shared with family, a partner or flatmates' },
+      { icon: Users, text: 'Shared with family, a partner or housemates' },
       { icon: ScanLine, text: 'Receipts read and itemised for you' },
       { icon: BarChart3, text: 'Spending broken down by category' },
       { icon: Shield, text: 'Your data, exportable and deletable' },
@@ -125,14 +125,13 @@ const onboardingSteps: OnboardingStep[] = [
   {
     id: 4,
     title: 'Adding receipts',
-    description: 'Photograph the paper, upload an image, or clip an online receipt from your browser.',
+    description: 'Photograph the paper, or upload a photo or a screenshot of one.',
     icon: Upload,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
     features: [
-      { icon: Upload, text: 'Camera, file upload, or browser extension' },
+      { icon: Upload, text: 'Camera or file upload, a whole stack at once' },
       { icon: ScanLine, text: 'Merchant, date, total, tax and line items' },
-      { icon: Layers, text: 'Drop a whole stack in at once' },
       { icon: CheckCircle2, text: 'Sorted into a category automatically' },
     ],
   },
@@ -191,6 +190,19 @@ const onboardingSteps: OnboardingStep[] = [
   },
 ];
 
+/** Step 5 with the bills feature on: the same page, which tracks bills as well as subscriptions. */
+const BILLS_STEP: OnboardingStep = {
+  ...onboardingSteps.find((candidate) => candidate.id === 5)!,
+  title: 'Bills & subscriptions',
+  description: 'Rent, the car, the phone, Netflix: everything that goes out each month, and whether it has.',
+  features: [
+    { icon: CreditCard, text: 'Every bill and subscription in one list' },
+    { icon: Users, text: 'Shared with the household, if you like' },
+    { icon: CheckCircle2, text: 'Direct debits marked paid when they go out' },
+    { icon: BarChart3, text: 'See what is due next' },
+  ],
+};
+
 type OnboardingTourProps = {
   open: boolean;
   onComplete: () => void;
@@ -202,7 +214,13 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
   const [isProcessing, setIsProcessing] = useState(false);
   const [pricingDetails, setPricingDetails] = useState<PricingDetails | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
-  const [selectedCurrency, setSelectedCurrency] = useState(DEFAULT_CURRENCY);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>(DEFAULT_CURRENCY);
+  const { user, isSubscribed } = useUser();
+
+  // Start the picker on the account's own currency.
+  useEffect(() => {
+    if (open && user?.currency) setSelectedCurrency(user.currency);
+  }, [open, user?.currency]);
 
   // Fetch pricing details when component mounts and dialog is open
   useEffect(() => {
@@ -235,9 +253,13 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
     }
   }, [open]);
 
-  // The plan step only for accounts that have the plan (FEATURE_BILLS).
+  // The plan step only for accounts that have the plan (FEATURE_BILLS); the pricing step only for
+  // people who aren't subscribed. A subscriber restarting the tour from Settings was offered a trial.
   const billsEnabled = useFeature('bills');
-  const steps = onboardingSteps.filter((candidate) => !candidate.requiresBills || billsEnabled);
+  const steps = onboardingSteps
+    .filter((candidate) => !candidate.requiresBills || billsEnabled)
+    .filter((candidate) => !candidate.pricing || !isSubscribed)
+    .map((candidate) => (billsEnabled && candidate.id === 5 ? BILLS_STEP : candidate));
   const step = steps[Math.min(currentStep, steps.length - 1)];
   const Icon = step.icon;
   const isLastStep = currentStep === steps.length - 1;
@@ -268,8 +290,9 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
   };
 
   const handleNext = async () => {
-    // If we're on the currency step, save the currency preference
-    if (step.currencySelect) {
+    // Only when it was changed: the picker used to start on EUR whatever the account used, so
+    // restarting the tour and pressing Next quietly reset the currency to EUR.
+    if (step.currencySelect && selectedCurrency !== (user?.currency ?? DEFAULT_CURRENCY)) {
       await saveCurrency();
     }
 
@@ -435,9 +458,9 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        This will be used to display amounts in your dashboard and reports. You can change this later in Settings.
                         {/* Was support@receiptwise.app; the domain is receiptwise.io. */}
-                        Missing yours? <a href="mailto:support@receiptwise.io?subject=Currency%20request" className="text-primary hover:underline">Ask us to add it</a>.
+                        You can change it in Settings. Missing yours?{' '}
+                        <a href="mailto:support@receiptwise.io?subject=Currency%20request" className="text-primary hover:underline">Ask us to add it</a>.
                       </p>
                     </motion.div>
                   </div>
@@ -531,7 +554,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                             'Unlimited receipts, all of them scanned',
                             'Unlimited households',
                             'Spending analytics and insights',
-                            'Subscription tracking',
+                            billsEnabled ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
                             'Export everything, any time',
                           ].map((feature) => (
                             <div key={feature} className="flex items-start gap-2">
@@ -613,19 +636,23 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                         onClick={handleBack}
                         disabled={isProcessing}
                         size="sm"
+                        aria-label="Back"
                       >
                         <ChevronLeft className="w-4 h-4 mr-1" />
                         <span className="hidden sm:inline">Back</span>
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleSkip()}
-                      disabled={isProcessing}
-                      size="sm"
-                    >
-                      Skip tutorial
-                    </Button>
+                    {/* The pricing step has its own "Maybe later". */}
+                    {!step.pricing && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleSkip()}
+                        disabled={isProcessing}
+                        size="sm"
+                      >
+                        Skip tour
+                      </Button>
+                    )}
                   </div>
                   {!step.pricing && (
                     <Button
@@ -633,7 +660,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                       size="sm"
                       className="min-w-24 sm:min-w-32"
                     >
-                      {isLastStep ? 'Get Started' : 'Next'}
+                      {isLastStep ? 'Get started' : 'Next'}
                       <ArrowRight className="w-4 h-4 ml-1" />
                     </Button>
                   )}

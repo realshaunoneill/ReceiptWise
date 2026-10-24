@@ -14,7 +14,7 @@ const CONFIGURED_TRIAL_DAYS = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
  * the prompt can understate for a moment but never overstate. Public pages (landing, sign-up)
  * are for new visitors and keep reading the env var directly.
  */
-export function useTrialDays(): number {
+export function useTrialDays({ enabled = true }: { enabled?: boolean } = {}): number {
   const { data } = useQuery({
     queryKey: ['checkout-trial-days'],
     queryFn: async () => {
@@ -23,7 +23,7 @@ export function useTrialDays(): number {
       const body = (await response.json()) as { trialDays?: number };
       return body.trialDays ?? 0;
     },
-    enabled: CONFIGURED_TRIAL_DAYS > 0,
+    enabled: enabled && CONFIGURED_TRIAL_DAYS > 0,
     staleTime: 5 * 60 * 1000,
   });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Receipt as ReceiptIcon, SkipForward, Trash2, Undo2 } from 'lucide-react';
+import { FileText, MoreHorizontal, Pencil, Receipt as ReceiptIcon, SkipForward, Trash2, Undo2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { useUpdateOccurrence } from '@/hooks/use-subscriptions';
 import { formatLocalDate, localToday } from '@/lib/dates/local-date';
-import { useAddContribution, useDeleteEntry, useRemoveContributions, useUpdateEntry } from '@/lib/hooks/use-plan';
+import { useAddContribution, useCreateEntries, useDeleteEntry, useRemoveContributions, useUpdateEntry } from '@/lib/hooks/use-plan';
 import { fromCents, toCents } from '@/lib/money';
-import { type PlanLine } from '@/lib/plan/compute-plan';
+import { type GoalSummary, type PlanLine } from '@/lib/plan/compute-plan';
 import { type PlanResponse } from '@/lib/services/plan-service';
 import { cn } from '@/lib/utils';
 import { formatCents } from '@/lib/utils/currency';
+import { PAYMENT_METHOD_LABEL, TAP_TARGET } from './labels';
 
 export type PlanLineHandlers = {
   onEditEntry: (line: PlanLine) => void;
@@ -34,14 +36,12 @@ export type PlanLineHandlers = {
 type PlanLinesProps = PlanLineHandlers & {
   plan: PlanResponse;
   viewerId: string;
+  /** Household names by id, to say which one a line is shared with in your own plan. */
+  householdNames?: Record<string, string>;
 };
 
-const METHOD_LABEL: Record<string, string> = {
-  direct_debit: 'Direct debit',
-  standing_order: 'Standing order',
-  card: 'Card',
-  manual: 'Pay manually',
-};
+/** What every row needs besides its line: the plan, and the names of households for "Shared". */
+type RowContext = { plan: PlanResponse; householdNames: Record<string, string> };
 
 /** The day to record a payment or contribution on: today if it's in the period, else the period's first day. */
 function settleDay(plan: PlanResponse): string {
@@ -97,7 +97,7 @@ function AmountEditor({
           }
         }}
         inputMode="decimal"
-        className="amount h-10 w-28 text-right"
+        className="amount h-11 w-28 text-right"
         aria-label="Amount for this period"
       />
     );
@@ -112,7 +112,7 @@ function AmountEditor({
         setEditing(true);
       }}
       className={cn(
-        'amount min-h-10 rounded-md px-2 text-right font-semibold tabular-nums',
+        'amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums',
         !disabled && 'hover:bg-accent',
         estimated && 'text-muted-foreground',
       )}
@@ -123,7 +123,8 @@ function AmountEditor({
   );
 }
 
-function RecurringRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResponse; handlers: PlanLineHandlers }) {
+function RecurringRow({ line, context, handlers }: { line: PlanLine; context: RowContext; handlers: PlanLineHandlers }) {
+  const { plan } = context;
   const { mutate: updateOccurrence, isPending } = useUpdateOccurrence(line.sourceId);
   const change = (data: Parameters<typeof updateOccurrence>[0]['data'], message: string) =>
     updateOccurrence(
@@ -137,6 +138,7 @@ function RecurringRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResp
   return (
     <LineShell
       line={line}
+      context={context}
       checked={paid}
       disabled={isPending || skipped}
       onCheckedChange={(checked) =>
@@ -154,7 +156,7 @@ function RecurringRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResp
           {skipped && <Badge variant="outline">Skipped</Badge>}
         </>
       }
-      detail={line.paymentMethod ? METHOD_LABEL[line.paymentMethod] : undefined}
+      detail={line.paymentMethod ? PAYMENT_METHOD_LABEL[line.paymentMethod] : undefined}
       amount={
         <AmountEditor
           cents={line.amountCents}
@@ -184,14 +186,39 @@ function RecurringRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResp
   );
 }
 
-function EntryRow({ line, viewerId, handlers }: { line: PlanLine; viewerId: string; handlers: PlanLineHandlers }) {
+function EntryRow({ line, viewerId, context, handlers }: { line: PlanLine; viewerId: string; context: RowContext; handlers: PlanLineHandlers }) {
   const { mutate: updateEntry, isPending } = useUpdateEntry();
   const { mutate: deleteEntry } = useDeleteEntry();
+  const { mutate: createEntries } = useCreateEntries();
   const isOwner = line.ownerUserId === viewerId;
+
+  // Remove acts at once, with Undo in the toast (it used to remove for good on one tap).
+  const remove = () => deleteEntry(line.sourceId, {
+    onSuccess: () => toast.success(`Removed ${line.label}`, {
+      action: {
+        label: 'Undo',
+        onClick: () => createEntries(
+          [{
+            date: line.date,
+            label: line.label,
+            amount: fromCents(line.amountCents),
+            direction: line.direction,
+            category: line.category ?? null,
+            notes: line.notes ?? null,
+            done: line.status === 'done',
+            householdId: line.householdId,
+          }],
+          { onError: (error) => toast.error(error.message) },
+        ),
+      },
+    }),
+    onError: (error) => toast.error(error.message),
+  });
 
   return (
     <LineShell
       line={line}
+      context={context}
       checked={line.status === 'done'}
       disabled={isPending}
       onCheckedChange={(done) => updateEntry({ id: line.sourceId, data: { done } }, { onError: (error) => toast.error(error.message) })}
@@ -212,13 +239,7 @@ function EntryRow({ line, viewerId, handlers }: { line: PlanLine; viewerId: stri
             <Pencil className="mr-2 h-4 w-4" />Edit
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive"
-            onClick={() => deleteEntry(line.sourceId, {
-              onSuccess: () => toast.success(`Removed ${line.label}`),
-              onError: (error) => toast.error(error.message),
-            })}
-          >
+          <DropdownMenuItem className="text-destructive" onClick={remove}>
             <Trash2 className="mr-2 h-4 w-4" />Remove
           </DropdownMenuItem>
         </>
@@ -227,14 +248,39 @@ function EntryRow({ line, viewerId, handlers }: { line: PlanLine; viewerId: stri
   );
 }
 
-function GoalRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResponse; handlers: PlanLineHandlers }) {
+function GoalProgress({ goal, currency, onEdit }: { goal: GoalSummary; currency: string; onEdit?: () => void }) {
+  if (!goal.targetCents) return null;
+  return (
+    <div className="space-y-1 pb-1">
+      <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+        {onEdit ? (
+          <button type="button" className="min-h-11 font-medium text-foreground hover:underline sm:min-h-0" onClick={onEdit}>{goal.name}</button>
+        ) : <span />}
+        <span className="amount self-center">
+          {formatCents(goal.savedCents, currency)} of {formatCents(goal.targetCents, currency)}
+          {goal.linkedAccount && ` · in ${goal.linkedAccount.name}`}
+        </span>
+      </div>
+      <Progress value={Math.min(100, Math.round((goal.savedCents / goal.targetCents) * 100))} aria-label={`${goal.name}: saved so far`} />
+      {goal.onTrack === false && goal.neededPerCycleCents !== null && (
+        <p className="amount text-xs text-warning">{formatCents(goal.neededPerCycleCents, currency)} a month needed to reach it in time</p>
+      )}
+    </div>
+  );
+}
+
+function GoalRow({ line, context, handlers }: { line: PlanLine; context: RowContext; handlers: PlanLineHandlers }) {
+  const { plan } = context;
   const { mutate: addContribution, isPending: adding } = useAddContribution();
   const { mutate: removeContributions, isPending: removing } = useRemoveContributions();
   const done = line.status === 'done';
+  const summary = plan.goals.find((goal) => goal.id === line.sourceId);
 
   return (
     <LineShell
       line={line}
+      context={context}
+      below={summary && <GoalProgress goal={summary} currency={plan.currency} />}
       checked={done}
       disabled={adding || removing}
       onCheckedChange={(checked) => {
@@ -253,7 +299,7 @@ function GoalRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResponse;
       onLabelClick={() => handlers.onEditGoal(line.sourceId)}
       detail="Savings"
       amount={
-        <button type="button" onClick={() => handlers.onEditGoal(line.sourceId)} className="amount min-h-10 rounded-md px-2 text-right font-semibold tabular-nums hover:bg-accent">
+        <button type="button" onClick={() => handlers.onEditGoal(line.sourceId)} className="amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums hover:bg-accent">
           {formatCents(line.amountCents, line.currency)}
         </button>
       }
@@ -261,17 +307,18 @@ function GoalRow({ line, plan, handlers }: { line: PlanLine; plan: PlanResponse;
   );
 }
 
-function IncomeRow({ line, handlers }: { line: PlanLine; handlers: PlanLineHandlers }) {
+function IncomeRow({ line, context, handlers }: { line: PlanLine; context: RowContext; handlers: PlanLineHandlers }) {
   return (
     <LineShell
       line={line}
+      context={context}
       onLabelClick={line.source === 'income' ? () => handlers.onEditIncome(line.sourceId) : () => handlers.onEditEntry(line)}
       detail={line.status === 'paid' ? 'Arrived' : 'Due'}
       amount={
         <button
           type="button"
           onClick={line.source === 'income' ? () => handlers.onEditIncome(line.sourceId) : () => handlers.onEditEntry(line)}
-          className="amount min-h-10 rounded-md px-2 text-right font-semibold tabular-nums text-success hover:bg-accent"
+          className="amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums text-success hover:bg-accent"
         >
           {formatCents(line.amountCents, line.currency)}
         </button>
@@ -280,9 +327,14 @@ function IncomeRow({ line, handlers }: { line: PlanLine; handlers: PlanLineHandl
   );
 }
 
-/** One row: tick-off box, label with date and badges, amount, and a menu. Sized for a thumb. */
+/**
+ * One row: tick-off box, label with date and badges, amount, and a menu. Sized for a thumb: the
+ * tick box and the label are small to look at but take a 44px tap, the minimum comfortable target.
+ */
 function LineShell({
   line,
+  context,
+  below,
   checked,
   disabled,
   onCheckedChange,
@@ -294,6 +346,9 @@ function LineShell({
   checkboxLabel,
 }: {
   line: PlanLine;
+  context: RowContext;
+  /** Shown under the row, full width (a goal's progress). */
+  below?: React.ReactNode;
   checkboxLabel?: string;
   checked?: boolean;
   disabled?: boolean;
@@ -305,48 +360,73 @@ function LineShell({
   menu?: React.ReactNode;
 }) {
   const struck = line.status === 'skipped' || line.notCountedReason === 'other_currency';
+  // In your own plan, say which lines the household sees too.
+  const sharedWith = context.plan.scope.type === 'mine' && line.householdId
+    ? context.householdNames[line.householdId] ?? 'your household'
+    : null;
   return (
-    <li className="flex items-center gap-3 py-2">
-      {onCheckedChange ? (
-        <Checkbox
-          checked={checked}
-          disabled={disabled}
-          onCheckedChange={(value) => onCheckedChange(value === true)}
-          className="size-5"
-          aria-label={checkboxLabel ?? (checked ? `Mark ${line.label} not done` : `Mark ${line.label} done`)}
-        />
-      ) : (
-        <span className="size-5 shrink-0" />
-      )}
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          disabled={!onLabelClick}
-          onClick={onLabelClick}
-          className={cn('block max-w-full truncate text-left font-medium', struck && 'text-muted-foreground line-through', checked && 'text-muted-foreground')}
-        >
-          {line.label}
-        </button>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span>{formatLocalDate(line.date, { day: 'numeric', month: 'short' })}</span>
-          {detail && <span>· {detail}</span>}
-          {line.notCountedReason === 'other_currency' && <span>· not counted ({line.currency})</span>}
-          {badges}
+    <li className="py-1.5">
+      <div className="flex items-center gap-3">
+        {onCheckedChange ? (
+          <Checkbox
+            checked={checked}
+            disabled={disabled}
+            onCheckedChange={(value) => onCheckedChange(value === true)}
+            className={cn('size-5', TAP_TARGET)}
+            aria-label={checkboxLabel ?? (checked ? `Mark ${line.label} not done` : `Mark ${line.label} done`)}
+          />
+        ) : (
+          <span className="size-5 shrink-0" />
+        )}
+        <div className="min-w-0 flex-1">
+          {/* The ::after stretches the tap area over the date line too; the bill link sits above it. */}
+          <button
+            type="button"
+            disabled={!onLabelClick}
+            onClick={onLabelClick}
+            className={cn(
+              "relative block max-w-full text-left font-medium after:absolute after:inset-x-0 after:-top-1.5 after:-bottom-6 after:content-['']",
+              struck && 'text-muted-foreground line-through',
+              checked && 'text-muted-foreground',
+            )}
+          >
+            <span className="block truncate">{line.label}</span>
+          </button>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <span>{formatLocalDate(line.date, { day: 'numeric', month: 'short' }, 'en-IE')}</span>
+            {detail && <span>· {detail}</span>}
+            {line.notCountedReason === 'other_currency' && <span>· not counted ({line.currency})</span>}
+            {sharedWith && (
+              <Badge variant="outline" title={`Shared with ${sharedWith}`}><Users className="mr-1 h-3 w-3" />Shared</Badge>
+            )}
+            {line.billDocumentId && (
+              <a
+                href={`/api/bills/documents/${line.billDocumentId}/file`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative z-10 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 hover:text-foreground"
+              >
+                <FileText className="h-3 w-3" />From bill · View
+              </a>
+            )}
+            {badges}
+          </div>
         </div>
+        {amount}
+        {menu ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`More for ${line.label}`}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">{menu}</DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className="w-11 shrink-0" />
+        )}
       </div>
-      {amount}
-      {menu ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" aria-label={`More for ${line.label}`}>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">{menu}</DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <span className="w-10 shrink-0" />
-      )}
+      {below && <div className="pl-8 pr-14">{below}</div>}
     </li>
   );
 }
@@ -367,35 +447,44 @@ function Section({ title, totalCents, currency, children }: { title: string; tot
 
 const sum = (lines: PlanLine[]) => lines.filter((line) => line.counted).reduce((total, line) => total + line.amountCents, 0);
 
-export function PlanLines({ plan, viewerId, ...handlers }: PlanLinesProps) {
+export function PlanLines({ plan, viewerId, householdNames = {}, ...handlers }: PlanLinesProps) {
   const incoming = plan.lines.filter((line) => line.direction === 'in');
   const recurring = plan.lines.filter((line) => line.direction === 'out' && line.source === 'recurring');
   const goals = plan.lines.filter((line) => line.source === 'goal');
   const oneOffs = plan.lines.filter((line) => line.direction === 'out' && line.source === 'entry');
   const month = plan.period.label.split(' ')[0];
+  const context: RowContext = { plan, householdNames };
+  // Goals with a target but nothing to put aside this period still show their progress here,
+  // with the rest of savings (it used to sit in an untitled card at the bottom of the page).
+  const progressOnly = plan.goals.filter((goal) => goal.targetCents && !goals.some((line) => line.sourceId === goal.id));
 
   return (
     <div className="space-y-4">
       {incoming.length > 0 && (
         <Section title="Coming in" totalCents={sum(incoming)} currency={plan.currency}>
           {incoming.map((line) => (line.source === 'entry'
-            ? <EntryRow key={line.key} line={line} viewerId={viewerId} handlers={handlers} />
-            : <IncomeRow key={line.key} line={line} handlers={handlers} />))}
+            ? <EntryRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />
+            : <IncomeRow key={line.key} line={line} context={context} handlers={handlers} />))}
         </Section>
       )}
       {recurring.length > 0 && (
         <Section title="Bills & subscriptions" totalCents={sum(recurring)} currency={plan.currency}>
-          {recurring.map((line) => <RecurringRow key={line.key} line={line} plan={plan} handlers={handlers} />)}
+          {recurring.map((line) => <RecurringRow key={line.key} line={line} context={context} handlers={handlers} />)}
         </Section>
       )}
-      {goals.length > 0 && (
+      {(goals.length > 0 || progressOnly.length > 0) && (
         <Section title="Savings" totalCents={sum(goals)} currency={plan.currency}>
-          {goals.map((line) => <GoalRow key={line.key} line={line} plan={plan} handlers={handlers} />)}
+          {goals.map((line) => <GoalRow key={line.key} line={line} context={context} handlers={handlers} />)}
+          {progressOnly.map((goal) => (
+            <li key={goal.id} className="py-2">
+              <GoalProgress goal={goal} currency={plan.currency} onEdit={() => handlers.onEditGoal(goal.id)} />
+            </li>
+          ))}
         </Section>
       )}
       {oneOffs.length > 0 && (
         <Section title={`Just for ${month}`} totalCents={sum(oneOffs)} currency={plan.currency}>
-          {oneOffs.map((line) => <EntryRow key={line.key} line={line} viewerId={viewerId} handlers={handlers} />)}
+          {oneOffs.map((line) => <EntryRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />)}
         </Section>
       )}
     </div>

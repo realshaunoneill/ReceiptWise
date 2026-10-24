@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Link as LinkIcon, Search, Receipt as ReceiptIcon, Calendar, Unlink } from 'lucide-react';
+import { AlertTriangle, Link as LinkIcon, Search, Receipt as ReceiptIcon, Calendar, Unlink } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useUpdatePayment, useUnlinkPayment } from '@/hooks/use-subscriptions';
 import {
@@ -21,10 +21,14 @@ import { toast } from 'sonner';
 import { type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
 import { addDays, formatLocalDate, fromUtcDate, isLocalDate } from '@/lib/dates/local-date';
 import { formatCurrency } from '@/lib/utils/currency';
+import { fromCents } from '@/lib/money';
+import { paymentStatusLabel } from './labels';
+import { type ReceiptMismatch, receiptMismatches } from './receipt-match';
 
 /** Receipts this many days either side of the selected payment are offered. */
 const MATCH_WINDOW_DAYS = 10;
 const RECEIPTS_SHOWN = 50;
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
 
 function paymentDay(payment: SubscriptionPayment): string {
   return payment.dueDate ?? fromUtcDate(new Date(payment.expectedDate));
@@ -33,7 +37,10 @@ function paymentDay(payment: SubscriptionPayment): string {
 type LinkReceiptDialogProps = {
   subscription: Subscription;
   payments: SubscriptionPayment[];
+  /** The trigger. Leave it out and pass open/onOpenChange to open the dialog from elsewhere. */
   children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 type Receipt = {
@@ -47,8 +54,24 @@ type Receipt = {
   createdAt: Date;
 };
 
-export function LinkReceiptDialog({ subscription, payments, children }: LinkReceiptDialogProps) {
-  const [open, setOpen] = useState(false);
+function mismatchText(problem: ReceiptMismatch, name: string, currency: string): string {
+  switch (problem.kind) {
+    case 'currency':
+      return `It's in ${problem.receiptCurrency}, not ${problem.expectedCurrency}.`;
+    case 'amount':
+      return `It's for ${formatCurrency(Number(fromCents(problem.receiptCents)), currency)}, not the ${formatCurrency(Number(fromCents(problem.expectedCents)), currency)} expected.`;
+    case 'merchant':
+      return `It's from ${problem.merchant}, which doesn't look like ${name}.`;
+  }
+}
+
+export function LinkReceiptDialog({ subscription, payments, children, open: controlledOpen, onOpenChange }: LinkReceiptDialogProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
@@ -84,6 +107,19 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
     },
     enabled: open,
   });
+
+  const selectedReceipt = receipts?.find((receipt) => receipt.id === selectedReceiptId);
+  const expectedCurrency = selectedPayment?.currency ?? subscription.currency;
+  // Linking marks the payment paid at the receipt's amount (AVOCA €30.05 once marked Netflix
+  // paid at €30.05 without a word), so say when the receipt clearly isn't for this payment.
+  const mismatches = selectedPayment && selectedReceipt
+    ? receiptMismatches(selectedReceipt, {
+      name: subscription.name,
+      providerKey: subscription.providerKey,
+      amount: selectedPayment.expectedAmount,
+      currency: expectedCurrency,
+    })
+    : [];
 
   const handleLink = () => {
     if (!selectedPaymentId || !selectedReceiptId) {
@@ -125,33 +161,35 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button variant="outline" size="sm">
-            <LinkIcon className="w-4 h-4 mr-2" />
-            Link Receipt
-          </Button>
-        )}
-      </DialogTrigger>
+      {(children || controlledOpen === undefined) && (
+        <DialogTrigger asChild>
+          {children || (
+            <Button variant="outline" size="sm">
+              <LinkIcon className="w-4 h-4 mr-2" />
+              Link receipt
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Link Receipt to {subscription.name}</DialogTitle>
+          <DialogTitle>Link a receipt to {subscription.name}</DialogTitle>
           <DialogDescription>
-            Select a payment and a receipt to link them together
+            Pick the payment, then the receipt that paid it. The payment is marked paid at the receipt&apos;s amount.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4 py-4">
+        <div className="grid gap-4 py-4 md:grid-cols-2">
           {/* Payments Column */}
           <div className="space-y-3">
             <div>
-              <h3 className="font-semibold mb-2">Expected Payments</h3>
+              <h3 className="font-semibold mb-2">Payments</h3>
               <p className="text-sm text-muted-foreground mb-3">
                 Select a payment to link a receipt to
               </p>
             </div>
 
-            <ScrollArea className="h-[400px] pr-4">
+            <ScrollArea className="h-56 pr-4 md:h-[400px]">
               {payments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No payments found</p>
@@ -180,7 +218,7 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
                               <span className="font-medium">
-                                {formatLocalDate(paymentDay(payment))}
+                                {formatLocalDate(paymentDay(payment), DATE_FORMAT, 'en-IE')}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -193,7 +231,7 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                                     : 'secondary'
                                 }
                               >
-                                {payment.status}
+                                {paymentStatusLabel(payment.status)}
                               </Badge>
                               {isLinked && (
                                 <Badge variant="outline">
@@ -216,7 +254,7 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                             disabled={isUnlinking}
                           >
                             <Unlink className="w-4 h-4 mr-2" />
-                            {isUnlinking ? 'Unlinking...' : 'Unlink Receipt'}
+                            {isUnlinking ? 'Unlinking…' : 'Unlink receipt'}
                           </Button>
                         )}
                       </div>
@@ -230,16 +268,17 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
           {/* Receipts Column */}
           <div className="space-y-3">
             <div>
-              <h3 className="font-semibold mb-2">Your Receipts</h3>
+              <h3 className="font-semibold mb-2">Your receipts</h3>
               <p className="text-sm text-muted-foreground mb-3">
                 {around && !debouncedSearch
-                  ? `Within ${MATCH_WINDOW_DAYS} days of ${formatLocalDate(around)}`
+                  ? `Within ${MATCH_WINDOW_DAYS} days of ${formatLocalDate(around, DATE_FORMAT, 'en-IE')}`
                   : debouncedSearch ? 'Matching your search' : 'Most recent'}
               </p>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search receipts..."
+                  placeholder="Search receipts…"
+                  aria-label="Search receipts"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -247,7 +286,7 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
               </div>
             </div>
 
-            <ScrollArea className="h-[400px] pr-4">
+            <ScrollArea className="h-56 pr-4 md:h-[400px]">
               {loadingReceipts ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Loading receipts...
@@ -272,12 +311,12 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
                         />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">
-                            {receipt.merchantName || 'Unknown Merchant'}
+                            {receipt.merchantName || 'Unknown merchant'}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {receipt.transactionDate && isLocalDate(receipt.transactionDate)
-                              ? formatLocalDate(receipt.transactionDate)
-                              : formatLocalDate(fromUtcDate(new Date(receipt.createdAt)))}
+                              ? formatLocalDate(receipt.transactionDate, DATE_FORMAT, 'en-IE')
+                              : formatLocalDate(fromUtcDate(new Date(receipt.createdAt)), DATE_FORMAT, 'en-IE')}
                           </div>
                           <div className="amount text-sm font-medium mt-1">
                             {formatCurrency(parseFloat(receipt.totalAmount || '0'), receipt.currency ?? subscription.currency)}
@@ -300,6 +339,16 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
           </div>
         </div>
 
+        {mismatches.length > 0 && (
+          <div role="alert" className="flex gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="font-medium">This receipt may not be for {subscription.name}</p>
+              {mismatches.map((problem) => <p key={problem.kind} className="text-muted-foreground">{mismatchText(problem, subscription.name, expectedCurrency)}</p>)}
+            </div>
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending || isUnlinking}>
             Cancel
@@ -308,7 +357,7 @@ export function LinkReceiptDialog({ subscription, payments, children }: LinkRece
             onClick={handleLink}
             disabled={!selectedPaymentId || !selectedReceiptId || isPending || isUnlinking}
           >
-            {isPending ? 'Linking...' : 'Link Receipt'}
+            {isPending ? 'Linking…' : mismatches.length > 0 ? 'Link anyway' : 'Link receipt'}
           </Button>
         </DialogFooter>
       </DialogContent>

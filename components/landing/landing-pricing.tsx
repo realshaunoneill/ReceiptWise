@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BILLS_LAUNCHED } from '@/lib/public-features';
+import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { useUser } from '@/lib/hooks/use-user';
 
 /**
  * Pricing panel for the public landing page.
@@ -37,7 +39,7 @@ const INCLUDED = [
   'Spending analytics and insights',
   BILLS_LAUNCHED ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
   ...(BILLS_LAUNCHED ? ['Bills read from an upload or a forwarded email'] : []),
-  'CSV and JSON export',
+  'Export as CSV, JSON, or HTML with the images',
   // Not yet on the Chrome Web Store, so it is named as coming rather than as included. "Priority
   // support" was also here: with one plan there is no lower tier to be prioritised over.
   'Chrome extension, once it is on the Chrome Web Store',
@@ -63,9 +65,15 @@ export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
     retry: 1,
   });
 
-  const trialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
-    ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS)
+  // Signed out: the configured trial, which every new account gets. Signed in: what checkout will
+  // actually grant this account (none for a returning customer), and nothing to start at all for a
+  // subscriber, who was being offered "Start your 7-day trial".
+  const configuredTrialDays = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
+    ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS, 10) || 0
     : 0;
+  const { isSubscribed } = useUser();
+  const eligibleTrialDays = useTrialDays({ enabled: isSignedIn && !isSubscribed });
+  const trialDays = !isSignedIn ? configuredTrialDays : isSubscribed ? 0 : eligibleTrialDays;
 
   const monthly = pricing?.monthly;
   const annual = pricing?.annual;
@@ -135,17 +143,31 @@ export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
           ))}
         </ul>
 
-        <Button asChild className="mt-8 w-full gap-2">
-          <Link href={isSignedIn ? '/upgrade' : '/sign-up'}>
-            {trialDays > 0 ? `Start your ${trialDays}-day trial` : 'Subscribe'}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </Button>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          {trialDays > 0
-            ? 'Card details are needed to begin. Cancel during the trial and nothing is charged.'
-            : 'Cancel any time.'}
-        </p>
+        {isSignedIn && isSubscribed ? (
+          <>
+            <Button asChild variant="outline" className="mt-8 w-full gap-2">
+              <Link href="/settings?tab=subscription">
+                Manage your plan
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+            <p className="mt-3 text-center text-xs text-muted-foreground">You&apos;re on Premium.</p>
+          </>
+        ) : (
+          <>
+            <Button asChild className="mt-8 w-full gap-2">
+              <Link href={isSignedIn ? '/upgrade' : '/sign-up'}>
+                {trialDays > 0 ? `Start the ${trialDays}-day free trial` : 'Subscribe'}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              {trialDays > 0
+                ? 'Card details are needed to begin. Cancel during the trial and nothing is charged.'
+                : 'Cancel any time.'}
+            </p>
+          </>
+        )}
       </CardContent>
     </Card>
   );

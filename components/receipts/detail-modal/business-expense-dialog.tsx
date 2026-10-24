@@ -102,19 +102,19 @@ export function BusinessExpenseDialog({
             className="flex items-center gap-1 cursor-pointer hover:bg-secondary/80"
           >
             <Briefcase className="h-3 w-3" />
-            Business Expense
+            Business expense
             {taxDeductible && <Check className="h-3 w-3 ml-1" />}
           </Badge>
         ) : (
           <Button variant="outline" size="sm">
             <Briefcase className="h-4 w-4 mr-2" />
-            Mark as Business
+            Mark as business
           </Button>
         )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Business Expense</DialogTitle>
+          <DialogTitle>Business expense</DialogTitle>
           <DialogDescription>
             Mark this receipt as a business expense for tax tracking and reporting.
           </DialogDescription>
@@ -123,7 +123,7 @@ export function BusinessExpenseDialog({
         <div className="space-y-4 py-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="business-toggle">Business Expense</Label>
+              <Label htmlFor="business-toggle">Business expense</Label>
               <p className="text-sm text-muted-foreground">
                 Track this receipt for business purposes
               </p>
@@ -167,7 +167,7 @@ export function BusinessExpenseDialog({
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="tax-deductible">Tax Deductible</Label>
+                  <Label htmlFor="tax-deductible">Tax deductible</Label>
                   <p className="text-sm text-muted-foreground">
                     Mark this as a tax-deductible expense
                   </p>

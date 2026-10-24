@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSpendingTrends } from '@/lib/hooks/use-spending-trends';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { getCategory } from '@/lib/utils/categories';
 
 interface SpendingSummaryProps {
   period: 'week' | 'month' | 'year'
@@ -17,9 +18,9 @@ export function SpendingSummary({ period, onPeriodChange, householdId, personalO
   const { format: formatCurrency } = useCurrency();
 
   const periodLabels = {
-    week: 'This Week',
-    month: 'This Month',
-    year: 'This Year',
+    week: 'This week',
+    month: 'This month',
+    year: 'This year',
   };
 
   if (isLoading) {
@@ -28,7 +29,7 @@ export function SpendingSummary({ period, onPeriodChange, householdId, personalO
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-xl sm:text-2xl">Total Spending</CardTitle>
+              <CardTitle role="heading" aria-level={2} className="text-xl sm:text-2xl">Total spending</CardTitle>
               <CardDescription>{periodLabels[period]}</CardDescription>
             </div>
             <Tabs value={period} onValueChange={(v) => onPeriodChange(v as 'week' | 'month' | 'year')}>
@@ -58,7 +59,7 @@ export function SpendingSummary({ period, onPeriodChange, householdId, personalO
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-xl sm:text-2xl">Total Spending</CardTitle>
+              <CardTitle role="heading" aria-level={2} className="text-xl sm:text-2xl">Total spending</CardTitle>
               <CardDescription>{periodLabels[period]}</CardDescription>
             </div>
             <Tabs value={period} onValueChange={(v) => onPeriodChange(v as 'week' | 'month' | 'year')}>
@@ -87,7 +88,7 @@ export function SpendingSummary({ period, onPeriodChange, householdId, personalO
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-xl sm:text-2xl">Total Spending</CardTitle>
+              <CardTitle role="heading" aria-level={2} className="text-xl sm:text-2xl">Total spending</CardTitle>
               <CardDescription>{periodLabels[period]}</CardDescription>
             </div>
             <Tabs value={period} onValueChange={(v) => onPeriodChange(v as 'week' | 'month' | 'year')}>
@@ -123,7 +124,7 @@ export function SpendingSummary({ period, onPeriodChange, householdId, personalO
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-xl sm:text-2xl">Total Spending</CardTitle>
+            <CardTitle role="heading" aria-level={2} className="text-xl sm:text-2xl">Total spending</CardTitle>
             <CardDescription>{periodLabels[period]}</CardDescription>
           </div>
           <Tabs value={period} onValueChange={(v) => onPeriodChange(v as 'week' | 'month' | 'year')}>
@@ -156,12 +157,14 @@ export function SpendingSummary({ period, onPeriodChange, householdId, personalO
         {/* Category Breakdown */}
         {trendsData.spendingByCategory.length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">By Category</h4>
+            {/* Was an h4 straight under the page's h1; the card title above is now its h2. */}
+            <h3 className="text-sm font-semibold text-foreground">By category</h3>
             <div className="space-y-3">
               {trendsData.spendingByCategory.slice(0, 5).map((item) => (
                 <div key={item.category} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="capitalize text-muted-foreground">{item.category}</span>
+                    {/* Was the raw key, so fuel read "Gas". */}
+                    <span className="text-muted-foreground">{getCategory(item.category).label}</span>
                     <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted/50">

@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { CheckCircle, ArrowRight, Receipt, TrendingUp, Users } from 'lucide-react';
+import { CheckCircle, ArrowRight, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { useFeature } from '@/lib/hooks/use-user';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -16,6 +18,7 @@ export default function SuccessContent({
   subscriptionStatus,
   trialEndsAt,
 }: SuccessContentProps) {
+  const billsEnabled = useFeature('bills') || BILLS_LAUNCHED;
   // The page used to say "Your subscription is active" unconditionally — including to people who
   // had just started a trial and had not been charged, and when the session could not be
   // confirmed at all.
@@ -79,6 +82,11 @@ export default function SuccessContent({
                     title: 'Households',
                     body: 'Share a receipt pile with the people you share bills with.',
                   },
+                  ...(billsEnabled ? [{
+                    icon: Wallet,
+                    title: 'Bills and a monthly plan',
+                    body: 'Your pay, the bills on the way, and what is left for each week.',
+                  }] : []),
                   {
                     icon: CheckCircle,
                     title: 'Export',

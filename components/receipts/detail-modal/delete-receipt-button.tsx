@@ -70,7 +70,7 @@ export function DeleteReceiptButton({ receiptId, onDeleted }: DeleteReceiptButto
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
+          <AlertDialogTitle>Delete receipt</AlertDialogTitle>
           <AlertDialogDescription>
             Are you sure you want to delete this receipt? This action cannot be undone.
             The receipt will be removed from all households it's shared with.
@@ -82,7 +82,7 @@ export function DeleteReceiptButton({ receiptId, onDeleted }: DeleteReceiptButto
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Delete Receipt
+            Delete receipt
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

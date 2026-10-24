@@ -7,8 +7,6 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { formatLocalDate, fromUtcDate } from '@/lib/dates/local-date';
 import { useFeature } from '@/lib/hooks/use-user';
 
 type InboundAddress = { address: string; createdAt: string; rotatedAt: string | null };
@@ -33,6 +31,26 @@ const STATUS_LABEL: Record<string, string> = {
   forwarding_confirmation: 'Forwarding confirmation',
   failed: 'Failed',
 };
+
+/**
+ * When an email arrived, in the viewer's own time zone. It used to take the UTC day, so a bill
+ * forwarded late in the evening west of UTC (or just after midnight in Irish summer time) showed
+ * the wrong day.
+ */
+function formatReceived(receivedAt: string): string {
+  const received = new Date(receivedAt);
+  const sameDay = received.toDateString() === new Date().toDateString();
+  return sameDay
+    ? received.toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })
+    : received.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+}
+
+/** The address with a break opportunity before the @, so a narrow screen wraps there and the domain stays visible. */
+function WrappingAddress({ address }: { address: string }) {
+  const at = address.lastIndexOf('@');
+  if (at <= 0) return <>{address}</>;
+  return <>{address.slice(0, at)}<wbr />{address.slice(at)}</>;
+}
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -86,10 +104,15 @@ export function EmailForwardingCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2" data-private>
-          <Input readOnly value={address?.address ?? 'Loading…'} className="font-mono text-sm" aria-label="Your forwarding address" />
+        {/* Was a read-only input, which cut the address off on a phone, domain and all. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center" data-private>
+          <p className="min-h-10 flex-1 select-all rounded-md border bg-muted/30 px-3 py-2 font-mono text-sm wrap-anywhere">
+            <span className="sr-only">Your forwarding address: </span>
+            {address ? <WrappingAddress address={address.address} /> : 'Loading…'}
+          </p>
           <Button
             variant="outline"
+            className="self-start sm:self-auto"
             onClick={() => address && navigator.clipboard.writeText(address.address).then(() => toast.success('Copied'))}
             disabled={!address}
           >
@@ -110,21 +133,25 @@ export function EmailForwardingCard() {
           </div>
         )}
 
-        {emails.length > 0 && (
-          <div className="space-y-1.5" data-private>
-            <p className="text-sm font-medium">Recent</p>
+        <div className="space-y-1.5" data-private>
+          <p className="text-sm font-medium">Recent</p>
+          {emails.length > 0 ? (
             <ul className="divide-y rounded-lg border text-sm">
               {emails.slice(0, 8).map((email) => (
                 <li key={email.id} className="flex items-center gap-3 px-3 py-2">
                   {email.status === 'processed' && <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />}
                   <span className="min-w-0 flex-1 truncate">{email.subject || email.fromAddress || 'Email'}</span>
-                  <span className="text-xs text-muted-foreground">{formatLocalDate(fromUtcDate(new Date(email.receivedAt)), { day: 'numeric', month: 'short' })}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{formatReceived(email.receivedAt)}</span>
                   <Badge variant={email.status === 'failed' ? 'destructive' : 'outline'}>{STATUS_LABEL[email.status] ?? email.status}</Badge>
                 </li>
               ))}
             </ul>
-          </div>
-        )}
+          ) : (
+            <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
+              Nothing forwarded yet. Emails sent to this address show up here as they arrive.
+            </p>
+          )}
+        </div>
 
         <div>
           {confirmRotate ? (

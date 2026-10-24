@@ -9,8 +9,9 @@ import { StagingBanner } from '@/components/layout/staging-banner';
 import { ConsentBanner } from '@/components/layout/consent-banner';
 import { QueryProvider } from '@/lib/providers/query-provider';
 import { PostHogProvider } from '@/lib/providers/posthog-provider';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import { getAppUrl } from '@/lib/app-url';
+import { OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from '@/lib/seo';
 import './globals.css';
 
 /*
@@ -38,41 +39,32 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ReceiptWise - Family Expense & Receipt Tracker',
-  description: 'Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place',
-  applicationName: 'ReceiptWise',
-  keywords: ['receipt tracker', 'expense tracker', 'family expenses', 'household sharing', 'receipt scanner', 'spending tracker', 'subscription manager', 'shared expenses', 'roommate expenses'],
-  authors: [{ name: 'ReceiptWise' }],
-  creator: 'ReceiptWise',
-  publisher: 'ReceiptWise',
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: ['receipt tracker', 'expense tracker', 'family expenses', 'household sharing', 'receipt scanner', 'spending tracker', 'subscription tracker', 'shared expenses', 'housemate expenses'],
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
   metadataBase: new URL(getAppUrl()),
   // No root alternates.canonical: a canonical set here is inherited by every page that does not
   // override it, so /sign-in and every app page declared the homepage as their canonical. Each
-  // public page sets its own instead.
+  // public page sets its own instead (lib/seo.ts).
   openGraph: {
-    title: 'ReceiptWise - Family Expense & Receipt Tracker',
-    description: 'Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     url: '/',
-    siteName: 'ReceiptWise',
-    images: [
-      {
-        // JPEG at 1200x800 (~115 KB). The PNG was 1.7 MB, over the size some
-        // link-preview crawlers will fetch.
-        url: '/opengraph.jpg',
-        width: 1200,
-        height: 800,
-        alt: 'ReceiptWise - Receipt & Expense Tracker',
-      },
-    ],
-    locale: 'en_US',
+    siteName: SITE_NAME,
+    images: [OG_IMAGE],
+    locale: 'en_IE',
     type: 'website',
   },
+  // No twitter `creator`: it named @receiptwise, an account that doesn't exist.
   twitter: {
     card: 'summary_large_image',
-    title: 'ReceiptWise - Family Expense & Receipt Tracker',
-    description: 'Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place',
-    images: ['/opengraph.jpg'],
-    creator: '@receiptwise',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE.url],
   },
   robots: {
     index: true,
@@ -85,15 +77,8 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
-  },
+  // No `icons`: app/favicon.ico, app/icon.png and app/apple-icon.png already emit those links, and
+  // listing them here as well declared every icon twice.
   manifest: '/manifest.json',
 };
 

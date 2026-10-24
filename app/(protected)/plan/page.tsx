@@ -3,10 +3,10 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { parseAsInteger, useQueryState } from 'nuqs';
-import { PiggyBank, Wallet } from 'lucide-react';
+import { PiggyBank, Users, Wallet } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HouseholdSelector } from '@/components/households/household-selector';
 import { BankCheck } from '@/components/plan/bank-check';
@@ -22,10 +22,9 @@ import { SubscriptionDetailModal } from '@/components/subscriptions/subscription
 import { SubscriptionUpsell } from '@/components/subscriptions/subscription-upsell';
 import { type IncomeSource, type SavingsGoal } from '@/lib/db/schema';
 import { useHouseholds } from '@/lib/hooks/use-households';
-import { useGoals, useIncome, usePlan } from '@/lib/hooks/use-plan';
+import { useGoals, useIncome, usePlan, useSaveIncome } from '@/lib/hooks/use-plan';
 import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { type PlanLine } from '@/lib/plan/compute-plan';
-import { formatCents } from '@/lib/utils/currency';
 
 function PlanSkeleton() {
   return (
@@ -55,6 +54,7 @@ function PlanPageContent() {
   const [goalDialog, setGoalDialog] = useState<{ open: boolean; goal: SavingsGoal | null }>({ open: false, goal: null });
   const [entryLine, setEntryLine] = useState<PlanLine | null>(null);
   const [billId, setBillId] = useState<string | null>(null);
+  const { mutate: saveIncome, isPending: sharing } = useSaveIncome();
 
   if (userLoading) {
     return <main className="container mx-auto max-w-3xl p-4 sm:p-6"><PlanSkeleton /></main>;
@@ -88,9 +88,27 @@ function PlanPageContent() {
   // Households where the plan can be shared: membership plus someone paying.
   const sharedHouseholds = (households as Array<{ id: string; name: string }>)
     .filter((household) => entitlements?.householdIds.includes(household.id));
-  const myIncome = incomes.filter((income) => income.userId === user?.id);
+  const householdNames = Object.fromEntries((households as Array<{ id: string; name: string }>).map((household) => [household.id, household.name]));
+  const householdName = householdId ? householdNames[householdId] ?? 'this household' : null;
   const editingIncome = (id: string) => incomes.find((income) => income.id === id) ?? null;
   const editingGoal = (id: string) => goals.find((goal) => goal.id === id) ?? null;
+
+  // The viewer's own pay, in any scope: a household plan only loads what's shared with it, and
+  // judging by that list alone said "Start with your pay" to someone with a salary, then saved
+  // the new pay as primary and demoted the real one.
+  const yourPrimary = plan?.primaryIncome ?? null;
+  const yourIncomeCount = plan?.viewerIncomeCount ?? 0;
+  const payNotShared = Boolean(householdId && yourPrimary && yourPrimary.householdId !== householdId);
+  const sharePay = () => {
+    if (!yourPrimary || !householdId) return;
+    saveIncome(
+      { id: yourPrimary.id, data: { householdId } },
+      {
+        onSuccess: () => toast.success(`${yourPrimary.name} is now shared with ${householdName}`),
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
 
   return (
     <main className="container mx-auto max-w-3xl space-y-4 p-4 pb-24 sm:p-6">
@@ -116,8 +134,8 @@ function PlanPageContent() {
       {error && <Card><CardContent className="p-4 text-destructive">{error.message}</CardContent></Card>}
       {isLoading || !plan ? <PlanSkeleton /> : (
         <>
-          {plan.flags.includes('no_income') && (
-            <Card className="border-primary/40">
+          {plan.flags.includes('no_income') && !yourPrimary && yourIncomeCount === 0 && (
+            <Card className="border-primary/40 py-0">
               <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <Wallet className="mt-0.5 h-5 w-5 text-primary" />
@@ -130,6 +148,29 @@ function PlanPageContent() {
               </CardContent>
             </Card>
           )}
+          {payNotShared && yourPrimary && (
+            <Card className={plan.flags.includes('no_income') ? 'border-primary/40 py-0' : 'py-0'}>
+              <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <Users className="mt-0.5 h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium">Your pay isn&apos;t shared with {householdName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {yourPrimary.householdId
+                        ? `${yourPrimary.name} is shared with ${householdNames[yourPrimary.householdId] ?? 'another household'}, so it isn't counted here`
+                        : `${yourPrimary.name} is only in your own plan, so it isn't counted here`}
+                      {plan.flags.includes('no_income') ? ', and nobody else has shared theirs' : ''}. Share it if the household
+                      plans with it (a line can be shared with one household at a time); your own plan uses it to set
+                      the periods either way.
+                    </p>
+                  </div>
+                </div>
+                <Button variant={plan.flags.includes('no_income') ? 'default' : 'outline'} disabled={sharing} onClick={sharePay}>
+                  Share {yourPrimary.name}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <PlanSummary plan={plan} />
           <BankCheck plan={plan} householdId={householdId} />
@@ -139,34 +180,16 @@ function PlanPageContent() {
           <PlanLines
             plan={plan}
             viewerId={user!.id}
+            householdNames={householdNames}
             onEditEntry={setEntryLine}
             onEditIncome={(id) => setIncomeDialog({ open: true, income: editingIncome(id) })}
             onEditGoal={(id) => setGoalDialog({ open: true, goal: editingGoal(id) })}
             onOpenBill={setBillId}
           />
 
-          {plan.goals.some((goal) => goal.targetCents) && (
-            <Card data-private>
-              <CardContent className="space-y-3 p-5">
-                {plan.goals.filter((goal) => goal.targetCents).map((goal) => (
-                  <div key={goal.id} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <button type="button" className="font-medium hover:underline" onClick={() => setGoalDialog({ open: true, goal: editingGoal(goal.id) })}>{goal.name}</button>
-                      <span className="amount text-muted-foreground">{formatCents(goal.savedCents, plan.currency)} of {formatCents(goal.targetCents!, plan.currency)}</span>
-                    </div>
-                    <Progress value={Math.min(100, Math.round((goal.savedCents / goal.targetCents!) * 100))} />
-                    {goal.onTrack === false && goal.neededPerCycleCents !== null && (
-                      <p className="amount text-xs text-warning">{formatCents(goal.neededPerCycleCents, plan.currency)} a month needed to reach it in time</p>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setIncomeDialog({ open: true, income: null })}>
-              <Wallet className="mr-1.5 h-4 w-4" />{myIncome.length === 0 ? 'Add your pay' : 'Add income'}
+              <Wallet className="mr-1.5 h-4 w-4" />{yourIncomeCount === 0 ? 'Add your pay' : 'Add income'}
             </Button>
             <Button variant="outline" onClick={() => setGoalDialog({ open: true, goal: null })}>
               <PiggyBank className="mr-1.5 h-4 w-4" />Add savings
@@ -180,7 +203,10 @@ function PlanPageContent() {
         open={incomeDialog.open}
         onOpenChange={(open) => setIncomeDialog((state) => ({ ...state, open }))}
         income={incomeDialog.income}
-        isFirst={myIncome.length === 0 || Boolean(incomeDialog.income?.isPrimary && myIncome.length === 1)}
+        isFirst={incomeDialog.income
+          ? Boolean(incomeDialog.income.isPrimary && yourIncomeCount <= 1)
+          : !yourPrimary}
+        currentPrimary={yourPrimary}
         householdId={householdId}
       />
       <GoalDialog

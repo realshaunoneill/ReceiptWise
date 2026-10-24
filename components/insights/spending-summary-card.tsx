@@ -3,183 +3,224 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSpendingSummary } from '@/hooks/use-spending-summary';
 import { Loader2, FileText, RefreshCw, TrendingUp, ShoppingBag, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/utils/currency';
+import { categoryName } from '@/components/receipts/format';
+import { parseSummary, type Inline } from '@/components/insights/summary-markdown';
 
 interface SpendingSummaryCardProps {
   householdId?: string;
-  autoLoad?: boolean;
 }
 
-export function SpendingSummaryCard({ householdId, autoLoad = false }: SpendingSummaryCardProps) {
+const PERIODS = [1, 3, 6, 12];
+
+function InlineText({ parts }: { parts: Inline[] }) {
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.bold ? (
+          <strong key={index} className="font-semibold text-foreground">{part.text}</strong>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** The model's Markdown as headings, paragraphs and lists. Never as HTML. */
+function SummaryText({ markdown }: { markdown: string }) {
+  return (
+    <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+      {parseSummary(markdown).map((block, index) => {
+        if (block.type === 'heading') {
+          return (
+            <h3 key={index} className="pt-1 text-sm font-semibold text-foreground">
+              <InlineText parts={block.content} />
+            </h3>
+          );
+        }
+        if (block.type === 'list') {
+          const ListTag = block.ordered ? 'ol' : 'ul';
+          return (
+            <ListTag key={index} className={`ml-5 space-y-1 ${block.ordered ? 'list-decimal' : 'list-disc'}`}>
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}><InlineText parts={item} /></li>
+              ))}
+            </ListTag>
+          );
+        }
+        return (
+          <p key={index}><InlineText parts={block.content} /></p>
+        );
+      })}
+    </div>
+  );
+}
+
+/*
+ * The written summary is one OpenAI call per period, so it is only written when asked for.
+ *
+ * The card used to load on every visit to Insights (`autoLoad`), and then never showed the text
+ * it had paid for: `summary.summary` was not rendered anywhere, only the totals around it. The
+ * result now stays in React Query's cache for the period, so coming back to the page shows it
+ * again without asking (the route also keeps it for 24 hours).
+ */
+export function SpendingSummaryCard({ householdId }: SpendingSummaryCardProps) {
   const [months, setMonths] = useState(3);
+  // The period the reader asked for on this visit. Changing the period does not write a new
+  // summary on its own; one already in the cache still shows.
+  const periodKey = `${householdId ?? ''}|${months}`;
+  const [requestedPeriod, setRequestedPeriod] = useState<string | null>(null);
 
   const { data: summary, isLoading, error, refetch } = useSpendingSummary({
     householdId,
     months,
-    enabled: autoLoad,
+    enabled: requestedPeriod === periodKey,
   });
 
-  const handleGenerate = () => {
-    refetch();
-  };
+  const statistics = summary?.data?.statistics;
+  const currency = statistics?.currency;
+  const money = (amount: number) => formatCurrency(amount, currency);
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        {/* Wraps on a phone: the title and the period picker side by side made the
+            Insights page 447px wide on a 390px screen. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             {/* "AI Spending Insights" promising "personalized insights" — the
                 title named the technology and the description promised
                 personalisation the feature does not do. It writes a summary of a
                 period you choose, so that is what it is called. */}
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle role="heading" aria-level={2} className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
               Spending summary
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="mt-1.5">
               A written read on the period you pick
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={months}
-              onChange={(e) => setMonths(parseInt(e.target.value))}
-              className="text-sm border rounded-md px-2 py-1"
-              disabled={isLoading}
-            >
-              <option value={1}>1 month</option>
-              <option value={3}>3 months</option>
-              <option value={6}>6 months</option>
-              <option value={12}>12 months</option>
-            </select>
-            <Button
-              onClick={handleGenerate}
-              disabled={isLoading}
-              size="sm"
-              variant={summary ? 'outline' : 'default'}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : summary ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4" aria-hidden="true" />
-                  Write summary
-                </>
-              )}
-            </Button>
-          </div>
+          <Select value={String(months)} onValueChange={(value) => setMonths(parseInt(value, 10))}>
+            <SelectTrigger size="sm" className="w-full sm:w-[150px]" aria-label="Period" disabled={isLoading}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIODS.map((period) => (
+                <SelectItem key={period} value={String(period)}>
+                  {period === 1 ? 'Last month' : `Last ${period} months`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent>
         {isLoading && (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="mb-4 h-8 w-8 animate-spin" />
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground" role="status">
+            <Loader2 className="mb-4 h-8 w-8 animate-spin" aria-hidden="true" />
             <p className="text-sm">Reading through your receipts…</p>
           </div>
         )}
 
-        {error && (
-          <div className="rounded-lg bg-destructive/10 p-4 text-destructive">
-            {error.message || 'An error occurred'}
+        {error && !isLoading && (
+          <div className="space-y-3 rounded-lg bg-destructive/10 p-4 text-destructive">
+            <p className="text-sm">The summary couldn&apos;t be written just now.</p>
+            <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-2">
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </Button>
           </div>
         )}
 
         {summary && !isLoading && (
           <div className="space-y-6">
-            {/* Statistics */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 rounded-lg bg-muted/50">
-                <div className="text-2xl font-bold">{summary.data.statistics.totalItems}</div>
-                <div className="text-xs text-muted-foreground mt-1">Items Purchased</div>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-muted/50">
-                <div className="text-2xl font-bold">
-                  {summary.data.statistics.currency} {summary.data.statistics.totalSpent}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Total Spent</div>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-muted/50">
-                <div className="text-2xl font-bold">
-                  {summary.data.statistics.currency} {summary.data.statistics.averagePerItem.toFixed(2)}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Avg per Item</div>
-              </div>
-            </div>
+            <SummaryText markdown={summary.summary} />
 
+            {/* The route answers a period with no receipts with the summary text alone. */}
+            {statistics && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg bg-muted/50 p-3 text-center sm:p-4">
+                    <div className="amount text-xl font-bold sm:text-2xl">{statistics.totalItems}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Items bought</div>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3 text-center sm:p-4">
+                    <div className="amount text-xl font-bold sm:text-2xl">{money(statistics.totalSpent)}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Total spent</div>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3 text-center sm:p-4">
+                    <div className="amount text-xl font-bold sm:text-2xl">{money(statistics.averagePerItem)}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Average per item</div>
+                  </div>
+                </div>
 
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                      <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+                      Top items
+                    </h3>
+                    <ul className="space-y-2">
+                      {summary.data.topItems.slice(0, 5).map((item, index) => (
+                        <li key={index} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                          <Badge variant="secondary">{item.count}×</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-            {/* Quick Stats */}
-            <div className="grid md:grid-cols-3 gap-4">
-              {/* Top Items */}
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold mb-3">
-                  <ShoppingBag className="h-4 w-4" />
-                  Top Items
-                </div>
-                <div className="space-y-2">
-                  {summary.data.topItems.slice(0, 5).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="truncate flex-1">{item.name}</span>
-                      <Badge variant="secondary" className="ml-2">
-                        {item.count}x
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                  <div>
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                      <TrendingUp className="h-4 w-4" aria-hidden="true" />
+                      Top categories
+                    </h3>
+                    <ul className="space-y-2">
+                      {summary.data.topCategories.slice(0, 5).map((cat, index) => (
+                        <li key={index} className="flex items-center justify-between gap-2 text-sm">
+                          {/* Was the raw key, so fuel read "Gas". */}
+                          <span className="min-w-0 flex-1 truncate">{categoryName(cat.category)}</span>
+                          <span className="amount whitespace-nowrap text-muted-foreground">{money(cat.total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-              {/* Top Categories */}
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold mb-3">
-                  <TrendingUp className="h-4 w-4" />
-                  Top Categories
+                  <div>
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                      <Store className="h-4 w-4" aria-hidden="true" />
+                      Top merchants
+                    </h3>
+                    <ul className="space-y-2">
+                      {summary.data.topMerchants.slice(0, 5).map((merchant, index) => (
+                        <li key={index} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="min-w-0 flex-1 truncate">{merchant.merchant}</span>
+                          <span className="amount whitespace-nowrap text-muted-foreground">{money(merchant.total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  {summary.data.topCategories.slice(0, 5).map((cat, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="truncate flex-1 capitalize">{cat.category}</span>
-                      <span className="ml-2 text-muted-foreground">
-                        {summary.data.statistics.currency} {cat.total}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Top Merchants */}
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold mb-3">
-                  <Store className="h-4 w-4" />
-                  Top Merchants
-                </div>
-                <div className="space-y-2">
-                  {summary.data.topMerchants.slice(0, 5).map((merchant, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="truncate flex-1">{merchant.merchant}</span>
-                      <span className="ml-2 text-muted-foreground">
-                        {summary.data.statistics.currency} {merchant.total}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 
         {!summary && !isLoading && !error && (
-          <div className="py-12 text-center text-muted-foreground">
-            <FileText className="mx-auto mb-4 h-10 w-10 opacity-20" aria-hidden="true" />
-            <p className="text-sm">
-              Pick a period and choose <span className="font-medium">Write summary</span>.
+          <div className="flex flex-col items-center py-10 text-center text-muted-foreground">
+            <FileText className="mb-4 h-10 w-10 opacity-20" aria-hidden="true" />
+            <p className="mb-4 max-w-xs text-sm">
+              A few paragraphs on where the money went in this period, and what you buy most.
             </p>
+            <Button onClick={() => setRequestedPeriod(periodKey)} className="gap-2">
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Write a summary
+            </Button>
           </div>
         )}
       </CardContent>

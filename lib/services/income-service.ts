@@ -20,3 +20,13 @@ export async function getIncome(id: string): Promise<IncomeSource | null> {
   const [income] = await db.select().from(incomeSources).where(eq(incomeSources.id, id)).limit(1);
   return income ?? null;
 }
+
+/** The user's own primary income, which sets the plan's period whatever the scope. */
+export async function getPrimaryIncome(userId: string): Promise<IncomeSource | null> {
+  const [primary] = await db
+    .select()
+    .from(incomeSources)
+    .where(and(eq(incomeSources.userId, userId), eq(incomeSources.isPrimary, true), eq(incomeSources.status, 'active')))
+    .limit(1);
+  return primary ?? null;
+}

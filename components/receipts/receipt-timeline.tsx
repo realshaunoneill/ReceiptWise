@@ -4,85 +4,83 @@ import { Calendar, MapPin, Clock, CreditCard, Users, ChevronRight, Receipt as Re
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { categoryBadgeClasses, categoryTextClasses, getCategory } from '@/lib/utils/categories';
-import { format, parseISO, isToday, isYesterday, isThisWeek, isThisMonth, startOfDay } from 'date-fns';
+import { isToday, isYesterday, isThisWeek, isThisMonth } from 'date-fns';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { formatCurrency } from '@/lib/utils/currency';
+import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
+import { toUtcDate } from '@/lib/dates/local-date';
 import { isStuckProcessing } from '@/lib/utils/receipt-status';
+import { formatDisplayDate, formatPaymentMethod, receiptDay } from '@/components/receipts/format';
 import { cn } from '@/lib/utils';
 
 interface ReceiptTimelineProps {
   receipts: ReceiptWithItems[];
   onReceiptClick: (receipt: ReceiptWithItems) => void;
+  /** The list's sort. Only a date sort is grouped by day; any other order is shown as it came. */
+  sortBy?: string;
 }
 
-function getDateLabel(date: Date): string {
+/** Local midnight of a calendar day, for date-fns's relative checks (which work in local time). */
+function localMidnight(day: string): Date {
+  const utc = toUtcDate(day);
+  return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+}
+
+function getDateLabel(day: string): string {
+  const date = localMidnight(day);
   if (isToday(date)) return 'Today';
   if (isYesterday(date)) return 'Yesterday';
-  if (isThisWeek(date)) return format(date, 'EEEE'); // Monday, Tuesday, etc.
-  if (isThisMonth(date)) return format(date, 'MMMM d'); // January 15
-  return format(date, 'MMMM d, yyyy'); // January 15, 2025
+  if (isThisWeek(date)) return formatDisplayDate(day, { weekday: 'long' }); // Monday
+  if (isThisMonth(date)) return formatDisplayDate(day, { day: 'numeric', month: 'long' }); // 15 January
+  return formatDisplayDate(day, { day: 'numeric', month: 'long', year: 'numeric' }); // 15 January 2025
 }
 
-function getDateSubtitle(date: Date): string {
+function getDateSubtitle(day: string): string {
+  const date = localMidnight(day);
   if (isToday(date) || isYesterday(date)) {
-    return format(date, 'EEEE, MMMM d');
+    return formatDisplayDate(day, { weekday: 'long', day: 'numeric', month: 'long' });
   }
   if (isThisWeek(date)) {
-    return format(date, 'MMMM d');
+    return formatDisplayDate(day, { day: 'numeric', month: 'long' });
   }
-  return format(date, 'EEEE');
+  return formatDisplayDate(day, { weekday: 'long' });
 }
 
 interface GroupedReceipts {
+  day: string;
   label: string;
   subtitle: string;
-  date: Date;
   receipts: ReceiptWithItems[];
-  totalSpent: number;
-  currency: string;
 }
 
+/*
+ * Groups in the order the receipts arrive. They were re-sorted newest-first here, which undid an
+ * "oldest first" sort from the server; and sorting by amount or merchant still came out as date
+ * groups, so changing the sort did nothing visible.
+ */
 function groupReceiptsByDate(receipts: ReceiptWithItems[]): GroupedReceipts[] {
-  const groups: Record<string, { receipts: ReceiptWithItems[]; date: Date; totalSpent: number; currency: string }> = {};
+  const groups = new Map<string, ReceiptWithItems[]>();
 
   receipts.forEach(receipt => {
-    let dateStr: string | undefined;
-
-    if (receipt.transactionDate) {
-      dateStr = receipt.transactionDate;
-    } else if (receipt.createdAt) {
-      dateStr = typeof receipt.createdAt === 'string'
-        ? receipt.createdAt
-        : receipt.createdAt.toISOString();
-    }
-
-    if (!dateStr) return;
-
-    const date = parseISO(dateStr);
-    const dayKey = startOfDay(date).toISOString();
-
-    if (!groups[dayKey]) {
-      groups[dayKey] = { receipts: [], date, totalSpent: 0, currency: receipt.currency || 'EUR' };
-    }
-    groups[dayKey].receipts.push(receipt);
-    groups[dayKey].totalSpent += parseFloat(receipt.totalAmount || '0');
+    const day = receiptDay(receipt);
+    if (!day) return;
+    const group = groups.get(day) ?? [];
+    group.push(receipt);
+    groups.set(day, group);
   });
 
-  return Object.entries(groups)
-    .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-    .map(([_, group]) => ({
-      label: getDateLabel(group.date),
-      subtitle: getDateSubtitle(group.date),
-      date: group.date,
-      receipts: group.receipts,
-      totalSpent: group.totalSpent,
-      currency: group.currency,
-    }));
+  return Array.from(groups, ([day, dayReceipts]) => ({
+    day,
+    label: getDateLabel(day),
+    subtitle: getDateSubtitle(day),
+    receipts: dayReceipts,
+  }));
 }
 
-export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelineProps) {
-  const { format: formatCurrency } = useCurrency();
-  const groupedReceipts = groupReceiptsByDate(receipts);
+export function ReceiptTimeline({ receipts, onReceiptClick, sortBy = 'date' }: ReceiptTimelineProps) {
+  const { currency: userCurrency } = useCurrency();
+  const groupedReceipts = sortBy === 'date' ? groupReceiptsByDate(receipts) : [];
 
   if (receipts.length === 0) {
     return (
@@ -100,10 +98,167 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
     );
   }
 
+  const renderCard = (receipt: ReceiptWithItems, showDate: boolean) => {
+    const category = getCategory(receipt.category);
+    const CategoryIcon = category.icon;
+
+    const isStuck = isStuckProcessing(receipt);
+    const isProcessing = !isStuck && (receipt.processingStatus === 'pending' || receipt.processingStatus === 'processing');
+    const isFailed = receipt.processingStatus === 'failed' || isStuck;
+    const timeOfDay = (receipt.ocrData as OCRData | null)?.timeOfDay;
+    const day = showDate ? receiptDay(receipt) : null;
+
+    return (
+      /* A div with only onClick before, so the cards could not be reached or
+         opened from the keyboard. */
+      <Card
+        key={receipt.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => onReceiptClick(receipt)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onReceiptClick(receipt);
+          }
+        }}
+        className={cn(
+          // The 1px lift on hover made whole grids of cards jump as the
+          // pointer crossed them. Border and shadow are enough feedback.
+          'group cursor-pointer overflow-hidden transition-colors outline-none hover:border-primary/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          isFailed && 'border-destructive/40 bg-destructive/5',
+          isProcessing && 'border-warning/40 bg-warning/5',
+        )}
+      >
+        <CardContent className="p-0">
+          {/* Top section with thumbnail and main info */}
+          <div className="flex gap-3 p-4">
+            {/* Receipt thumbnail */}
+            <div className="shrink-0">
+              <div className="h-16 w-16 overflow-hidden rounded-lg border bg-muted">
+                {receipt.imageUrl ? (
+                  <img
+                    src={receipt.imageUrl}
+                    alt={`Receipt from ${receipt.merchantName || 'merchant'}`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  /* Was an emoji per category (🛒 🍽️ ⛽ ...). Emoji
+                     render differently on every platform, cannot be
+                     recoloured, and undercut a financial record. */
+                  <div className="flex h-full w-full items-center justify-center">
+                    <CategoryIcon
+                      className={cn('h-6 w-6', categoryTextClasses(receipt.category))}
+                      aria-hidden="true"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Main info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h4 className="font-semibold truncate group-hover:text-primary transition-colors">
+                    {receipt.merchantName || 'Unknown merchant'}
+                  </h4>
+                  {receipt.location && (
+                    <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      {receipt.location}
+                    </p>
+                  )}
+                  {day && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      {formatDisplayDate(day)}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" aria-hidden="true" />
+              </div>
+
+              {/*
+                Amount. This read `{receipt.currency || '€'}{amount}`,
+                which printed the ISO *code* jammed against the figure —
+                "EUR12.50" — and fell back to a euro sign regardless of
+                the user's chosen currency. It is now formatted in the
+                receipt's own currency, the user's when it has none.
+              */}
+              <p className="amount mt-2 text-xl font-semibold">
+                {formatCurrency(parseFloat(receipt.totalAmount || '0'), receipt.currency || userCurrency)}
+              </p>
+            </div>
+          </div>
+
+          {/* Bottom section with badges */}
+          <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5">
+            {/* Status badges */}
+            {isProcessing && (
+              <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                Processing
+              </Badge>
+            )}
+            {isFailed && (
+              <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+                {isStuck ? 'Didn’t finish — open to retry' : 'Failed'}
+              </Badge>
+            )}
+
+            {/* Category badge */}
+            {receipt.category && !isProcessing && !isFailed && (
+              <Badge variant="outline" className={categoryBadgeClasses(receipt.category)}>
+                <CategoryIcon className="h-3 w-3" aria-hidden="true" />
+                {category.label}
+              </Badge>
+            )}
+
+            {/* Time badge. transactionDate is a date with no time, so formatting it
+                as a time printed "12:00 AM" on every card; the time read off the
+                receipt, when there is one, lives in the OCR data. */}
+            {typeof timeOfDay === 'string' && timeOfDay && (
+              <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {timeOfDay}
+              </Badge>
+            )}
+
+            {/* Payment method */}
+            {receipt.paymentMethod && (
+              <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
+                <CreditCard className="h-3 w-3" aria-hidden="true" />
+                {formatPaymentMethod(receipt.paymentMethod)}
+              </Badge>
+            )}
+
+            {/* Household indicator */}
+            {receipt.householdId && (
+              <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                <Users className="h-3 w-3" aria-hidden="true" />
+                Shared
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Sorted by amount or merchant: one list in that order, each card carrying its own date.
+  if (sortBy !== 'date') {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {receipts.map((receipt) => renderCard(receipt, true))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {groupedReceipts.map((group) => (
-        <div key={group.date.toISOString()} className="relative">
+        <div key={group.day} className="relative">
           {/* Date header. The day total was previously flagged with a
               TrendingUp arrow, which reads as "spending is up" — it is just a
               count, and one day's total trends nowhere. */}
@@ -117,8 +272,15 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
                 </div>
               </div>
               <div className="text-right">
+                {/* Per currency: a day with a euro and a sterling receipt was summed as one figure. */}
                 <p className="amount text-base font-semibold text-foreground">
-                  {formatCurrency(group.totalSpent)}
+                  {formatTotals(
+                    totalsByCurrency(
+                      group.receipts.map((r) => ({ amount: r.totalAmount || '0', currency: r.currency })),
+                      userCurrency,
+                    ),
+                    userCurrency,
+                  )}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {group.receipts.length} receipt{group.receipts.length !== 1 ? 's' : ''}
@@ -129,137 +291,7 @@ export function ReceiptTimeline({ receipts, onReceiptClick }: ReceiptTimelinePro
 
           {/* Receipt cards for this date */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {group.receipts.map((receipt) => {
-              const category = getCategory(receipt.category);
-              const CategoryIcon = category.icon;
-
-              const isStuck = isStuckProcessing(receipt);
-              const isProcessing = !isStuck && (receipt.processingStatus === 'pending' || receipt.processingStatus === 'processing');
-              const isFailed = receipt.processingStatus === 'failed' || isStuck;
-              const timeOfDay = (receipt.ocrData as OCRData | null)?.timeOfDay;
-
-              return (
-                <Card
-                  key={receipt.id}
-                  onClick={() => onReceiptClick(receipt)}
-                  className={cn(
-                    // The 1px lift on hover made whole grids of cards jump as the
-                    // pointer crossed them. Border and shadow are enough feedback.
-                    'group cursor-pointer overflow-hidden transition-colors hover:border-primary/40',
-                    isFailed && 'border-destructive/40 bg-destructive/5',
-                    isProcessing && 'border-warning/40 bg-warning/5',
-                  )}
-                >
-                  <CardContent className="p-0">
-                    {/* Top section with thumbnail and main info */}
-                    <div className="flex gap-3 p-4">
-                      {/* Receipt thumbnail */}
-                      <div className="shrink-0">
-                        <div className="h-16 w-16 overflow-hidden rounded-lg border bg-muted">
-                          {receipt.imageUrl ? (
-                            <img
-                              src={receipt.imageUrl}
-                              alt={`Receipt from ${receipt.merchantName || 'merchant'}`}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            /* Was an emoji per category (🛒 🍽️ ⛽ ...). Emoji
-                               render differently on every platform, cannot be
-                               recoloured, and undercut a financial record. */
-                            <div className="flex h-full w-full items-center justify-center">
-                              <CategoryIcon
-                                className={cn('h-6 w-6', categoryTextClasses(receipt.category))}
-                                aria-hidden="true"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Main info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h4 className="font-semibold truncate group-hover:text-primary transition-colors">
-                              {receipt.merchantName || 'Unknown Merchant'}
-                            </h4>
-                            {receipt.location && (
-                              <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-                                <MapPin className="h-3 w-3 shrink-0" />
-                                {receipt.location}
-                              </p>
-                            )}
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-
-                        {/*
-                          Amount. This read `{receipt.currency || '€'}{amount}`,
-                          which printed the ISO *code* jammed against the figure —
-                          "EUR12.50" — and fell back to a euro sign regardless of
-                          the user's chosen currency. The day total directly above
-                          it was already going through the formatter, so a single
-                          card could show "EUR12.50" under a "€45.00" heading.
-                        */}
-                        <p className="amount mt-2 text-xl font-semibold">
-                          {formatCurrency(parseFloat(receipt.totalAmount || '0'))}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Bottom section with badges */}
-                    <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5">
-                      {/* Status badges */}
-                      {isProcessing && (
-                        <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
-                          <Clock className="h-3 w-3" aria-hidden="true" />
-                          Processing
-                        </Badge>
-                      )}
-                      {isFailed && (
-                        <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
-                          {isStuck ? 'Didn’t finish — open to retry' : 'Failed'}
-                        </Badge>
-                      )}
-
-                      {/* Category badge */}
-                      {receipt.category && !isProcessing && !isFailed && (
-                        <Badge variant="outline" className={categoryBadgeClasses(receipt.category)}>
-                          <CategoryIcon className="h-3 w-3" aria-hidden="true" />
-                          {category.label}
-                        </Badge>
-                      )}
-
-                      {/* Time badge. transactionDate is a date with no time, so formatting it
-                          as a time printed "12:00 AM" on every card; the time read off the
-                          receipt, when there is one, lives in the OCR data. */}
-                      {typeof timeOfDay === 'string' && timeOfDay && (
-                        <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
-                          <Clock className="h-3 w-3" aria-hidden="true" />
-                          {timeOfDay}
-                        </Badge>
-                      )}
-
-                      {/* Payment method */}
-                      {receipt.paymentMethod && (
-                        <Badge variant="outline" className="bg-muted/50 capitalize text-muted-foreground">
-                          <CreditCard className="h-3 w-3" aria-hidden="true" />
-                          {receipt.paymentMethod.replace(/_/g, ' ')}
-                        </Badge>
-                      )}
-
-                      {/* Household indicator */}
-                      {receipt.householdId && (
-                        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                          <Users className="h-3 w-3" aria-hidden="true" />
-                          Shared
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {group.receipts.map((receipt) => renderCard(receipt, false))}
           </div>
         </div>
       ))}

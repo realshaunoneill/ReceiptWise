@@ -48,7 +48,7 @@ export default function CheckoutNotCompletedPage() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex items-start gap-3 rounded-lg border p-3">
-                <CreditCard className="mt-0.5 h-5 w-5 text-primary" aria-hidden="true" />
+                <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                 <div>
                   <p className="text-sm font-medium">Try a different card</p>
                   <p className="text-xs text-muted-foreground">

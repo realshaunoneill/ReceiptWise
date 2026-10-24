@@ -2,7 +2,7 @@ import { getSessionCookie } from 'better-auth/cookies';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Sends signed-out visitors on app pages to /sign-in. A cookie check only.
+ * Sends signed-out visitors on the app's pages to /sign-in. A cookie check only.
  *
  * A session cookie here is not proof of a valid session: every API route resolves the real
  * session itself (getAuthenticatedUser / guardFinanceRoute), and the protected layout does too.
@@ -15,20 +15,31 @@ import { NextResponse, type NextRequest } from 'next/server';
  * pattern from Squint, after AutoToonify's Blob callback was blocked this way).
  */
 
-const PUBLIC_PAGES = [
-  /^\/$/,
-  /^\/sign-in(\/.*)?$/,
-  /^\/sign-up(\/.*)?$/,
-  /^\/invite(\/.*)?$/, // invitation links: shows who invited you, then routes through sign-in
-  /^\/(support|terms|privacy|refund)$/,
-  /^\/(opengraph|twitter)-image(\/.*)?$/,
-  /^\/(sitemap\.xml|robots\.txt|manifest\.json)$/,
-  /^\/ingest(\/.*)?$/, // PostHog
+/**
+ * The signed-in app: the routes in app/(protected). Only these need a session; everything else is
+ * public, and a path that doesn't exist falls through to the 404 page rather than to sign-in.
+ */
+const PROTECTED_PREFIXES = [
+  '/admin',
+  '/dashboard',
+  '/insights',
+  '/payment',
+  '/plan',
+  '/receipts',
+  '/redirect',
+  '/settings',
+  '/sharing',
+  '/subscriptions',
+  '/upgrade',
 ];
+
+export function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  if (PUBLIC_PAGES.some((pattern) => pattern.test(pathname))) return NextResponse.next();
+  if (!isProtectedPath(pathname)) return NextResponse.next();
 
   // better-auth's helper rather than a hardcoded cookie name: it handles the __Secure- prefix.
   if (!getSessionCookie(request)) {

@@ -80,8 +80,8 @@ export function Navigation() {
       <nav aria-label="Main navigation" className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo-mark.png" alt="ReceiptWise" width={24} height={24} className="h-6 w-6" />
+          <Link href="/" aria-label="ReceiptWise home" className="flex items-center gap-2 shrink-0">
+            <img src="/logo-mark.png" alt="" width={24} height={24} className="h-6 w-6" aria-hidden="true" />
             <span className="hidden font-semibold tracking-tight text-foreground lg:inline">ReceiptWise</span>
           </Link>
 
@@ -111,8 +111,8 @@ export function Navigation() {
       <nav aria-label="Main navigation" className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo-mark.png" alt="ReceiptWise" width={24} height={24} className="h-6 w-6" />
+          <Link href="/" aria-label="ReceiptWise home" className="flex items-center gap-2 shrink-0">
+            <img src="/logo-mark.png" alt="" width={24} height={24} className="h-6 w-6" aria-hidden="true" />
             <span className="font-semibold tracking-tight text-foreground">ReceiptWise</span>
           </Link>
 
@@ -134,9 +134,9 @@ export function Navigation() {
     <nav aria-label="Main navigation" className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
       <div className="container mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <img src="/logo-mark.png" alt="ReceiptWise" width={24} height={24} className="h-6 w-6" />
-          <span className="hidden font-bold text-foreground lg:inline">ReceiptWise</span>
+        <Link href="/dashboard" aria-label="ReceiptWise dashboard" className="flex items-center gap-2 shrink-0">
+          <img src="/logo-mark.png" alt="" width={24} height={24} className="h-6 w-6" aria-hidden="true" />
+          <span className="hidden font-semibold tracking-tight text-foreground lg:inline">ReceiptWise</span>
         </Link>
 
         {/* Desktop Navigation - Centered */}
@@ -175,7 +175,10 @@ export function Navigation() {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="relative h-8 w-8 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+              <button
+                aria-label="Account menu"
+                className="relative h-9 w-9 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
                 {user?.image ? (
                   <Image
                     src={user.image}
@@ -215,12 +218,12 @@ export function Navigation() {
           {/* Mobile Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Button variant="ghost" size="sm" className="h-10 w-10 p-0">
                 <Menu className="h-5 w-5" aria-hidden="true" />
                 <span className="sr-only">Open menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-56">
               {displayNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -230,7 +233,8 @@ export function Navigation() {
                       href={item.href}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex items-center gap-2',
+                        // 44px rows: the menu items were 32px tall, small to hit on a phone.
+                        'flex min-h-11 items-center gap-2',
                         isActive && 'bg-primary/10 text-primary',
                       )}
                     >

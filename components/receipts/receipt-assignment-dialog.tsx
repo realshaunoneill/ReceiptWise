@@ -103,7 +103,7 @@ export function ReceiptAssignmentDialog({
             <Share2 className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-center">
-            {canRemoveOnly ? 'Remove from Household' : 'Share Receipt'}
+            {canRemoveOnly ? 'Remove from household' : 'Share receipt'}
           </DialogTitle>
           <DialogDescription className="text-center">
             {canRemoveOnly
@@ -149,7 +149,7 @@ export function ReceiptAssignmentDialog({
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-medium">
-                    {canRemoveOnly ? 'Make Private' : 'Keep Private'}
+                    {canRemoveOnly ? 'Make private' : 'Keep private'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Only visible to you
@@ -251,18 +251,32 @@ export function ReceiptAssignmentDialog({
               </>
             ) : canRemoveOnly ? (
               <>
-                <X className="h-4 w-4 mr-2" />
-                Remove from Household
+                <X className="h-4 w-4 mr-2" aria-hidden="true" />
+                Remove from household
               </>
+            ) : !hasChanges ? (
+              /* Nothing picked yet. The disabled button used to say "Make Private" about a
+                 receipt that was already private. */
+              selectedHouseholdId === '__personal__' ? (
+                <>
+                  <Lock className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Already private
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Already shared here
+                </>
+              )
             ) : selectedHouseholdId === '__personal__' ? (
               <>
-                <Lock className="h-4 w-4 mr-2" />
-                Make Private
+                <Lock className="h-4 w-4 mr-2" aria-hidden="true" />
+                Make private
               </>
             ) : (
               <>
-                <Share2 className="h-4 w-4 mr-2" />
-                Share Receipt
+                <Share2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                Share receipt
               </>
             )}
           </Button>

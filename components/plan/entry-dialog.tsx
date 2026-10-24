@@ -18,18 +18,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { useDeleteEntry, useUpdateEntry } from '@/lib/hooks/use-plan';
 import { fromCents } from '@/lib/money';
 import { type PlanLine } from '@/lib/plan/compute-plan';
+import { ConfirmRemove } from './confirm-remove';
 
 type EntryDialogProps = {
   line: PlanLine | null;
   onOpenChange: (open: boolean) => void;
 };
 
-/** Edit a one-off line: its label, amount, date (which decides its period) and whether it's money in or out. */
+/**
+ * Edit a one-off line: its label, amount, date (which decides its period), whether it's money in
+ * or out, its category and notes. Notes used to be saved but never shown again, and a cleared
+ * field was never sent, so it couldn't be emptied.
+ */
 export function EntryDialog({ line, onOpenChange }: EntryDialogProps) {
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [direction, setDirection] = useState<'out' | 'in'>('out');
+  const [category, setCategory] = useState('');
   const [notes, setNotes] = useState('');
   const { mutate: updateEntry, isPending } = useUpdateEntry();
   const { mutate: deleteEntry, isPending: deleting } = useDeleteEntry();
@@ -40,13 +46,17 @@ export function EntryDialog({ line, onOpenChange }: EntryDialogProps) {
     setAmount(fromCents(line.amountCents));
     setDate(line.date);
     setDirection(line.direction);
-    setNotes('');
+    setCategory(line.category ?? '');
+    setNotes(line.notes ?? '');
   }, [line]);
 
   const save = () => {
     if (!line) return;
     updateEntry(
-      { id: line.sourceId, data: { label, amount, date, direction, ...(notes ? { notes } : {}) } },
+      {
+        id: line.sourceId,
+        data: { label, amount, date, direction, category: category.trim() || null, notes: notes.trim() || null },
+      },
       {
         onSuccess: () => {
           toast.success('Saved');
@@ -79,15 +89,21 @@ export function EntryDialog({ line, onOpenChange }: EntryDialogProps) {
               <Input id="entry-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Money</Label>
-            <Select value={direction} onValueChange={(value) => setDirection(value as 'out' | 'in')}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="out">Going out</SelectItem>
-                <SelectItem value="in">Coming in</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-direction">Money</Label>
+              <Select value={direction} onValueChange={(value) => setDirection(value as 'out' | 'in')}>
+                <SelectTrigger id="entry-direction"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="out">Going out</SelectItem>
+                  <SelectItem value="in">Coming in</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-category">Category</Label>
+              <Input id="entry-category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Optional" maxLength={50} />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entry-notes">Notes</Label>
@@ -95,20 +111,18 @@ export function EntryDialog({ line, onOpenChange }: EntryDialogProps) {
           </div>
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            className="text-destructive"
+          <ConfirmRemove
+            resetKey={line?.key}
+            question={`Remove ${line?.label ?? 'it'}?`}
             disabled={deleting || !line}
-            onClick={() => line && deleteEntry(line.sourceId, {
+            onConfirm={() => line && deleteEntry(line.sourceId, {
               onSuccess: () => {
                 toast.success(`Removed ${line.label}`);
                 onOpenChange(false);
               },
               onError: (error) => toast.error(error.message),
             })}
-          >
-            Remove
-          </Button>
+          />
           <Button onClick={save} disabled={isPending}>{isPending ? 'Saving…' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>

@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { subscriptions, subscriptionPayments } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { billDocuments, subscriptions, subscriptionPayments } from '@/lib/db/schema';
+import { and, eq, desc, isNull } from 'drizzle-orm';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
+import { getAccount } from '@/lib/services/account-service';
 import { canFileFinanceRowUnder, canOwnFinanceRow, canReadFinanceRow } from '@/lib/services/finance-access';
 import { SubscriptionService } from '@/lib/services/subscription-service';
 import { utcDay } from '@/lib/schedule/billing-schedule';
@@ -25,8 +26,9 @@ function sameTime(a: Date | null | undefined, b: Date | null | undefined): boole
   return (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
 }
 
-// GET /api/subscriptions/[id] - One subscription or bill with its recent payments. Readable by
-// its owner and, when shared, by every member of a covered household.
+// GET /api/subscriptions/[id] - One subscription or bill with its recent payments and the bills
+// filed against it (their files are at /api/bills/documents/[id]/file). Readable by its owner
+// and, when shared, by every member of a covered household.
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const guard = await guardFinanceRoute(req, { mutating: false });
   if (guard instanceof NextResponse) return guard;
@@ -39,15 +41,40 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json(NOT_FOUND, { status: 404 });
     }
 
-    const payments = await db
-      .select()
-      .from(subscriptionPayments)
-      .where(eq(subscriptionPayments.subscriptionId, id))
-      .orderBy(desc(subscriptionPayments.expectedDate))
-      .limit(24);
+    const [payments, filed] = await Promise.all([
+      db
+        .select()
+        .from(subscriptionPayments)
+        .where(eq(subscriptionPayments.subscriptionId, id))
+        .orderBy(desc(subscriptionPayments.expectedDate))
+        .limit(24),
+      db
+        .select({
+          id: billDocuments.id,
+          userId: billDocuments.userId,
+          householdId: billDocuments.householdId,
+          paymentId: billDocuments.paymentId,
+          fileName: billDocuments.fileName,
+          provider: billDocuments.provider,
+          amountDue: billDocuments.amountDue,
+          currency: billDocuments.currency,
+          dueDate: billDocuments.dueDate,
+          issueDate: billDocuments.issueDate,
+          periodStart: billDocuments.periodStart,
+          periodEnd: billDocuments.periodEnd,
+        })
+        .from(billDocuments)
+        .where(and(eq(billDocuments.subscriptionId, id), eq(billDocuments.reviewStatus, 'applied'), isNull(billDocuments.deletedAt)))
+        .orderBy(desc(billDocuments.createdAt))
+        .limit(24),
+    ]);
+    // A household member's bill filed against a shared item is only listed to those who can open it.
+    const bills = filed
+      .filter((bill) => canReadFinanceRow(bill, user.id, entitlements))
+      .map(({ userId: _userId, householdId: _householdId, ...bill }) => bill);
 
     return NextResponse.json(
-      { ...subscription, payments, canEdit: canOwnFinanceRow(subscription, user.id, entitlements) },
+      { ...subscription, payments, bills, canEdit: canOwnFinanceRow(subscription, user.id, entitlements) },
       { headers: PRIVATE_NO_STORE },
     );
   } catch (error) {
@@ -88,11 +115,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
     }
 
+    if (input.paidFromAccountId && input.paidFromAccountId !== existing.paidFromAccountId) {
+      const account = await getAccount(input.paidFromAccountId);
+      if (!account || !canReadFinanceRow(account, user.id, entitlements)) {
+        return NextResponse.json({ error: 'paidFromAccountId is not one of your accounts' }, { status: 400 });
+      }
+    }
+
     const updates: Partial<typeof subscriptions.$inferInsert> = {};
     for (const key of [
       'name', 'description', 'category', 'amount', 'currency', 'billingFrequency', 'billingDay',
       'customFrequencyDays', 'startDate', 'endDate', 'householdId', 'isBusinessExpense', 'website',
-      'notes', 'kind', 'amountType', 'paymentMethod', 'accountReference',
+      'notes', 'kind', 'amountType', 'paymentMethod', 'accountReference', 'paidFromAccountId',
     ] as const) {
       if (input[key] !== undefined) (updates as Record<string, unknown>)[key] = input[key];
     }

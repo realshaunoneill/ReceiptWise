@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, receipts, householdUsers } from '@/lib/db/schema';
+import { users } from '@/lib/db/schema';
 import { getAuthenticatedUser, requireAdmin } from '@/lib/auth-helpers';
-import { sql } from 'drizzle-orm';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
+import { userWithCountsFields } from './users-query';
 
 export const runtime = 'nodejs';
 
@@ -20,30 +20,8 @@ export async function GET(req: NextRequest) {
     const adminCheck = await requireAdmin(user, correlationId);
     if (adminCheck) return adminCheck;
 
-    // Get all users with receipt and household counts using efficient subqueries
-    const usersWithCounts = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        subscribed: users.subscribed,
-        isAdmin: users.isAdmin,
-        isBlocked: users.isBlocked,
-        blockedAt: users.blockedAt,
-        blockedReason: users.blockedReason,
-        createdAt: users.createdAt,
-        stripeCustomerId: users.stripeCustomerId,
-        receiptCount: sql<number>`(
-          SELECT COUNT(*)
-          FROM ${receipts}
-          WHERE ${receipts.userId} = ${users.id}
-        )`,
-        householdCount: sql<number>`(
-          SELECT COUNT(*)
-          FROM ${householdUsers}
-          WHERE ${householdUsers.userId} = ${users.id}
-        )`,
-      })
-      .from(users);
+    // Every user with their receipt and household counts (see users-query.ts).
+    const usersWithCounts = await db.select(userWithCountsFields).from(users);
 
     submitLogEvent('admin', 'Admin viewed users list', correlationId, { adminId: user.id });
 

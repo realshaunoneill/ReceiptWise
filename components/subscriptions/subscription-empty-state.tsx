@@ -2,13 +2,19 @@
 
 import { TrendingUp, Calendar, Link2, PieChart, Pause, XCircle, PlayCircle, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { useFeature } from '@/lib/hooks/use-user';
 import { CreateSubscriptionDialog } from './create-subscription-dialog';
 
 type SubscriptionEmptyStateProps = {
   status: string;
+  kind?: 'all' | 'bill' | 'subscription';
 };
 
-export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) {
+export function SubscriptionEmptyState({ status, kind = 'all' }: SubscriptionEmptyStateProps) {
+  const billsEnabled = useFeature('bills');
+  // What the list holds: with bills on it's both kinds unless the page narrowed it to one.
+  const things = !billsEnabled || kind === 'subscription' ? 'subscriptions' : kind === 'bill' ? 'bills' : 'bills or subscriptions';
+
   if (status === 'paused') {
     return (
       <Card className="border-dashed bg-muted/30">
@@ -16,13 +22,13 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
           <div className="mb-4 rounded-full bg-warning/10 p-4">
             <Pause className="h-8 w-8 text-warning" aria-hidden="true" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No paused subscriptions</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No paused {things}</h3>
           <p className="text-sm text-muted-foreground text-center max-w-sm mb-4">
-            When you pause a subscription, it will appear here. Pausing is useful for services you&apos;re temporarily not using.
+            Anything you pause appears here. Pausing is useful for services you&apos;re temporarily not using.
           </p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <PlayCircle className="h-4 w-4" />
-            <span>Paused subscriptions can be resumed at any time</span>
+            <span>You can resume it at any time</span>
           </div>
         </CardContent>
       </Card>
@@ -36,13 +42,13 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
           <div className="rounded-full bg-muted p-4 mb-4">
             <XCircle className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No cancelled subscriptions</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No cancelled {things}</h3>
           <p className="text-sm text-muted-foreground text-center max-w-sm mb-4">
-            Cancelled subscriptions appear here for your records. You can reactivate them if needed.
+            Anything you cancel stays here for your records. You can reactivate it if needed.
           </p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" />
-            <span>Keep track of your subscription history</span>
+            <span>Your payment history is kept</span>
           </div>
         </CardContent>
       </Card>
@@ -56,10 +62,22 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
           <div className="rounded-full bg-muted p-4 mb-4">
             <CreditCard className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No {status} subscriptions</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No {status} {things}</h3>
           <p className="text-sm text-muted-foreground text-center">
-            You don&apos;t have any {status} subscriptions.
+            You don&apos;t have any {status} {things}.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // The Active tab narrowed to one kind: no need for the whole introduction.
+  if (kind !== 'all' && billsEnabled) {
+    return (
+      <Card className="border-dashed bg-muted/30">
+        <CardContent className="flex flex-col items-center justify-center gap-4 py-12 px-6">
+          <h3 className="text-lg font-semibold text-foreground">No active {things}</h3>
+          <CreateSubscriptionDialog />
         </CardContent>
       </Card>
     );
@@ -78,9 +96,9 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
           </div>
 
           {/* Title & Description */}
-          <h3 className="mb-2 text-xl font-semibold text-foreground">No subscriptions yet</h3>
+          <h3 className="mb-2 text-xl font-semibold text-foreground">{billsEnabled ? 'No bills or subscriptions yet' : 'No subscriptions yet'}</h3>
           <p className="mb-8 text-muted-foreground">
-            Add the recurring payments you already have — streaming, phone, insurance — and
+            Add the recurring payments you already have — {billsEnabled ? 'rent, electricity, phone, streaming' : 'streaming, phone, insurance'} — and
             they get totalled and tracked alongside your receipts.
           </p>
 
@@ -94,7 +112,7 @@ export function SubscriptionEmptyState({ status }: SubscriptionEmptyStateProps) 
             <div>
               <PieChart className="h-5 w-5 text-primary" aria-hidden="true" />
               <p className="mt-2 text-sm font-medium">Monthly and yearly cost</p>
-              <p className="text-xs text-muted-foreground">Per subscription and in total</p>
+              <p className="text-xs text-muted-foreground">For each one and in total</p>
             </div>
             <div>
               <Link2 className="h-5 w-5 text-primary" aria-hidden="true" />

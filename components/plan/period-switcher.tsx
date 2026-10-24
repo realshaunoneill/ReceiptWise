@@ -34,7 +34,7 @@ export function PeriodSwitcher({ period, offset, onOffsetChange, maxOffset = 24 
           <p className="text-xs text-muted-foreground sm:text-sm">
             {period.calendarMonth
               ? 'Calendar month · add your pay to plan payday to payday'
-              : `${formatLocalDate(period.start, { day: 'numeric', month: 'short' })} – ${formatLocalDate(addDays(period.end, -1), { day: 'numeric', month: 'short' })}`}
+              : `${formatLocalDate(period.start, { day: 'numeric', month: 'short' }, 'en-IE')} – ${formatLocalDate(addDays(period.end, -1), { day: 'numeric', month: 'short' }, 'en-IE')}`}
             {offset !== 0 && (
               <>
                 {' · '}

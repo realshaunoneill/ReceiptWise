@@ -7,15 +7,13 @@ import {
   type SubscriptionPayment,
 } from '@/lib/db/schema';
 import { eq, and, gt, inArray, isNull, lte, or } from 'drizzle-orm';
-import { fromUtcDate, nextBusinessDay, toUtcDate } from '@/lib/dates/local-date';
-import { BillingSchedule, DAY_MS, type ScheduleFields, utcDay } from '@/lib/schedule/billing-schedule';
+import { fromUtcDate, toUtcDate } from '@/lib/dates/local-date';
+import { BillingSchedule, collectionDate, DAY_MS, isAutoPaid, type ScheduleFields, utcDay } from '@/lib/schedule/billing-schedule';
 import { type UpdatePaymentInput } from '@/lib/validation/finance';
 
 /** A pending payment only becomes "missed" this long after its expected date. */
 const MISSED_GRACE_DAYS = 3;
 
-/** Payment methods that take the money without the user doing anything. */
-const AUTOMATIC_METHODS = ['direct_debit', 'standing_order'];
 
 /** Statuses that mean a cycle is dealt with, so it is never the "next" billing date. */
 const SETTLED_STATUSES = ['paid', 'skipped', 'cancelled'];
@@ -36,11 +34,15 @@ function nominalDay(payment: Pick<SubscriptionPayment, 'dueDate' | 'expectedDate
 }
 
 /**
- * When a direct debit or standing order is collected: its due day, or the next business day if
- * that falls on a weekend. Bank holidays are not modelled yet.
+ * When an automatic payment leaves the account: a direct debit or standing order on its due day,
+ * or the next business day if that is a weekend or an Irish bank holiday; a card charge on the
+ * day itself, as cards are charged at weekends too.
  */
-export function collectionDay(payment: Pick<SubscriptionPayment, 'dueDate' | 'expectedDate'>): string {
-  return nextBusinessDay(nominalDay(payment));
+export function collectionDay(
+  payment: Pick<SubscriptionPayment, 'dueDate' | 'expectedDate'>,
+  paymentMethod?: string | null,
+): string {
+  return collectionDate(nominalDay(payment), paymentMethod);
 }
 
 export class SubscriptionService {
@@ -421,8 +423,9 @@ export class SubscriptionService {
   /**
    * The daily job (/api/cron/bills-daily):
    *   1. create the rows for cycles that came round, and correct nextBillingDate;
-   *   2. mark direct debits and standing orders paid once their collection day arrives ("assumed",
-   *      which the UI offers to undo): nobody confirms those, and they are the most common bills;
+   *   2. mark direct debits, standing orders and card payments paid once their collection day
+   *      arrives ("assumed", which the UI offers to undo): nobody confirms those, and they are the
+   *      most common bills. Card subscriptions (Netflix, iCloud+) used to go "missed" here instead;
    *   3. mark everything else missed once it is MISSED_GRACE_DAYS overdue.
    */
   static async runDaily(now: Date = new Date()): Promise<{ created: number; assumedPaid: number; missed: number }> {
@@ -441,45 +444,39 @@ export class SubscriptionService {
       if (batch.length < DAILY_BATCH_SIZE) break;
     }
 
-    const today = fromUtcDate(now);
-    const pending = await db
+    const open = await db
       .select({ payment: subscriptionPayments, paymentMethod: subscriptions.paymentMethod })
       .from(subscriptionPayments)
       .innerJoin(subscriptions, eq(subscriptions.id, subscriptionPayments.subscriptionId))
       .where(and(
-        eq(subscriptionPayments.status, 'pending'),
+        inArray(subscriptionPayments.status, ['pending', 'missed']),
         // Rows only exist up to today, except future ones a bill or the user created; a bill's
         // due date can sit a little after its cycle date, so look a few weeks ahead.
         lte(subscriptionPayments.expectedDate, new Date(now.getTime() + 31 * DAY_MS)),
       ));
 
-    const assumed = pending.filter((row) =>
-      row.paymentMethod && AUTOMATIC_METHODS.includes(row.paymentMethod) && collectionDay(row.payment) <= today);
-    for (const { payment } of assumed) {
+    const { assumed, missed } = this.sortDueRows(open, now);
+    for (const { payment, paymentMethod } of assumed) {
       await db
         .update(subscriptionPayments)
         .set({
           status: 'paid',
           paidVia: 'assumed',
-          actualDate: toUtcDate(collectionDay(payment)),
+          actualDate: toUtcDate(collectionDay(payment, paymentMethod)),
           actualAmount: payment.expectedAmount,
           updatedAt: new Date(),
         })
-        .where(and(eq(subscriptionPayments.id, payment.id), eq(subscriptionPayments.status, 'pending')));
+        .where(and(eq(subscriptionPayments.id, payment.id), inArray(subscriptionPayments.status, ['pending', 'missed'])));
     }
     for (const subscriptionId of new Set(assumed.map(({ payment }) => payment.subscriptionId))) {
       const latest = assumed
         .filter(({ payment }) => payment.subscriptionId === subscriptionId)
-        .map(({ payment }) => toUtcDate(collectionDay(payment)))
+        .map(({ payment, paymentMethod }) => toUtcDate(collectionDay(payment, paymentMethod)))
         .sort((a, b) => b.getTime() - a.getTime())[0];
       await this.handlePaymentPaid(subscriptionId, latest);
     }
 
-    const missedCutoff = fromUtcDate(new Date(now.getTime() - MISSED_GRACE_DAYS * DAY_MS));
-    const missedIds = pending
-      .filter((row) => !(row.paymentMethod && AUTOMATIC_METHODS.includes(row.paymentMethod)))
-      .filter((row) => nominalDay(row.payment) < missedCutoff)
-      .map((row) => row.payment.id);
+    const missedIds = missed.map((row) => row.payment.id);
     if (missedIds.length > 0) {
       await db
         .update(subscriptionPayments)
@@ -491,20 +488,51 @@ export class SubscriptionService {
   }
 
   /**
+   * Which open rows the daily job settles: automatic payments (direct debit, standing order,
+   * card) whose collection day has come are assumed paid, and anything paid by hand that is
+   * still pending past the grace period is marked missed.
+   *
+   * An automatic payment's row is taken from 'missed' as well as 'pending'. Only this job ever
+   * sets 'missed', and it used to do that to card charges (card wasn't counted as automatic), so
+   * every card subscription built up a list of missed payments that nothing would clear. The same
+   * goes for a bill switched to direct debit after its manual cycles were marked missed.
+   */
+  static sortDueRows<T extends { payment: Pick<SubscriptionPayment, 'status' | 'dueDate' | 'expectedDate'>; paymentMethod: string | null }>(
+    rows: T[],
+    now: Date,
+  ): { assumed: T[]; missed: T[] } {
+    const today = fromUtcDate(now);
+    const missedCutoff = fromUtcDate(new Date(now.getTime() - MISSED_GRACE_DAYS * DAY_MS));
+    const assumed: T[] = [];
+    const missed: T[] = [];
+    for (const row of rows) {
+      if (isAutoPaid(row.paymentMethod)) {
+        const open = row.payment.status === 'pending' || row.payment.status === 'missed';
+        if (open && collectionDay(row.payment, row.paymentMethod) <= today) assumed.push(row);
+      } else if (row.payment.status === 'pending' && nominalDay(row.payment) < missedCutoff) {
+        missed.push(row);
+      }
+    }
+    return { assumed, missed };
+  }
+
+  /**
    * Whether an occurrence counts as missing its payment: missed, or pending past the grace
    * period. Counting plain 'pending' (as the list used to) flagged a payment due today as
    * missing, and without the daily run nothing ever became 'missed' in dev or preview. Direct
-   * debits and standing orders are never overdue: they are assumed paid once collected.
+   * debits, standing orders and card payments are never overdue: they are assumed paid once
+   * collected.
    */
   static isOverdue(
     payment: Pick<SubscriptionPayment, 'status' | 'dueDate' | 'expectedDate'>,
     now: Date = new Date(),
     paymentMethod?: string | null,
   ): boolean {
+    // A direct debit, standing order or card payment goes out on its own; the daily run marks it
+    // assumed paid, including a row it marked missed before card payments counted as automatic.
+    if (isAutoPaid(paymentMethod)) return false;
     if (payment.status === 'missed') return true;
     if (payment.status !== 'pending') return false;
-    // A direct debit or standing order goes out on its own; the daily run marks it assumed paid.
-    if (paymentMethod && AUTOMATIC_METHODS.includes(paymentMethod)) return false;
     return nominalDay(payment) < fromUtcDate(new Date(now.getTime() - MISSED_GRACE_DAYS * DAY_MS));
   }
 

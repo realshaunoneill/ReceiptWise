@@ -11,7 +11,7 @@ import { localToday } from '@/lib/dates/local-date';
 import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 import { useFeature } from '@/lib/hooks/use-user';
-import { BillFields, type BillFieldValues, DEFAULT_BILL_FIELDS } from './bill-fields';
+import { BillFields, type BillFieldValues, CategoryField, DEFAULT_BILL_FIELDS, HouseholdShareField } from './bill-fields';
 import {
   Dialog,
   DialogContent,
@@ -52,21 +52,6 @@ type FormData = {
   notes: string;
 };
 
-const categories = [
-  'Streaming',
-  'Software',
-  'Utilities',
-  'Insurance',
-  'Cloud Services',
-  'Music',
-  'Gaming',
-  'News',
-  'Education',
-  'Fitness',
-  'Storage',
-  'Other',
-];
-
 export function CreateSubscriptionDialog() {
   const [open, setOpen] = useState(false);
   const { data: households } = useHouseholds();
@@ -95,6 +80,8 @@ export function CreateSubscriptionDialog() {
 
   const billingFrequency = watch('billingFrequency');
   const currency = watch('currency');
+  // With bills on, the dialog adds either kind, so its wording doesn't say "subscription".
+  const noun = billsEnabled ? (billFields.kind === 'bill' ? 'bill' : 'subscription') : 'subscription';
 
   // The user's currency loads after the form mounts; default to it until they pick another.
   useEffect(() => {
@@ -137,7 +124,7 @@ export function CreateSubscriptionDialog() {
         billingDay,
         customFrequencyDays,
         startDate: data.startDate,
-        householdId: data.householdId || undefined,
+        householdId: data.householdId || null,
         isBusinessExpense: data.isBusinessExpense,
         website: data.website || undefined,
         notes: data.notes || undefined,
@@ -145,17 +132,18 @@ export function CreateSubscriptionDialog() {
           kind: billFields.kind,
           amountType: billFields.amountType,
           paymentMethod: billFields.paymentMethod || null,
+          paidFromAccountId: billFields.paidFromAccountId,
         } : {}),
       },
       {
         onSuccess: () => {
-          toast.success(`${data.name} has been added to your subscriptions`);
+          toast.success(billsEnabled ? `Added ${data.name}` : `${data.name} has been added to your subscriptions`);
           setOpen(false);
           reset();
           setBillFields(DEFAULT_BILL_FIELDS);
         },
         onError: (error) => {
-          toast.error('Failed to create subscription', { description: error.message });
+          toast.error(`Failed to add the ${noun}`, { description: error.message });
         },
       },
     );
@@ -166,14 +154,14 @@ export function CreateSubscriptionDialog() {
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
-          Add Subscription
+          {billsEnabled ? 'Add bill or subscription' : 'Add subscription'}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Subscription</DialogTitle>
+          <DialogTitle>{billsEnabled ? 'Add a bill or subscription' : 'Add a subscription'}</DialogTitle>
           <DialogDescription>
-            Track your recurring expenses in just a few simple steps
+            Anything that comes round again: rent, electricity, your phone, Netflix.
           </DialogDescription>
         </DialogHeader>
 
@@ -182,18 +170,18 @@ export function CreateSubscriptionDialog() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <Tag className="w-4 h-4" />
-              <span>Basic Information</span>
+              <span>Basic information</span>
             </div>
             <Separator />
 
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="name" className="text-base">
-                  Subscription Name <span className="text-destructive">*</span>
+                  Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="name"
-                  placeholder="e.g., Netflix, Spotify, Adobe Creative Cloud"
+                  placeholder={billsEnabled ? 'e.g. Rent, Electricity, Netflix' : 'e.g. Netflix, Spotify, Adobe Creative Cloud'}
                   className="text-base"
                   {...register('name', { required: true })}
                 />
@@ -202,23 +190,7 @@ export function CreateSubscriptionDialog() {
                 )}
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  onValueChange={(value) => setValue('category', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a category (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <CategoryField value={watch('category') ?? ''} onChange={(value) => setValue('category', value)} />
             </div>
           </div>
 
@@ -226,7 +198,7 @@ export function CreateSubscriptionDialog() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <CreditCard className="w-4 h-4" />
-              <span>Pricing Details</span>
+              <span>Amount</span>
             </div>
             <Separator />
 
@@ -255,7 +227,7 @@ export function CreateSubscriptionDialog() {
                     onValueChange={(value) => setValue('currency', value)}
                     value={currency}
                   >
-                    <SelectTrigger className="w-[100px]">
+                    <SelectTrigger id="currency" className="w-[100px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -277,18 +249,18 @@ export function CreateSubscriptionDialog() {
                   onValueChange={(value) =>
                     setValue('billingFrequency', value as FormData['billingFrequency'])
                   }
-                  defaultValue="monthly"
+                  value={billingFrequency}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="billingFrequency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="bimonthly">Every 2 months</SelectItem>
-                    <SelectItem value="quarterly">Every 3 months (Quarterly)</SelectItem>
+                    <SelectItem value="quarterly">Every 3 months</SelectItem>
                     <SelectItem value="six_monthly">Every 6 months</SelectItem>
                     <SelectItem value="yearly">Yearly</SelectItem>
-                    <SelectItem value="custom">Custom frequency</SelectItem>
+                    <SelectItem value="custom">Every so many days</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -314,7 +286,7 @@ export function CreateSubscriptionDialog() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <Calendar className="w-4 h-4" />
-              <span>Billing Schedule</span>
+              <span>When it&apos;s due</span>
             </div>
             <Separator />
 
@@ -343,7 +315,7 @@ export function CreateSubscriptionDialog() {
 
               <div className="grid gap-2">
                 <Label htmlFor="startDate" className="text-base">
-                  When did you start? <span className="text-destructive">*</span>
+                  {billsEnabled ? 'Starting from' : 'When did you start?'} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="startDate"
@@ -363,7 +335,7 @@ export function CreateSubscriptionDialog() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
               <Settings className="w-4 h-4" />
-              <span>Additional Details (Optional)</span>
+              <span>More details (optional)</span>
             </div>
             <Separator />
 
@@ -377,29 +349,15 @@ export function CreateSubscriptionDialog() {
                 />
               </div>
 
-              {households && households.length > 0 && (
-                <div className="grid gap-2">
-                  <Label htmlFor="householdId">Household</Label>
-                  <Select
-                    onValueChange={(value) => setValue('householdId', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Personal subscription" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {households.map((household: HouseholdWithMembers) => (
-                        <SelectItem key={household.id} value={household.id}>
-                          {household.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <HouseholdShareField
+                value={watch('householdId') || null}
+                onChange={(householdId) => setValue('householdId', householdId ?? '')}
+                households={households as HouseholdWithMembers[] | undefined}
+              />
 
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
-                  <Label htmlFor="isBusinessExpense" className="text-base">Business Expense</Label>
+                  <Label htmlFor="isBusinessExpense" className="text-base">Business expense</Label>
                   <p className="text-sm text-muted-foreground">
                     Tax-deductible business expense
                   </p>
@@ -445,7 +403,7 @@ export function CreateSubscriptionDialog() {
               Cancel
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Creating...' : 'Create Subscription'}
+              {isPending ? 'Adding…' : `Add ${noun}`}
             </Button>
           </DialogFooter>
         </form>

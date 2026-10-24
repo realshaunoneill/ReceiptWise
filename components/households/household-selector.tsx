@@ -23,12 +23,15 @@ interface HouseholdSelectorProps {
   households: Household[]
   selectedHouseholdId?: string
   onSelect: (householdId: string) => void
+  /** What the picker chooses, for screen readers: the button had no name, only its current value. */
+  label?: string
 }
 
 export function HouseholdSelector({
   households,
   selectedHouseholdId,
   onSelect,
+  label = 'Household',
 }: HouseholdSelectorProps) {
   const [open, setOpen] = useState(false);
 
@@ -41,6 +44,7 @@ export function HouseholdSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label={`${label}: ${selectedHousehold ? selectedHousehold.name : 'none chosen'}`}
           className="w-full justify-between sm:w-[280px]"
         >
           <div className="flex items-center gap-2">

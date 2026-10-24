@@ -1,6 +1,6 @@
 'use client';
 
-import { Store, MapPin, Info, Calendar, Clock, CreditCard, Hash, Receipt as ReceiptIcon, Building2, AlertCircle, RefreshCw, Share2, Lock, Home, Upload, AlertTriangle } from 'lucide-react';
+import { Store, MapPin, Calendar, Clock, CreditCard, Hash, Receipt as ReceiptIcon, Building2, AlertCircle, RefreshCw, Share2, Lock, Home, Upload, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ReceiptAssignmentDialog } from '@/components/receipts/receipt-assignment-dialog';
@@ -12,6 +12,7 @@ import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 import { canRetryReceipt, isStuckProcessing } from '@/lib/utils/receipt-status';
+import { formatDisplayDate, formatPaymentMethod } from '@/components/receipts/format';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -88,22 +89,20 @@ export function ReceiptHeader({
       )}
 
 
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-3">
+      {/* pr-10 keeps the modal's close button (absolute, top right) off the status badge,
+          which it covered on a phone. The title row also wraps now rather than running
+          under it. An "Enhanced" badge that sat here meant only "the OCR data has more
+          than five keys", which told the reader nothing. */}
+      <div className="flex items-start justify-between mb-2 pr-10">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
-            <Store className="h-6 w-6 text-primary" />
+            <Store className="h-6 w-6 text-primary" aria-hidden="true" />
           </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold">
-                {receipt.merchantName || 'Unknown Merchant'}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="text-2xl font-bold wrap-break-word">
+                {receipt.merchantName || 'Unknown merchant'}
               </h2>
-              {receipt.ocrData && typeof receipt.ocrData === 'object' && Object.keys(receipt.ocrData).length > 5 ? (
-                <Badge variant="default" className="text-xs">
-                  <Info className="h-3 w-3 mr-1" />
-                  Enhanced
-                </Badge>
-              ) : null}
               {receipt.processingStatus && <ReceiptStatusBadge status={receipt.processingStatus} />}
             </div>
             {receipt.location && (
@@ -153,8 +152,8 @@ export function ReceiptHeader({
         {receipt.isBusinessExpense && !isReceiptOwner && (
           <Badge variant="outline" className="flex w-fit items-center gap-2 border-info/30 bg-info/10 text-info">
             <Building2 className="h-3 w-3" />
-            Business Expense
-            {receipt.taxDeductible && <span className="ml-1">• Tax Deductible</span>}
+            Business expense
+            {receipt.taxDeductible && <span className="ml-1">• Tax deductible</span>}
           </Badge>
         )}
       </div>
@@ -164,7 +163,7 @@ export function ReceiptHeader({
         <div className="mt-4 rounded-md border border-destructive/20 bg-destructive/10 p-3">
           <p className="text-sm text-destructive">
             <AlertCircle className="h-4 w-4 inline mr-2" />
-            <strong>Processing Error:</strong> {receipt.processingError}
+            <strong>Processing error:</strong> {receipt.processingError}
           </p>
         </div>
       )}
@@ -196,7 +195,7 @@ export function ReceiptHeader({
             ) : (
               <>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Retry Processing
+                Retry processing
               </>
             )}
           </Button>
@@ -223,17 +222,17 @@ export function ReceiptHeader({
                 {!isReceiptOwner && receipt.householdId ? (
                   <>
                     <Lock className="h-4 w-4 mr-2" />
-                    Make Private
+                    Make private
                   </>
                 ) : receipt.householdId ? (
                   <>
                     <Share2 className="h-4 w-4 mr-2" />
-                    Change Sharing
+                    Change sharing
                   </>
                 ) : (
                   <>
                     <Share2 className="h-4 w-4 mr-2" />
-                    Share Receipt
+                    Share receipt
                   </>
                 )}
               </Button>
@@ -252,17 +251,15 @@ export function ReceiptHeader({
 
       {/* Meta Info */}
       <div className="flex flex-wrap gap-3 mt-4">
-        {/* Receipt/Transaction Date */}
+        {/* Receipt/Transaction Date. Was the raw "2026-10-21" beside an upload date in the
+            browser's own format ("10/21/2026"); both are en-IE now. */}
         <Badge variant="secondary" className="flex items-center gap-1">
-          <Calendar className="h-3 w-3" />
-          {receipt.transactionDate
-            ? `Receipt: ${receipt.transactionDate}`
-            : `Receipt: ${new Date(receipt.createdAt).toLocaleDateString()}`}
+          <Calendar className="h-3 w-3" aria-hidden="true" />
+          Receipt date: {formatDisplayDate(receipt.transactionDate || receipt.createdAt)}
         </Badge>
-        {/* Upload Date - only show if different from transaction date */}
         <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground">
-          <Upload className="h-3 w-3" />
-          Uploaded: {new Date(receipt.createdAt).toLocaleDateString()}
+          <Upload className="h-3 w-3" aria-hidden="true" />
+          Uploaded: {formatDisplayDate(receipt.createdAt)}
         </Badge>
         {(() => {
           const ocrData = receipt.ocrData as OCRData | null;
@@ -275,8 +272,8 @@ export function ReceiptHeader({
         })()}
         {receipt.paymentMethod && (
           <Badge variant="secondary" className="flex items-center gap-1">
-            <CreditCard className="h-3 w-3" />
-            {capitalizeText(receipt.paymentMethod)}
+            <CreditCard className="h-3 w-3" aria-hidden="true" />
+            {formatPaymentMethod(receipt.paymentMethod)}
           </Badge>
         )}
         {receipt.receiptNumber && (

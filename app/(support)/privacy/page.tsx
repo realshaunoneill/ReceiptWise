@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>1. Who we are</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             {/* TODO(operator): GDPR Art. 13(1)(a) requires the controller's identity. Add the
                 operator's legal name (or company name and number) and a postal address here
                 before relying on this policy. Deliberately not filled in by guesswork. */}
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>2. Information we collect</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p><strong>Account information:</strong></p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Your email address, name and profile picture, from the Google account you sign in with</li>
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
 
             <p><strong>Receipt data:</strong></p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Receipt images you upload, from the website or the Chrome extension</li>
+              <li>Receipt images you upload, from the website or the Chrome extension, or forward to your forwarding address</li>
               <li>What is read off them: merchant, items, prices, dates, payment method, and any loyalty or VAT numbers printed on the receipt</li>
               <li>Categories, business-expense flags and notes you add</li>
               <li>Recurring subscriptions you choose to track</li>
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>3. How we use it, and on what legal basis</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Running the service you signed up for</strong> — storing and reading your receipts, sharing them with your household, producing insights, and billing your subscription. Basis: performance of our contract with you (GDPR Art. 6(1)(b)).</li>
               <li><strong>Keeping it working and secure</strong> — application logs used to find and fix faults, and to detect abuse. Basis: our legitimate interest in running a reliable, secure service (Art. 6(1)(f)).</li>
@@ -93,12 +93,12 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>4. How receipts and bills are read</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              Receipts are read by OpenAI&apos;s models through their API: images are sent to <strong>GPT-4o</strong>
+              Receipts are read by OpenAI&apos;s models through their API: images are sent to <strong>GPT-4o</strong>{' '}
               to extract the merchant, items and totals, and summarised spending figures are sent to
               <strong> GPT-4o-mini</strong> to write your spending summaries. Bills and statements you upload or
-              forward (PDFs, photos, or an email&apos;s text when it has no attachment) are sent to <strong>GPT-4o</strong>
+              forward (PDFs, photos, or an email&apos;s text when it has no attachment) are sent to <strong>GPT-4o</strong>{' '}
               to find the provider, the amount due and the due date.
             </p>
             <ul className="list-disc pl-5 space-y-1">
@@ -113,7 +113,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>5. Who processes your data for us</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>We use these service providers to run ReceiptWise. They process data on our behalf and only for these purposes:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Google</strong> — you sign in with your Google account; Google tells us your name, email address and profile picture, and knows that you signed in to ReceiptWise</li>
@@ -132,7 +132,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>6. International transfers</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               Some of these providers are based in the United States or process data there (for example Google,
               Stripe, OpenAI and Vercel). Where personal data leaves the European Economic Area, the transfer is
@@ -148,7 +148,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>7. Storage and security</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <ul className="list-disc pl-5 space-y-1">
               <li>Data is encrypted in transit (TLS) and at rest by our hosting and database providers</li>
               <li>Receipt images are stored at long, unguessable addresses; anyone holding an image&apos;s address can open it, so treat shared links with care</li>
@@ -165,7 +165,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>8. Household sharing</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>When you create or join a household:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Receipts assigned to the household are visible to every member, including images and extracted details</li>
@@ -180,11 +180,11 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>9. How long we keep it</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Receipts you delete</strong> disappear from the app immediately, and are purged — image included — within 30 days</li>
               <li><strong>Bills you delete</strong> are purged, file included, within 30 days. A <strong>forwarded email</strong> itself is deleted 7 days after it has been read, and our record of it (sender, subject, what happened) after 90 days</li>
-              <li><strong>Deleting your account</strong> takes effect 24 hours after you ask (so an accidental request can be undone). We then cancel your subscription and delete your account, receipts and images</li>
+              <li><strong>Deleting your account</strong> takes effect 24 hours after you ask (so an accidental request can be undone). We then cancel your subscription and delete your account and everything in it: receipts and their images, bills and their files, your plan, and forwarded emails. A household you own passes to its longest-standing other member, or is deleted if you were its only member</li>
               <li><strong>Invoices</strong> are kept by Stripe for as long as tax law requires</li>
               <li><strong>Application logs, analytics and session recordings</strong> are deleted automatically on our providers&apos; retention schedules, and are not used to rebuild anything you have deleted</li>
             </ul>
@@ -195,7 +195,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>10. Your rights</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>Under the GDPR you have the right to:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Access the personal data we hold about you</li>
@@ -218,7 +218,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>11. Cookies and similar storage</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Essential — always on.</strong> A session cookie keeps you signed in. The service cannot work without them, so they do not need consent.</li>
               <li><strong>Analytics — only with consent.</strong> PostHog stores an identifier in a cookie and in local storage to recognise your visits. Nothing from PostHog loads until you choose &quot;Accept&quot;.</li>
@@ -233,7 +233,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>12. Children</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               ReceiptWise is not intended for anyone under 16, and we do not knowingly collect personal data from
               children. If you believe a child has given us personal data, please contact us and we will delete it.
@@ -245,7 +245,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>13. Changes to this policy</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               We may update this policy. When we do, the date at the top of this page changes, and the previous
               version is available on request.
@@ -257,7 +257,7 @@ export default function PrivacyPage() {
           <CardHeader>
             <CardTitle>14. Contact</CardTitle>
           </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
+          <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
               Questions about this policy or your data: <a href="mailto:support@receiptwise.io" className="text-primary hover:underline">support@receiptwise.io</a>.
             </p>

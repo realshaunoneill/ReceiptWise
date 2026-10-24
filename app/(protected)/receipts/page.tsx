@@ -1,22 +1,22 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { ReceiptBatchUpload } from '@/components/receipts/receipt-batch-upload';
-import { ReceiptList } from '@/components/receipts/receipt-list';
 import { ReceiptListSkeleton } from '@/components/receipts/receipt-list-skeleton';
 import { HouseholdSelector } from '@/components/households/household-selector';
 import { Pagination } from '@/components/layout/pagination';
 import { ReceiptDetailModal } from '@/components/receipts/receipt-detail-modal';
-import { ReceiptSearchFilters, type ReceiptFilters } from '@/components/receipts/receipt-search-filters';
+import { ReceiptSearchFilters, describeSort, type ReceiptFilters } from '@/components/receipts/receipt-search-filters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Upload, Camera, ScanLine, FileText, Crown, Tag, Chrome, FileX2, SearchX } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import { useUser } from '@/lib/hooks/use-user';
-import { useReceipts, useRecentReceipts } from '@/lib/hooks/use-receipts';
+import { useReceipts } from '@/lib/hooks/use-receipts';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { ReceiptTimeline } from '@/components/receipts/receipt-timeline';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
@@ -42,13 +42,16 @@ function ReceiptsPageContent() {
   const { data: households = [] } = useHouseholds();
 
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleUpgradeClick = () => {
     router.push('/upgrade');
   };
 
-  // Get recent receipts for the top section
-  const { receipts: recentReceipts, isLoading: recentLoading, refetch: refetchRecent } = useRecentReceipts(selectedHouseholdId, 5);
+  /*
+   * The "Recent receipts" card that sat beside the upload box is gone: it was the latest five of
+   * the same receipts the timeline below already lists, so the page showed them twice.
+   */
 
   // Get paginated receipts for the main list
   const { receipts: allReceipts, pagination, isLoading: allLoading, error, refetch: refetchAll } = useReceipts(
@@ -63,74 +66,65 @@ function ReceiptsPageContent() {
     setCurrentPage(1);
   }, [selectedHouseholdId, filters]);
 
-  // Handle selected or receiptId query parameter from URL
+  // A receipt opened by link: /receipts?selected=<id> (or ?receiptId=, from item analysis).
+  const linkedReceiptId = searchParams.get('selected') || searchParams.get('receiptId');
+
+  const clearLinkedReceipt = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!params.has('selected') && !params.has('receiptId')) return;
+    params.delete('selected');
+    params.delete('receiptId');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  /*
+   * Opens the linked receipt once. This effect re-ran on every refetch of the list, and the id
+   * stayed in the URL after the modal closed, so a closed receipt opened itself again; an
+   * unknown id failed silently (logging "Receipt not found" on each run).
+   */
+  const handledLinkRef = useRef<string | null>(null);
   useEffect(() => {
-    const selectedId = searchParams.get('selected') || searchParams.get('receiptId');
-    if (selectedId) {
-      // Find the receipt in either recent or all receipts
-      const receiptsToSearch = [...(recentReceipts || []), ...(allReceipts || [])];
-      const receipt = receiptsToSearch.find(r => r.id === selectedId);
-
-      if (receipt) {
-        setSelectedReceipt(receipt);
-        setIsModalOpen(true);
-      } else {
-        // Receipt not yet loaded, fetch it using queryClient
-        queryClient.fetchQuery({
-          queryKey: ['receipt', selectedId],
-          queryFn: async () => {
-            const res = await fetch(`/api/receipts/${selectedId}`);
-            if (!res.ok) throw new Error('Receipt not found');
-            return res.json();
-          },
-          staleTime: 5 * 60 * 1000,
-        }).then(receipt => {
-          setSelectedReceipt(receipt);
-          setIsModalOpen(true);
-        }).catch(err => {
-          console.error('Failed to fetch receipt:', err);
-        });
-      }
+    if (!linkedReceiptId) {
+      handledLinkRef.current = null;
+      return;
     }
-  }, [searchParams, recentReceipts, allReceipts, queryClient]);
+    if (handledLinkRef.current === linkedReceiptId) return;
+    handledLinkRef.current = linkedReceiptId;
 
-  // Prefetch subscription data for all receipts when they load
-  useEffect(() => {
-    const prefetchSubscriptions = async () => {
-      const receiptsToCheck = [...(recentReceipts || []), ...(allReceipts || [])];
-
-      for (const receipt of receiptsToCheck) {
-        // Prefetch subscription data for each receipt
-        queryClient.prefetchQuery({
-          queryKey: ['receipt-subscription', receipt.id],
-          queryFn: async () => {
-            const res = await fetch(`/api/receipts/${receipt.id}/subscription`);
-            if (!res.ok) {
-              if (res.status === 404) return null;
-              throw new Error('Failed to fetch subscription link');
-            }
-            return res.json();
-          },
-          staleTime: 5 * 60 * 1000, // 5 minutes
-        });
-      }
-    };
-
-    if (recentReceipts || allReceipts) {
-      prefetchSubscriptions();
+    const listed = allReceipts.find(r => r.id === linkedReceiptId);
+    if (listed) {
+      setSelectedReceipt(listed);
+      setIsModalOpen(true);
+      return;
     }
-  }, [recentReceipts, allReceipts, queryClient]);
+
+    queryClient.fetchQuery({
+      queryKey: ['receipt', linkedReceiptId],
+      queryFn: async () => {
+        const res = await fetch(`/api/receipts/${linkedReceiptId}`);
+        if (!res.ok) throw new Error('Receipt not found');
+        return res.json();
+      },
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+    }).then(receipt => {
+      setSelectedReceipt(receipt);
+      setIsModalOpen(true);
+    }).catch(() => {
+      toast.error('That receipt couldn’t be found');
+      clearLinkedReceipt();
+    });
+  }, [linkedReceiptId, allReceipts, queryClient, clearLinkedReceipt]);
+
+  /*
+   * A prefetch of /api/receipts/:id/subscription for every receipt on the page used to run here,
+   * one request per receipt (each answering 404 when nothing was linked), and nothing read the
+   * result: the modal gets the linked subscription from /api/receipts/:id.
+   */
 
   const handleUploadComplete = () => {
-    // Invalidate and refetch all receipt-related queries to ensure fresh data
-    queryClient.invalidateQueries({ queryKey: ['receipts'] });
-    // Also explicitly refetch to ensure data is updated immediately
-    refetchRecent();
-    refetchAll();
-  };
-
-  const handleRetry = () => {
-    refetchRecent();
+    // Invalidates every receipt query, whatever its filters or page.
     refetchAll();
   };
 
@@ -142,11 +136,15 @@ function ReceiptsPageContent() {
     setFilters(newFilters);
   };
 
+  // "Clear all" in the Filters sheet clears the sheet's filters. It used to reset the search and
+  // the sort as well.
   const handleClearFilters = () => {
-    setFilters({
-      sortBy: 'date',
-      sortOrder: 'desc',
-    });
+    setFilters(current => ({
+      search: current.search,
+      searchAllHouseholds: current.searchAllHouseholds,
+      sortBy: current.sortBy,
+      sortOrder: current.sortOrder,
+    }));
   };
 
   const handleReceiptClick = (receipt: ReceiptWithItems) => {
@@ -158,6 +156,7 @@ function ReceiptsPageContent() {
     if (!open) {
       setIsModalOpen(false);
       setSelectedReceipt(null);
+      clearLinkedReceipt();
     }
   };
 
@@ -185,91 +184,75 @@ function ReceiptsPageContent() {
           </div>
 
           {households.length > 0 && (
-            <div className="flex items-center gap-4">
+            /* The label names the picker for screen readers; it had no accessible name.
+               "Personal Receipts" was misleading: with no household picked, this is
+               everything you uploaded, shared or not. */
+            <label className="flex items-center gap-4">
+              <span className="sr-only">Show receipts from</span>
               <HouseholdSelector
                 households={[
-                  { id: '', name: 'Personal Receipts' },
+                  { id: '', name: 'My receipts' },
                   ...households,
                 ]}
                 selectedHouseholdId={selectedHouseholdId || ''}
                 onSelect={(id) => setSelectedHouseholdId(id || undefined)}
               />
-            </div>
+            </label>
           )}
         </div>
 
-        {/* Upload and Recent Receipts Section */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-4">
-            {isSubscribed ? (
-              <ReceiptBatchUpload
-                householdId={selectedHouseholdId}
-                onUploadComplete={handleUploadComplete}
-              />
-            ) : (
-              <Card className="border-primary/30">
-                <CardHeader className="pb-4">
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                    <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-xl text-foreground">Uploading needs a subscription</CardTitle>
-                    {trialDays > 0 && (
-                      <Badge variant="secondary">{trialDays}-day trial</Badge>
-                    )}
-                  </div>
-                  <CardDescription className="text-sm">
-                    Everything you have already added stays readable. Adding new receipts is
-                    part of Premium.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {/* Four tiles that said "Photo upload / AI scanning / Auto
-                      extraction / Smart categorization" — four names for one thing,
-                      one of them iconed with sparkles. */}
-                  <ul className="space-y-2.5 text-sm">
-                    {[
-                      { icon: Camera, text: 'Photograph a receipt, or upload a PDF or screenshot' },
-                      { icon: ScanLine, text: 'Merchant, date, total and tax read automatically' },
-                      { icon: FileText, text: 'Every line item extracted, not just the total' },
-                      { icon: Tag, text: 'Sorted into a spending category as it arrives' },
-                    ].map(({ icon: Icon, text }) => (
-                      <li key={text} className="flex items-start gap-2.5 text-muted-foreground">
-                        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                        {text}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button onClick={handleUpgradeClick} className="w-full gap-2">
-                    <Crown className="h-4 w-4" aria-hidden="true" />
-                    {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
-                  </Button>
-                  <p className="text-center text-xs text-muted-foreground">
-                    {trialDays > 0 ? 'Cancel during the trial and nothing is charged.' : 'Cancel any time.'}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-          <div className="space-y-4">
-            {recentLoading ? (
-              <ReceiptListSkeleton />
-            ) : error ? (
-              <Card>
-                <CardContent className="text-center p-8 text-destructive">
-                  Failed to load recent receipts
-                </CardContent>
-              </Card>
-            ) : recentReceipts.length > 0 ? (
-              <ReceiptList receipts={recentReceipts} onReceiptClick={handleReceiptClick} onRetry={handleRetry} />
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center text-sm text-muted-foreground">
-                  Recently added receipts will show up here.
-                </CardContent>
-              </Card>
-            )}
-          </div>
+        {/* Upload Section */}
+        <div>
+          {isSubscribed ? (
+            <ReceiptBatchUpload
+              householdId={selectedHouseholdId}
+              onUploadComplete={handleUploadComplete}
+            />
+          ) : (
+            <Card className="border-primary/30">
+              <CardHeader className="pb-4">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
+                  <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-xl text-foreground">Uploading needs a subscription</CardTitle>
+                  {trialDays > 0 && (
+                    <Badge variant="secondary">{trialDays}-day trial</Badge>
+                  )}
+                </div>
+                <CardDescription className="text-sm">
+                  Everything you have already added stays readable. Adding new receipts is
+                  part of Premium.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Four tiles that said "Photo upload / AI scanning / Auto
+                    extraction / Smart categorization" — four names for one thing,
+                    one of them iconed with sparkles. */}
+                <ul className="space-y-2.5 text-sm">
+                  {[
+                    /* Promised "a PDF or screenshot"; upload takes JPG, PNG and WebP only. */
+                    { icon: Camera, text: 'Photograph a receipt, or upload a JPG, PNG or WebP image of one' },
+                    { icon: ScanLine, text: 'Merchant, date, total and tax read automatically' },
+                    { icon: FileText, text: 'Every line item extracted, not just the total' },
+                    { icon: Tag, text: 'Sorted into a spending category as it arrives' },
+                  ].map(({ icon: Icon, text }) => (
+                    <li key={text} className="flex items-start gap-2.5 text-muted-foreground">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      {text}
+                    </li>
+                  ))}
+                </ul>
+                <Button onClick={handleUpgradeClick} className="w-full gap-2">
+                  <Crown className="h-4 w-4" aria-hidden="true" />
+                  {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  {trialDays > 0 ? 'Cancel during the trial and nothing is charged.' : 'Cancel any time.'}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* All Receipts Section */}
@@ -283,8 +266,9 @@ function ReceiptsPageContent() {
               <p className="mt-1 text-muted-foreground">
                 {pagination ? (
                   <>
+                    {/* Said "newest first" whatever the sort was. */}
                     <span className="amount font-medium">{pagination.total}</span> receipt
-                    {pagination.total !== 1 ? 's' : ''}, newest first
+                    {pagination.total !== 1 ? 's' : ''}, {describeSort(filters.sortBy, filters.sortOrder)}
                   </>
                 ) : (
                   'Loading…'
@@ -315,7 +299,7 @@ function ReceiptsPageContent() {
             </div>
           ) : allReceipts.length > 0 ? (
             <>
-              <ReceiptTimeline receipts={allReceipts} onReceiptClick={handleReceiptClick} />
+              <ReceiptTimeline receipts={allReceipts} onReceiptClick={handleReceiptClick} sortBy={filters.sortBy} />
 
               {pagination && pagination.totalPages > 1 && (
                 <div className="flex justify-center pt-6">
@@ -368,8 +352,10 @@ function ReceiptsPageContent() {
               </div>
               <h3 className="mb-2 text-lg font-semibold">Nothing here yet</h3>
               <p className="mb-4 text-muted-foreground">
-                Add a receipt and it will appear on the timeline, grouped by the day you
-                spent it.
+                {/* "Add a receipt…" was also said to people who can't upload one. */}
+                {isSubscribed
+                  ? 'Add a receipt and it will appear on the timeline, grouped by the day you spent it.'
+                  : 'With Premium, the receipts you add appear here, grouped by the day you spent the money.'}
               </p>
             </div>
           )}

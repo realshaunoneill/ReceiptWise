@@ -14,6 +14,8 @@ type SubscriptionListProps = {
   subscriptions?: SubscriptionWithPayments[];
   isLoading: boolean;
   status: string;
+  /** The kind filter on the page, so an empty list says what it is empty of. */
+  kind?: 'all' | 'bill' | 'subscription';
   onSelectSubscription: (id: string) => void;
 };
 
@@ -21,6 +23,7 @@ export function SubscriptionList({
   subscriptions,
   isLoading,
   status,
+  kind = 'all',
   onSelectSubscription,
 }: SubscriptionListProps) {
   if (isLoading) {
@@ -28,7 +31,7 @@ export function SubscriptionList({
   }
 
   if (!subscriptions || subscriptions.length === 0) {
-    return <SubscriptionEmptyState status={status} />;
+    return <SubscriptionEmptyState status={status} kind={kind} />;
   }
 
   return (

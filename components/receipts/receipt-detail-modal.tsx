@@ -22,6 +22,7 @@ import { LinkedSubscription } from './detail-modal/linked-subscription';
 import { ReportIssueButton } from './detail-modal/report-issue-button';
 import { MoveToBills } from './detail-modal/move-to-bills';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
+import { receiptDay } from '@/components/receipts/format';
 
 interface ReceiptDetailModalProps {
   receipt: ReceiptWithItems | null;
@@ -36,6 +37,7 @@ export function ReceiptDetailModal({
 }: ReceiptDetailModalProps) {
   const [selectedItemForAnalysis, setSelectedItemForAnalysis] = useState<string | null>(null);
   const [showItemAnalysis, setShowItemAnalysis] = useState(false);
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
   const billsEnabled = useFeature('bills');
@@ -103,13 +105,18 @@ export function ReceiptDetailModal({
     queryClient.invalidateQueries({ queryKey: ['recentReceipts'] });
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setIsImageFullscreen(false);
+    onOpenChange(nextOpen);
+  };
+
   if (!receipt) return null;
 
   // Extract OCR data once to avoid repeated casting
   const ocr = receipt.ocrData as OCRData | null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogPortal>
         <DialogOverlay className="backdrop-blur-sm bg-black/60" />
         <DialogContent
@@ -119,6 +126,13 @@ export function ReceiptDetailModal({
             maxWidth: '1400px',
           }}
           showCloseButton={false}
+          onEscapeKeyDown={(e) => {
+            // Esc in the fullscreen image used to close the whole receipt.
+            if (isImageFullscreen) {
+              e.preventDefault();
+              setIsImageFullscreen(false);
+            }
+          }}
         >
           <VisuallyHidden>
             <DialogTitle>Receipt Details - {receipt.merchantName}</DialogTitle>
@@ -126,7 +140,7 @@ export function ReceiptDetailModal({
 
           {/* Close Button */}
           <button
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
             className="absolute top-4 right-4 z-50 p-2 rounded-full bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-background dark:hover:bg-muted transition-colors"
             aria-label="Close"
           >
@@ -137,7 +151,13 @@ export function ReceiptDetailModal({
           <div className="h-full overflow-y-auto md:overflow-hidden md:grid md:grid-cols-2">
             {/* Receipt Image - Full width on mobile, left column on desktop */}
             <div className="relative min-h-[50vh] md:min-h-0 md:h-full md:overflow-hidden bg-muted/30">
-              <ReceiptImage imageUrl={receipt.imageUrl} />
+              <ReceiptImage
+                imageUrl={receipt.imageUrl}
+                merchantName={receipt.merchantName}
+                day={receiptDay(receipt)}
+                isFullscreen={isImageFullscreen}
+                onFullscreenChange={setIsImageFullscreen}
+              />
             </div>
 
             {/* Receipt Details - Flows below image on mobile, right column on desktop */}
@@ -157,7 +177,7 @@ export function ReceiptDetailModal({
                     queryClient.invalidateQueries({ queryKey: ['top-items'] });
                     queryClient.invalidateQueries({ queryKey: ['spending-trends'] });
                     // Close the modal
-                    onOpenChange(false);
+                    handleOpenChange(false);
                   }}
                   onRetrySuccess={handleRetrySuccess}
                 />
@@ -166,7 +186,7 @@ export function ReceiptDetailModal({
               {/* Scrollable Content Section - All details and items */}
               <div className="flex-1 md:overflow-y-auto px-4 py-3 space-y-3 sm:px-6 sm:py-4 sm:space-y-4">
                 {billsEnabled && isReceiptOwner && (ocr as { documentKind?: string | null } | null)?.documentKind === 'bill' && (
-                  <MoveToBills receiptId={receipt.id} onMoved={() => onOpenChange(false)} />
+                  <MoveToBills receiptId={receipt.id} onMoved={() => handleOpenChange(false)} />
                 )}
 
                 <LinkedSubscription subscription={receipt.linkedSubscription} />

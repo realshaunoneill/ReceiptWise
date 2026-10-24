@@ -8,6 +8,7 @@ import { generateSpendingSummary } from '@/lib/openai';
 import { randomUUID } from 'crypto';
 import { parseMonths, receiptScope, windowStart } from '@/lib/utils/insights-params';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
+import { categoryName } from '@/components/receipts/format';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -165,7 +166,9 @@ export async function GET(request: NextRequest) {
       totalSpent: totalSpent.toFixed(2),
       currency: items[0]?.currency || user.currency || DEFAULT_CURRENCY,
       topItems: topItems.slice(0, 10),
-      topCategories: topCategories.slice(0, 5),
+      // Names, not keys: the model was handed "gas" and wrote about "gas" above a list that
+      // calls the same category "Fuel".
+      topCategories: topCategories.slice(0, 5).map(({ category, total }) => ({ category: categoryName(category), total })),
       topMerchants: topMerchants.slice(0, 5),
     };
 

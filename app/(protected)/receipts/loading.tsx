@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ReceiptsLoading() {
@@ -13,47 +13,19 @@ export default function ReceiptsLoading() {
         <Skeleton className="h-10 w-48" />
       </div>
 
-      {/* Upload and Recent Section */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Upload Card */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 p-10 space-y-4">
-              <Skeleton className="h-12 w-12 rounded-full" />
-              <div className="space-y-2 text-center">
-                <Skeleton className="h-5 w-48 mx-auto" />
-                <Skeleton className="h-4 w-64 mx-auto" />
-              </div>
-              <Skeleton className="h-10 w-32" />
+      {/* Upload card. The page no longer has a "Recent receipts" column beside it. */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 p-10 space-y-4">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2 text-center">
+              <Skeleton className="h-5 w-48 mx-auto" />
+              <Skeleton className="h-4 w-64 mx-auto" />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Receipts */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-5 w-5 rounded-full" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <Skeleton className="h-8 w-20" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg">
-                <Skeleton className="h-10 w-10 rounded-lg shrink-0" />
-                <div className="flex-1 space-y-1">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-3 w-20" />
-                </div>
-                <Skeleton className="h-5 w-16" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

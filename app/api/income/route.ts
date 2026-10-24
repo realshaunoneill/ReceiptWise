@@ -5,7 +5,8 @@ import { incomeSources } from '@/lib/db/schema';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE, scopeFromSearchParams } from '@/lib/route-guards';
 import { canFileFinanceRowUnder, financeScopeCondition } from '@/lib/services/finance-access';
-import { clearOtherPrimaries } from '@/lib/services/income-service';
+import { canUseAccount } from '@/lib/services/account-service';
+import { clearOtherPrimaries, getPrimaryIncome } from '@/lib/services/income-service';
 import { createIncomeSchema, parseBody, readJson } from '@/lib/validation/finance';
 
 export const runtime = 'nodejs';
@@ -33,7 +34,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/income - Add an income. The first one, or one marked primary, sets the plan's period.
+// POST /api/income - Add an income. One marked primary sets the plan's period (and takes over from
+// the old primary); left unset, it is primary only when the user has none yet. It used to default
+// to primary, so adding pay from a household plan silently demoted the user's real salary.
 export async function POST(req: NextRequest) {
   const guard = await guardFinanceRoute(req, { mutating: true, feature: 'bills' });
   if (guard instanceof NextResponse) return guard;
@@ -48,6 +51,10 @@ export async function POST(req: NextRequest) {
     if (!(await canFileFinanceRowUnder(householdId, user.id, entitlements))) {
       return NextResponse.json({ error: householdId ? 'Not a member of this household' : 'Active subscription required' }, { status: 403 });
     }
+    if (!(await canUseAccount(input.intoAccountId, user.id, entitlements))) {
+      return NextResponse.json({ error: 'intoAccountId is not one of your accounts' }, { status: 400 });
+    }
+    const isPrimary = input.isPrimary ?? !(await getPrimaryIncome(user.id));
 
     const created = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -62,7 +69,7 @@ export async function POST(req: NextRequest) {
           payDay: input.frequency === 'monthly' ? input.payDay ?? null : null,
           anchorDate: input.anchorDate ?? null,
           weekendRule: input.weekendRule,
-          isPrimary: input.isPrimary,
+          isPrimary,
           intoAccountId: input.intoAccountId ?? null,
           status: input.status,
           endDate: input.endDate ?? null,

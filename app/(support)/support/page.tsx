@@ -4,6 +4,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Navigation } from '@/components/layout/navigation';
 import { Mail, ExternalLink, MessageCircle, ArrowRight, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
+
+// The questions people actually ask. Answers say where in the app to go, not how the app works.
+const QUESTIONS = [
+  {
+    q: 'How do I sign in?',
+    a: 'With your Google account: the same button signs you in and, the first time, creates your account. There is no ReceiptWise password. No Google account? Email us.',
+  },
+  {
+    q: 'How do I add receipts?',
+    a: 'On the Receipts page, drag photos in, pick files, or take a photo on your phone. JPG, PNG and WebP all work, several at once.',
+  },
+  {
+    q: 'How do I share with my household?',
+    a: 'On the Sharing page, create a household and copy the invitation link for each person. They sign in with Google and accept it.',
+  },
+  ...(BILLS_LAUNCHED
+    ? [{
+      q: 'How do I forward bills by email?',
+      a: 'Settings → Integrations has your own forwarding address. Forward a bill to it, or set up a rule in your email to do it for you; it appears in the Bills card on your Plan.',
+    }]
+    : []),
+  {
+    q: 'How do I manage or cancel my subscription?',
+    a: 'Settings → Subscription opens the billing portal, where you can change plan, update your card or cancel. Payment is by card, through Stripe.',
+  },
+  {
+    q: 'How do I delete my account?',
+    a: 'Settings → Data. Deletion happens 24 hours later, so an accidental request can be undone; export your data first if you want a copy.',
+  },
+];
 
 export default function SupportPage() {
   return (
@@ -40,7 +71,7 @@ export default function SupportPage() {
               </a>
 
               <a
-                href="mailto:support@receiptwise.io?subject=Feature%20Request"
+                href="mailto:support@receiptwise.io?subject=Bug%20or%20idea"
                 className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors group"
               >
                 <div className="p-2 rounded-full bg-primary/10">
@@ -48,9 +79,9 @@ export default function SupportPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium transition-colors group-hover:text-primary">
-                    Feature Requests
+                    Bugs and ideas
                   </p>
-                  <p className="text-sm text-muted-foreground">Report bugs or request features</p>
+                  <p className="text-sm text-muted-foreground">Tell us what broke, or what you&apos;d like</p>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
               </a>
@@ -65,31 +96,17 @@ export default function SupportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-4">
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">How do I upload receipts?</p>
-                    <p className="text-xs text-muted-foreground">
-                      Navigate to the Receipts page and use the upload button to select receipt images.
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">What payment methods are accepted?</p>
-                    <p className="text-xs text-muted-foreground">
-                      We accept all major credit cards through Stripe.
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">How do I manage my subscription?</p>
-                    <p className="text-xs text-muted-foreground">
-                      Go to Settings to view your subscription and access the billing portal.
-                    </p>
-                  </div>
-                </div>
+                <dl className="space-y-3">
+                  {QUESTIONS.map(({ q, a }) => (
+                    <div key={q} className="space-y-1">
+                      <dt className="text-sm font-medium">{q}</dt>
+                      <dd className="text-sm text-muted-foreground">{a}</dd>
+                    </div>
+                  ))}
+                </dl>
 
                 <p className="text-xs text-muted-foreground pt-2 border-t">
-                  Can't find what you're looking for? Contact our support team for personalized assistance.
+                  Not here? Email us and a person will answer.
                 </p>
               </div>
               <div className="absolute -z-10 left-0 bottom-0 top-1/2 right-1/2 bg-linear-to-bl from-primary/5 via-primary/5 to-transparent blur-3xl" />

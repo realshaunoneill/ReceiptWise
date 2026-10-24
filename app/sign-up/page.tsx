@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScanLine, BarChart3, Users, CheckCircle2 } from 'lucide-react';
 import { SignInPanel } from '@/components/auth/sign-in-panel';
 import { isDevLoginEnabled, isGoogleConfigured } from '@/lib/dev-login';
+import { pageMetadata } from '@/lib/seo';
 import { NEW_USER_URL } from '@/lib/sign-in-redirect';
 
 /*
@@ -22,12 +23,11 @@ const TRIAL_DAYS = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
   : 0;
 const HAS_TRIAL = TRIAL_DAYS > 0 && !Number.isNaN(TRIAL_DAYS);
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Create an account - ReceiptWise',
-  alternates: {
-    canonical: '/sign-up',
-  },
-};
+  description: 'Start with ReceiptWise: sign up with Google, photograph a receipt, and share it with your household.',
+  path: '/sign-up',
+});
 
 export default function SignUpPage() {
   return (
@@ -53,7 +53,7 @@ export default function SignUpPage() {
             <div className="space-y-8 order-2 lg:order-1">
               <div>
                 <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                  One receipt pile for the whole household
+                  One receipt drawer for the whole household
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground">
                   Photograph a receipt, and ReceiptWise reads it for you and files it where
@@ -94,7 +94,7 @@ export default function SignUpPage() {
               </div>
 
               <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="p-6">
+                <CardContent>
                   <ul className="space-y-3">
                     {[
                       HAS_TRIAL

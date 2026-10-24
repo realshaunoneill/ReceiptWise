@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
 import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { CreateSubscriptionDialog } from '@/components/subscriptions/create-subscription-dialog';
 import { SubscriptionDetailModal } from '@/components/subscriptions/subscription-detail-modal';
 import { SubscriptionStats } from '@/components/subscriptions/subscription-stats';
@@ -22,6 +23,7 @@ import { monthlyEquivalent } from '@/lib/schedule/billing-schedule';
 import { totalsByCurrency } from '@/lib/utils/currency-totals';
 
 type Status = 'active' | 'paused' | 'cancelled' | undefined;
+type KindFilter = 'all' | 'bill' | 'subscription';
 
 function SubscriptionsPageContent() {
   const trialDays = useTrialDays();
@@ -33,20 +35,26 @@ function SubscriptionsPageContent() {
   const { currency: userCurrency } = useCurrency();
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isSubscribed, isLoading: userLoading } = useUser();
   const billsEnabled = useFeature('bills');
 
-  // Handle selected and filter query parameters from URL
+  // Handle selected, filter and kind query parameters from URL. ?kind= lets a link narrow the list
+  // to what it counted: Insights counts subscriptions only, so it can open ?filter=missing&kind=subscription.
   useEffect(() => {
     const selected = searchParams.get('selected');
     const filter = searchParams.get('filter');
+    const kindParam = searchParams.get('kind');
     if (selected) {
       setSelectedSubscriptionId(selected);
     }
     if (filter === 'missing') {
       setShowMissingOnly(true);
+    }
+    if (kindParam === 'bill' || kindParam === 'subscription' || kindParam === 'all') {
+      setKindFilter(kindParam);
     }
   }, [searchParams]);
 
@@ -86,9 +94,16 @@ function SubscriptionsPageContent() {
   const yearlyTotals = monthlyTotals.map((total) => ({ ...total, amount: total.amount * 12 }));
   const missingPaymentsCount = activeSubscriptions.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0);
 
-  // Filter subscriptions with missing payments
-  const subscriptionsWithMissing = subscriptions?.filter(sub => (sub.missingPayments || 0) > 0) || [];
-  const displaySubscriptions = showMissingOnly ? subscriptionsWithMissing : subscriptions;
+  // With bills on, the one list holds both kinds, so it can be narrowed to either.
+  const kind = billsEnabled ? kindFilter : 'all';
+  const ofKind = (sub: { kind: string }) => kind === 'all' || (kind === 'bill' ? sub.kind === 'bill' : sub.kind !== 'bill');
+  // "Not marked paid": payments past due on anything paid by hand. The server never counts
+  // direct debits, standing orders or card payments (they're assumed paid), so ?filter=missing
+  // lists exactly what the count counts, narrowed to the kind shown like the rest of the list.
+  const subscriptionsWithMissing = subscriptions?.filter((sub) => (sub.missingPayments || 0) > 0 && ofKind(sub)) || [];
+  const missingShownCount = subscriptionsWithMissing.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0);
+  const displaySubscriptions = (showMissingOnly ? subscriptionsWithMissing : subscriptions)?.filter(ofKind);
+  const itemsWord = billsEnabled ? 'bills and subscriptions' : 'subscriptions';
 
   // Show skeleton loading state
   if (userLoading) {
@@ -101,7 +116,7 @@ function SubscriptionsPageContent() {
           </div>
           <Skeleton className="h-10 w-40" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -115,7 +130,7 @@ function SubscriptionsPageContent() {
             </Card>
           ))}
         </div>
-        <Card>
+        <Card className="hidden md:block">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Skeleton className="h-5 w-5 rounded-full" />
@@ -206,7 +221,9 @@ function SubscriptionsPageContent() {
                 <Crown className="h-5 w-5 text-primary" aria-hidden="true" />
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="text-2xl text-foreground">Subscription tracking is part of Premium</CardTitle>
+                <CardTitle className="text-2xl text-foreground">
+                  {billsEnabled ? 'Bills and subscriptions are part of Premium' : 'Subscription tracking is part of Premium'}
+                </CardTitle>
                 {trialDays > 0 && (
                   <Badge variant="secondary">{trialDays}-day trial</Badge>
                 )}
@@ -253,9 +270,9 @@ function SubscriptionsPageContent() {
                 <h3 className="mb-4 font-semibold text-foreground">Also included</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {[
-                    'Unlimited subscriptions',
+                    billsEnabled ? 'Unlimited bills and subscriptions' : 'Unlimited subscriptions',
                     'Shared across the household',
-                    'Missing payment detection',
+                    'Flags payments not marked paid',
                     'Pause and resume',
                     'Unlimited receipts and scanning',
                     'CSV and JSON export',
@@ -302,7 +319,7 @@ function SubscriptionsPageContent() {
       {!isLoading && !hasAnySubscriptions && (
         <div className="text-center py-12">
           <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" aria-hidden="true" />
-          <h3 className="text-lg font-semibold mb-2 text-foreground">No subscriptions yet</h3>
+          <h3 className="text-lg font-semibold mb-2 text-foreground">No {itemsWord} yet</h3>
           <p className="text-muted-foreground mb-4">Start tracking your recurring payments</p>
           <CreateSubscriptionDialog />
         </div>
@@ -335,10 +352,14 @@ function SubscriptionsPageContent() {
               <AlertCircle className="h-5 w-5 text-warning" aria-hidden="true" />
               <div>
                 <h3 className="font-semibold text-warning">
-                  Subscriptions Missing Receipts
+                  Not marked paid
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {subscriptionsWithMissing.length} subscription{subscriptionsWithMissing.length !== 1 ? 's' : ''} with {missingPaymentsCount} missing payment{missingPaymentsCount !== 1 ? 's' : ''}
+                  {missingShownCount} payment{missingShownCount !== 1 ? 's' : ''} past due across {subscriptionsWithMissing.length}{' '}
+                  {billsEnabled
+                    ? subscriptionsWithMissing.length !== 1 ? 'bills and subscriptions' : 'bill or subscription'
+                    : subscriptionsWithMissing.length !== 1 ? 'subscriptions' : 'subscription'}
+                  . Mark them paid, or skip them, in each one&apos;s details.
                 </p>
               </div>
             </div>
@@ -352,18 +373,18 @@ function SubscriptionsPageContent() {
                 router.push(`/subscriptions${params.toString() ? '?' + params.toString() : ''}`);
               }}
             >
-              Show All
+              Show all
             </Button>
           </div>
         </div>
       )}
 
-      {/* Upcoming Payments Section */}
+      {/* Upcoming Payments Section. Not on a phone, where it only repeated the first cards of the list below. */}
       {upcomingPayments.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-6 hidden md:block">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Upcoming Payments</h2>
+            <h2 className="text-xl font-semibold">Upcoming payments</h2>
             {upcomingWithin7Days > 0 && (
               <span className="text-sm text-muted-foreground">
                 • {upcomingWithin7Days} in next 7 days
@@ -385,17 +406,35 @@ function SubscriptionsPageContent() {
       {/* Tabs: kept even when the open tab is empty, or there was no way back from an empty Paused tab */}
       {hasAnySubscriptions && (
         <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status)} className="w-full">
-          <TabsList className="grid w-full md:w-auto grid-cols-3">
-            <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="paused">Paused</TabsTrigger>
-            <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <TabsList className="grid w-full md:w-auto grid-cols-3">
+              <TabsTrigger value="active">Active</TabsTrigger>
+              <TabsTrigger value="paused">Paused</TabsTrigger>
+              <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
+            </TabsList>
+            {billsEnabled && (
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={kindFilter}
+                // Radix sends '' when the pressed item is pressed again; keep a filter chosen.
+                onValueChange={(value) => value && setKindFilter(value as KindFilter)}
+                aria-label="Show bills, subscriptions or both"
+                className="w-full md:w-auto"
+              >
+                <ToggleGroupItem value="all" className="px-4">All</ToggleGroupItem>
+                <ToggleGroupItem value="bill" className="px-4">Bills</ToggleGroupItem>
+                <ToggleGroupItem value="subscription" className="px-4">Subscriptions</ToggleGroupItem>
+              </ToggleGroup>
+            )}
+          </div>
 
           <TabsContent value={statusFilter || 'active'} className="mt-6">
             <SubscriptionList
               subscriptions={displaySubscriptions}
               isLoading={isLoading}
               status={statusFilter || 'active'}
+              kind={kind}
               onSelectSubscription={setSelectedSubscriptionId}
             />
           </TabsContent>
@@ -417,7 +456,7 @@ export default function SubscriptionsPage() {
     <Suspense fallback={
       <main className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" aria-hidden="true" />
-        <span className="sr-only">Loading subscriptions...</span>
+        <span className="sr-only">Loading…</span>
       </main>
     }>
       <SubscriptionsPageContent />

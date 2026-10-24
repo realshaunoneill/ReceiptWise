@@ -30,7 +30,10 @@ import { toCents } from '@/lib/money';
 import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 import { useFeature } from '@/lib/hooks/use-user';
-import { BillFields, type BillFieldValues } from './bill-fields';
+import { useHouseholds } from '@/lib/hooks/use-households';
+import type { HouseholdWithMembers } from '@/lib/types/api-responses';
+import { BillFields, type BillFieldValues, CategoryField, HouseholdShareField } from './bill-fields';
+import { itemNoun } from './labels';
 
 type EditSubscriptionDialogProps = {
   subscription: Subscription;
@@ -51,29 +54,16 @@ type FormData = {
   website: string;
   notes: string;
   isBusinessExpense: boolean;
+  /** '' = just me */
+  householdId: string;
 };
-
-const categories = [
-  'Streaming',
-  'Software',
-  'Utilities',
-  'Insurance',
-  'Fitness',
-  'Food & Meal Kits',
-  'News & Magazines',
-  'Cloud Storage',
-  'Music',
-  'Gaming',
-  'Education',
-  'Healthcare',
-  'Other',
-];
 
 function billFieldsOf(subscription: Subscription): BillFieldValues {
   return {
     kind: subscription.kind === 'bill' ? 'bill' : 'subscription',
     amountType: subscription.amountType === 'variable' ? 'variable' : 'fixed',
     paymentMethod: (subscription.paymentMethod ?? '') as BillFieldValues['paymentMethod'],
+    paidFromAccountId: subscription.paidFromAccountId ?? null,
   };
 }
 
@@ -91,6 +81,7 @@ function formValues(subscription: Subscription): FormData {
     website: subscription.website || '',
     notes: subscription.notes || '',
     isBusinessExpense: subscription.isBusinessExpense || false,
+    householdId: subscription.householdId ?? '',
   };
 }
 
@@ -101,7 +92,9 @@ export function EditSubscriptionDialog({
 }: EditSubscriptionDialogProps) {
   const { mutate: updateSubscription, isPending } = useUpdateSubscription(subscription.id);
   const billsEnabled = useFeature('bills');
+  const { data: households } = useHouseholds();
   const [billFields, setBillFields] = useState<BillFieldValues>(billFieldsOf(subscription));
+  const noun = itemNoun(billsEnabled ? billFields.kind : subscription.kind, billsEnabled);
 
   const {
     register,
@@ -142,11 +135,13 @@ export function EditSubscriptionDialog({
     if (data.website !== before.website) changes.website = data.website || null;
     if (data.notes !== before.notes) changes.notes = data.notes || null;
     if (data.isBusinessExpense !== before.isBusinessExpense) changes.isBusinessExpense = data.isBusinessExpense;
+    if (data.householdId !== before.householdId) changes.householdId = data.householdId || null;
     if (billsEnabled) {
       const beforeBill = billFieldsOf(subscription);
       if (billFields.kind !== beforeBill.kind) changes.kind = billFields.kind;
       if (billFields.amountType !== beforeBill.amountType) changes.amountType = billFields.amountType;
       if (billFields.paymentMethod !== beforeBill.paymentMethod) changes.paymentMethod = billFields.paymentMethod || null;
+      if (billFields.paidFromAccountId !== beforeBill.paidFromAccountId) changes.paidFromAccountId = billFields.paidFromAccountId;
     }
 
     if (Object.keys(changes).length === 0) {
@@ -158,11 +153,11 @@ export function EditSubscriptionDialog({
       changes,
       {
         onSuccess: () => {
-          toast.success(`${data.name} has been updated successfully`);
+          toast.success(`Saved ${data.name}`);
           onOpenChange(false);
         },
         onError: (error) => {
-          toast.error('Failed to update subscription', {
+          toast.error(`Failed to save the ${noun}`, {
             description: error.message,
           });
         },
@@ -174,9 +169,9 @@ export function EditSubscriptionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Subscription</DialogTitle>
+          <DialogTitle>Edit {noun}</DialogTitle>
           <DialogDescription>
-            Update the subscription details below
+            {subscription.name}
           </DialogDescription>
         </DialogHeader>
 
@@ -184,10 +179,10 @@ export function EditSubscriptionDialog({
           {/* Basic Information */}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name">Subscription Name *</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
-                placeholder="Netflix, Spotify, etc."
+                placeholder={billsEnabled ? 'e.g. Rent, Electricity, Netflix' : 'e.g. Netflix, Spotify'}
                 {...register('name', { required: 'Name is required' })}
               />
               {errors.name && (
@@ -204,24 +199,7 @@ export function EditSubscriptionDialog({
               />
             </div>
 
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={watch('category')}
-                onValueChange={(value) => setValue('category', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <CategoryField value={watch('category')} onChange={(value) => setValue('category', value)} />
           </div>
 
           {/* Financial Details */}
@@ -250,7 +228,7 @@ export function EditSubscriptionDialog({
                   value={watch('currency')}
                   onValueChange={(value) => setValue('currency', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="currency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -266,27 +244,28 @@ export function EditSubscriptionDialog({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="billingFrequency">Billing Frequency *</Label>
+                <Label htmlFor="billingFrequency">How often *</Label>
                 <Select
                   value={watch('billingFrequency')}
                   onValueChange={(value) => setValue('billingFrequency', value as BillingFrequency)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="billingFrequency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="bimonthly">Every 2 months</SelectItem>
-                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="quarterly">Every 3 months</SelectItem>
                     <SelectItem value="six_monthly">Every 6 months</SelectItem>
                     <SelectItem value="yearly">Yearly</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
+                    <SelectItem value="custom">Every so many days</SelectItem>
+                    {billingFrequency === 'once' && <SelectItem value="once">Once</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="billingDay">Billing Day *</Label>
+                <Label htmlFor="billingDay">Day of the month *</Label>
                 <Input
                   id="billingDay"
                   type="number"
@@ -306,7 +285,7 @@ export function EditSubscriptionDialog({
             </div>
 
             <div>
-              <Label htmlFor="startDate">Start Date *</Label>
+              <Label htmlFor="startDate">Start date *</Label>
               <Input
                 id="startDate"
                 type="date"
@@ -322,7 +301,7 @@ export function EditSubscriptionDialog({
 
             {billingFrequency === 'custom' && (
               <div>
-                <Label htmlFor="customFrequencyDays">Custom Frequency (Days) *</Label>
+                <Label htmlFor="customFrequencyDays">Every how many days? *</Label>
                 <Input
                   id="customFrequencyDays"
                   type="number"
@@ -346,6 +325,12 @@ export function EditSubscriptionDialog({
 
           {/* Additional Details */}
           <div className="space-y-4">
+            <HouseholdShareField
+              value={watch('householdId') || null}
+              onChange={(householdId) => setValue('householdId', householdId ?? '')}
+              households={households as HouseholdWithMembers[] | undefined}
+            />
+
             <div>
               <Label htmlFor="website">Website</Label>
               <Input
@@ -372,7 +357,7 @@ export function EditSubscriptionDialog({
                 onCheckedChange={(checked) => setValue('isBusinessExpense', checked)}
               />
               <Label htmlFor="isBusinessExpense" className="cursor-pointer">
-                Business Expense
+                Business expense
               </Label>
             </div>
           </div>
@@ -382,7 +367,7 @@ export function EditSubscriptionDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Updating...' : 'Update Subscription'}
+              {isPending ? 'Saving…' : 'Save changes'}
             </Button>
           </DialogFooter>
         </form>

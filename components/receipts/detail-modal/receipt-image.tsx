@@ -4,13 +4,20 @@ import { Receipt as ReceiptIcon, Maximize2, X, Download } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { receiptFileName } from '@/components/receipts/format';
 
 interface ReceiptImageProps {
   imageUrl?: string
+  /** For the download's file name. */
+  merchantName?: string | null
+  /** The receipt's calendar day (YYYY-MM-DD), for the download's file name. */
+  day?: string | null
+  /** Controlled by the modal, so Esc can close the fullscreen view without closing the modal. */
+  isFullscreen: boolean
+  onFullscreenChange: (fullscreen: boolean) => void
 }
 
-export function ReceiptImage({ imageUrl }: ReceiptImageProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+export function ReceiptImage({ imageUrl, merchantName, day, isFullscreen, onFullscreenChange: setIsFullscreen }: ReceiptImageProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -23,7 +30,7 @@ export function ReceiptImage({ imageUrl }: ReceiptImageProps) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `receipt-${new Date().toISOString()}.jpg`;
+      a.download = receiptFileName(merchantName, day, blob.type);
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -60,8 +67,8 @@ export function ReceiptImage({ imageUrl }: ReceiptImageProps) {
                 onClick={() => setIsFullscreen(true)}
                 className="shadow-lg backdrop-blur-sm"
               >
-                <Maximize2 className="h-4 w-4 mr-2" />
-                View Fullscreen
+                <Maximize2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                View fullscreen
               </Button>
               <Button
                 variant="secondary"

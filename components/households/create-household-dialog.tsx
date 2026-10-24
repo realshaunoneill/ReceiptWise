@@ -25,7 +25,7 @@ interface CreateHouseholdDialogProps {
 
 const HOUSEHOLD_SUGGESTIONS = [
   'Family',
-  'Roommates',
+  'Housemates',
   'Partner',
   'Home',
 ];
@@ -71,7 +71,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
             </div>
             <DialogTitle className="text-center">Create Household</DialogTitle>
             <DialogDescription className="text-center">
-              Create a shared space for tracking receipts with family or roommates
+              Create a shared space for tracking receipts with family or housemates
             </DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-4">
@@ -110,7 +110,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
               <ul className="text-xs text-muted-foreground space-y-1 ml-5">
                 <li className="flex items-center gap-1.5">
                   <Users className="h-3 w-3" />
-                  Invite family or roommates
+                  Invite family or housemates
                 </li>
                 <li>Pick it on the Receipts page to add receipts to it</li>
                 <li>See everyone&apos;s shared receipts in one list</li>

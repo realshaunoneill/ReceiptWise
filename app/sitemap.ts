@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 
 // A fixed date, bumped by hand when the public pages change. `new Date()` stamped every page as
 // modified on every build, which teaches crawlers to ignore lastModified.
-const LAST_MODIFIED = new Date('2026-09-29');
+const LAST_MODIFIED = new Date('2026-10-24');
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://www.receiptwise.io';

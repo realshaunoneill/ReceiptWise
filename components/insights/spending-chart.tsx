@@ -75,7 +75,7 @@ export function SpendingChart({ period, householdId, personalOnly = false }: Spe
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Spending Trends</CardTitle>
+          <CardTitle role="heading" aria-level={2}>Spending trends</CardTitle>
           <CardDescription>Your spending patterns over time</CardDescription>
         </CardHeader>
         <CardContent>
@@ -94,7 +94,7 @@ export function SpendingChart({ period, householdId, personalOnly = false }: Spe
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Spending Trends</CardTitle>
+          <CardTitle role="heading" aria-level={2}>Spending trends</CardTitle>
           <CardDescription>Your spending patterns over time</CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,7 +112,7 @@ export function SpendingChart({ period, householdId, personalOnly = false }: Spe
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Spending Trends</CardTitle>
+          <CardTitle role="heading" aria-level={2}>Spending trends</CardTitle>
           <CardDescription>Your spending patterns over time</CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,7 +135,7 @@ export function SpendingChart({ period, householdId, personalOnly = false }: Spe
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Spending Trends</CardTitle>
+        <CardTitle role="heading" aria-level={2}>Spending trends</CardTitle>
         <CardDescription>Your spending patterns for {periodLabels[period]}</CardDescription>
       </CardHeader>
       <CardContent>

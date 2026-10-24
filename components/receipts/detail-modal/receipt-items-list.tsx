@@ -4,6 +4,8 @@ import { ShoppingBag, TrendingUp, Percent, Tag, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { capitalizeText } from '@/lib/utils/format-category';
+import { formatCurrency } from '@/lib/utils/currency';
+import { categoryName } from '@/components/receipts/format';
 import { cn } from '@/lib/utils';
 import type { ReceiptItem } from '@/lib/db/schema';
 
@@ -51,7 +53,7 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
                     </p>
                     {item.category && (
                       <Badge variant="outline" className="text-xs px-1.5 py-0 shrink-0">
-                        {capitalizeText(item.category)}
+                        {categoryName(item.category)}
                       </Badge>
                     )}
                   </div>
@@ -60,7 +62,7 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
                       <span className="whitespace-nowrap">Qty: {item.quantity}</span>
                     )}
                     {unitPrice && quantity > 1 && (
-                      <span className="whitespace-nowrap">@ {currency} {unitPrice.toFixed(2)} each</span>
+                      <span className="whitespace-nowrap">@ {formatCurrency(unitPrice, currency)} each</span>
                     )}
                     {item.description && (
                       <span className="italic wrap-break-word">{item.description}</span>
@@ -70,9 +72,10 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
 
                 {/* Right: Price and button */}
                 <div className="flex items-center gap-2 shrink-0">
+                  {/* Was `{currency} {item.price}`, the raw stored string: "EUR 7.5". */}
                   {item.price && (
-                    <p className="font-semibold text-sm whitespace-nowrap">
-                      {currency} {item.price}
+                    <p className="amount font-semibold text-sm whitespace-nowrap">
+                      {formatCurrency(totalPrice, currency)}
                     </p>
                   )}
                   <Button
@@ -120,7 +123,7 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
                           </Badge>
                         </div>
                         <span className={cn('amount font-medium', isDiscount && 'text-success')}>
-                          {modifierPrice >= 0 ? '+' : ''}{currency} {Math.abs(modifierPrice).toFixed(2)}
+                          {modifierPrice >= 0 ? '+' : '−'}{formatCurrency(Math.abs(modifierPrice) || 0, currency)}
                         </span>
                       </div>
                     );

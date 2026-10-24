@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createIncomeSchema,
   createSubscriptionSchema,
   updatePaymentSchema,
   updateSubscriptionSchema,
@@ -36,6 +37,13 @@ describe('createSubscriptionSchema', () => {
     expect(createSubscriptionSchema.safeParse({ ...withoutDay, billingFrequency: 'monthly' }).success).toBe(false);
   });
 
+  it('takes the account it is paid from, or null for the main one', () => {
+    const accountId = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+    expect(createSubscriptionSchema.parse({ ...base, paidFromAccountId: accountId }).paidFromAccountId).toBe(accountId);
+    expect(updateSubscriptionSchema.parse({ paidFromAccountId: null })).toEqual({ paidFromAccountId: null });
+    expect(updateSubscriptionSchema.safeParse({ paidFromAccountId: 'current' }).success).toBe(false);
+  });
+
   it('keeps only the last 4 of an account reference', () => {
     expect(createSubscriptionSchema.parse({ ...base, accountReference: '1234' }).accountReference).toBe('1234');
     expect(createSubscriptionSchema.parse({ ...base, accountReference: '' }).accountReference).toBeNull();
@@ -66,5 +74,14 @@ describe('payment schemas', () => {
     expect(upsertOccurrenceSchema.safeParse({ expectedDate: '2026-11-14', status: 'paid' }).success).toBe(true);
     expect(upsertOccurrenceSchema.safeParse({ expectedDate: '2026-02-30' }).success).toBe(false);
     expect(upsertOccurrenceSchema.safeParse({ expectedDate: '2026-11-14', receiptId: crypto.randomUUID() }).success).toBe(false);
+  });
+});
+
+describe('createIncomeSchema', () => {
+  it("leaves primary unset unless asked, so the route doesn't demote an existing salary", () => {
+    const salary = { name: 'Salary', amount: '3820', frequency: 'monthly', payDay: 25 };
+    expect(createIncomeSchema.parse(salary).isPrimary).toBeUndefined();
+    expect(createIncomeSchema.parse({ ...salary, isPrimary: true }).isPrimary).toBe(true);
+    expect(createIncomeSchema.parse(salary)).toMatchObject({ weekendRule: 'previous_business_day', status: 'active', currency: 'EUR' });
   });
 });

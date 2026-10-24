@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/hooks/use-user';
+import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { CreateHouseholdDialog } from '@/components/households/create-household-dialog';
 import { HouseholdList } from '@/components/households/household-list';
-import { HouseholdSelector } from '@/components/households/household-selector';
 import { HouseholdMembersList } from '@/components/households/household-members-list';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +22,8 @@ import { useTrialDays } from '@/lib/hooks/use-trial-days';
 export default function SharingPage() {
   const trialDays = useTrialDays();
   const router = useRouter();
-  const { user, isSubscribed, isLoading: userLoading } = useUser();
+  const { user, isSubscribed, entitlements, isLoading: userLoading } = useUser();
+  const billsEnabled = useFeature('bills');
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string>();
   const queryClient = useQueryClient();
 
@@ -72,7 +72,7 @@ export default function SharingPage() {
   // Show skeleton loading state
   if (userLoading) {
     return (
-      <main className="container mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+      <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Skeleton className="h-8 sm:h-9 w-48" />
@@ -136,7 +136,7 @@ export default function SharingPage() {
   // Show paywall for non-subscribed users
   if (!isSubscribed) {
     return (
-      <main className="container mx-auto max-w-6xl space-y-6 p-4 sm:p-6" aria-labelledby="sharing-title">
+      <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="sharing-title">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 id="sharing-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Sharing</h1>
@@ -145,6 +145,31 @@ export default function SharingPage() {
               </p>
             </div>
           </div>
+
+          {/* Joining someone's household doesn't need Premium, so a non-subscriber can be in one,
+              and must always be able to see which, and leave. This came after the whole sales
+              pitch, under "Households are part of Premium", which read as if they weren't in one. */}
+          {households.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg text-foreground">Households you&apos;re in</CardTitle>
+                <CardDescription>
+                  You can see their shared receipts on the Receipts page.
+                  {billsEnabled && (entitlements?.householdIds.length ?? 0) > 0
+                    ? ' Their shared bills and plan are included: another member\'s Premium covers them.'
+                    : ''}
+                  {' '}Adding receipts of your own needs Premium.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <HouseholdList
+                  households={households as HouseholdSummary[]}
+                  isSubscribed={false}
+                  onUpdate={refreshHouseholds}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Same paywall shape as /insights and /subscriptions: a centred
               medallion, a four-tile grid of two-word features, a bordered list, a
@@ -156,7 +181,9 @@ export default function SharingPage() {
                 <Users className="h-5 w-5 text-primary" aria-hidden="true" />
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="text-2xl text-foreground">Households are part of Premium</CardTitle>
+                <CardTitle className="text-2xl text-foreground">
+                  {households.length > 0 ? 'Your own households are part of Premium' : 'Households are part of Premium'}
+                </CardTitle>
                 {trialDays > 0 && (
                   <Badge variant="secondary">{trialDays}-day trial</Badge>
                 )}
@@ -207,8 +234,8 @@ export default function SharingPage() {
                     'Per-household spending views',
                     'Filter any view to one household',
                     'Unlimited receipts and scanning',
-                    'Subscription tracking',
-                    'CSV and JSON export',
+                    billsEnabled ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
+                    'Export as CSV, JSON or HTML',
                   ].map((feature) => (
                     <div key={feature} className="flex items-center gap-2">
                       <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -217,23 +244,6 @@ export default function SharingPage() {
                   ))}
                 </div>
               </div>
-
-              {/* Joining someone's household doesn't need Premium, so a non-subscriber can be
-                  in one — and must always be able to see which, and leave. */}
-              {households.length > 0 && (
-                <div className="space-y-3 border-t pt-6">
-                  <h3 className="font-semibold text-foreground">Households you&apos;re in</h3>
-                  <p className="text-sm text-muted-foreground">
-                    You can see these households&apos; receipts on the Receipts page. Adding
-                    receipts and the line-item detail need Premium.
-                  </p>
-                  <HouseholdList
-                    households={households as HouseholdSummary[]}
-                    isSubscribed={false}
-                    onUpdate={refreshHouseholds}
-                  />
-                </div>
-              )}
 
               {/* CTA */}
               <div className="space-y-3 border-t pt-6">
@@ -255,22 +265,19 @@ export default function SharingPage() {
   }
 
   return (
-    <main className="container mx-auto max-w-6xl space-y-6 p-4 sm:p-6" aria-labelledby="sharing-main-title">
+    <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="sharing-main-title">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 id="sharing-main-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Sharing</h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              Manage households and share receipts with family or roommates
+              {billsEnabled
+                ? 'Share receipts, bills and the plan with family or housemates.'
+                : 'Share receipts with family or housemates.'}
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            {households.length > 0 && (
-              <HouseholdSelector
-                households={households}
-                selectedHouseholdId={selectedHouseholdId}
-                onSelect={setSelectedHouseholdId}
-              />
-            )}
+          {/* A household picker sat here too, beside the list below that already selects one; on a
+              phone the pair pushed "Create household" off the screen. */}
+          <div className="flex flex-wrap items-center gap-3">
             <CreateHouseholdDialog
               onHouseholdCreated={handleHouseholdCreated}
             />
@@ -300,9 +307,9 @@ export default function SharingPage() {
                 </div>
               </div>
             </div>
-            <h3 className="text-2xl font-semibold mb-2 text-foreground">Create Your First Household</h3>
+            <h2 className="text-2xl font-semibold mb-2 text-foreground">Create your first household</h2>
             <p className="text-muted-foreground mb-8 max-w-md">
-              Households let you share receipts and track expenses with family, partners, or roommates.
+              Households let you share receipts and track expenses with family, a partner or housemates.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-lg">
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
@@ -324,9 +331,11 @@ export default function SharingPage() {
           </div>
         ) : (
           <div className="space-y-8">
+            {/* min-w-0: a grid item won't shrink below its content otherwise, and the invite link
+                in the household card pushed the page 6px wider than a phone. */}
             <div className="grid gap-8 lg:grid-cols-2">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-foreground">Your Households</h2>
+              <div className="min-w-0 space-y-4">
+                <h2 className="text-xl font-semibold text-foreground">Your households</h2>
                 <HouseholdList
                   households={households}
                   isSubscribed={isSubscribed}
@@ -336,8 +345,8 @@ export default function SharingPage() {
                 />
               </div>
 
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-foreground">Members</h2>
+              <div className="min-w-0 space-y-4">
+                {/* No "Members" heading here: the members card has that title itself. */}
                 {selectedHousehold ? (
                   <>
                     {membersLoading ? (
@@ -371,7 +380,7 @@ export default function SharingPage() {
             {selectedHousehold && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold text-foreground">
-                  {selectedHousehold.name} Receipts
+                  {selectedHousehold.name}: shared receipts
                 </h2>
                 <HouseholdReceipts householdId={selectedHousehold.id} />
               </div>

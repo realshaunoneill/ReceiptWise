@@ -12,15 +12,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardStats } from '@/lib/hooks/use-dashboard-stats';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { useUser } from '@/lib/hooks/use-user';
-import { Upload, Receipt, ArrowRight, PieChart, Crown, Check, Chrome } from 'lucide-react';
+import { Upload, Receipt, ArrowRight, Crown, Check, RotateCcw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
 import { useRouter } from 'next/navigation';
 import { UpcomingPayments } from '@/components/subscriptions/upcoming-payments';
 import { PlanCard } from '@/components/dashboard/plan-card';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
-import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
@@ -28,14 +25,22 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const { data: households = [] } = useHouseholds();
-  const { data: subscriptions = [] } = useSubscriptions(undefined, 'active', false);
-  const { isSubscribed } = useUser();
+  const { isSubscribed, entitlements } = useUser();
 
   // Determine view mode based on selection
   const isPersonalOnly = selectedHouseholdId === 'personal';
   const actualHouseholdId = isPersonalOnly ? undefined : selectedHouseholdId;
+  const selectedHousehold = households.find((household: { id: string; name: string }) => household.id === actualHouseholdId);
 
-  const { stats, isLoading: statsLoading } = useDashboardStats(actualHouseholdId, isPersonalOnly);
+  // The plan and the bills on the way follow the household picked above. A member without Premium
+  // of their own, in a household another member pays for, sees that household's: their personal
+  // scope is empty, and the card used to tell them to "add your pay and bills" while the shared
+  // bills they're entitled to went unshown.
+  const coveredHouseholdId = entitlements && !entitlements.personal ? entitlements.householdIds[0] : undefined;
+  const financeHouseholdId = actualHouseholdId ?? coveredHouseholdId;
+  const { data: subscriptions = [] } = useSubscriptions(financeHouseholdId, 'active', false);
+
+  const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats(actualHouseholdId, isPersonalOnly);
 
   // Show skeleton loading state
   if (statsLoading) {
@@ -107,12 +112,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
             <HouseholdSelector
               households={[
-                { id: '', name: 'All Receipts' },
-                { id: 'personal', name: 'Personal Only' },
+                { id: '', name: 'Everything' },
+                { id: 'personal', name: 'Just mine' },
                 ...households,
               ]}
               selectedHouseholdId={selectedHouseholdId || ''}
               onSelect={(id) => setSelectedHouseholdId(id || undefined)}
+              label="Show"
             />
           </div>
         </div>
@@ -135,62 +141,33 @@ export default function DashboardPage() {
                 personalOnly={isPersonalOnly}
               />
             </div>
-
-            {/* Category Breakdown */}
-            {stats?.spendingByCategory && stats.spendingByCategory.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <PieChart className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                      <CardTitle className="text-lg">Spending by category</CardTitle>
-                    </div>
-                    <Link href="/insights">
-                      {/* Was "✨ View AI Insights". The page is called Insights;
-                          badging the link with sparkles and the word AI advertises
-                          the implementation rather than the destination. */}
-                      <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
-                        All insights
-                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {stats.spendingByCategory.slice(0, 6).map((category) => (
-                      <div
-                        key={category.category}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={categoryBadgeClasses(category.category)}>
-                            {getCategory(category.category).label}
-                          </Badge>
-                        </div>
-                        <div className="text-right">
-                          <p className="amount font-semibold">{category.percentage}%</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* A "Spending by category" card of percentages sat here, directly under the
+                summary's own euro breakdown by category: the same split twice. */}
           </>
         )}
 
-        <PlanCard />
+        {statsError && (
+          <Alert variant="destructive">
+            <AlertTitle>Your dashboard didn&apos;t load</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              Your receipts are safe; this is a problem fetching them.
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => refetchStats()}>
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Try again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <PlanCard householdId={financeHouseholdId} />
 
         {subscriptions.length > 0 && (
           <UpcomingPayments subscriptions={subscriptions} daysAhead={7} />
         )}
 
         {stats?.recentReceipts && stats.recentReceipts.length > 0 && (
-          <div>
-            <h2 className="mb-4 text-xl font-semibold">Recent receipts</h2>
-            <ReceiptList receipts={stats.recentReceipts} />
-          </div>
+          // The list card has its own "Recent receipts" title; a heading of the same name sat above it.
+          <ReceiptList receipts={stats.recentReceipts} />
         )}
 
         {/*
@@ -201,7 +178,18 @@ export default function DashboardPage() {
           product works, on the screen where they want to start using it. It is now
           one instruction and one button, with the extension tip demoted to a note.
         */}
-        {(!stats || stats.totalReceipts === 0) && (
+        {!statsError && (!stats || stats.totalReceipts === 0) && selectedHousehold && (
+          <Card className="border-dashed">
+            <CardHeader>
+              <CardTitle className="text-lg text-foreground">Nothing shared with {selectedHousehold.name} yet</CardTitle>
+              <CardDescription>
+                Receipts appear here once someone shares one with the household, from its detail view or as it&apos;s uploaded.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {!statsError && (!stats || stats.totalReceipts === 0) && !selectedHousehold && (
           <Card className="border-dashed">
             <CardHeader className="pb-4">
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
@@ -224,7 +212,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-                    {['Unlimited receipts', 'Household sharing', 'Spending insights'].map((item) => (
+                    {['Unlimited receipts', 'Households of your own', 'Spending insights'].map((item) => (
                       <span key={item} className="flex items-center gap-1.5 text-muted-foreground">
                         <Check className="h-4 w-4 text-primary" aria-hidden="true" />
                         {item}
@@ -239,16 +227,8 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Chrome Extension note. Was a hardcoded blue-50/blue-950 panel
-                  labelled "Pro Tip:" — off the palette in both themes. */}
-              <Alert variant="info">
-                <Chrome className="h-4 w-4" aria-hidden="true" />
-                <AlertTitle>Receipts that never get printed</AlertTitle>
-                <AlertDescription>
-                  The Chrome extension clips receipts straight off a web page. Set it up in
-                  Settings → Integrations.
-                </AlertDescription>
-              </Alert>
+              {/* A Chrome extension note was here, saying to set it up in Settings. It isn't on
+                  the Chrome Web Store yet, so it was a step nobody could take. */}
             </CardContent>
           </Card>
         )}

@@ -5,6 +5,7 @@ import { incomeSources } from '@/lib/db/schema';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
 import { canFileFinanceRowUnder, canOwnFinanceRow } from '@/lib/services/finance-access';
+import { canUseAccount } from '@/lib/services/account-service';
 import { clearOtherPrimaries, getIncome } from '@/lib/services/income-service';
 import { parseBody, readJson, updateIncomeSchema } from '@/lib/validation/finance';
 
@@ -32,6 +33,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (input.householdId !== undefined && input.householdId !== existing.householdId
       && !(await canFileFinanceRowUnder(input.householdId ?? null, user.id, entitlements))) {
       return NextResponse.json({ error: input.householdId ? 'Not a member of this household' : 'Active subscription required' }, { status: 403 });
+    }
+    if (input.intoAccountId !== undefined && input.intoAccountId !== existing.intoAccountId
+      && !(await canUseAccount(input.intoAccountId, user.id, entitlements))) {
+      return NextResponse.json({ error: 'intoAccountId is not one of your accounts' }, { status: 400 });
     }
 
     const frequency = input.frequency ?? existing.frequency;

@@ -37,6 +37,55 @@ export interface ReceiptFilters {
   searchAllHouseholds?: boolean
 }
 
+type SortField = 'date' | 'amount' | 'merchant';
+
+/*
+ * The order options used to read "Newest first / Oldest first" whatever the field, so sorting by
+ * amount offered "Newest first". Each field names its own two directions, and picking a field
+ * starts it in the direction people usually want (biggest first, A–Z).
+ */
+const SORT_ORDERS: Record<SortField, { desc: string; asc: string; default: 'asc' | 'desc' }> = {
+  date: { desc: 'Newest first', asc: 'Oldest first', default: 'desc' },
+  amount: { desc: 'Highest first', asc: 'Lowest first', default: 'desc' },
+  merchant: { asc: 'A–Z', desc: 'Z–A', default: 'asc' },
+};
+
+function sortField(sortBy?: string): SortField {
+  return sortBy === 'amount' || sortBy === 'merchant' ? sortBy : 'date';
+}
+
+/** The default direction for a sort field. */
+export function defaultSortOrder(sortBy?: string): 'asc' | 'desc' {
+  return SORT_ORDERS[sortField(sortBy)].default;
+}
+
+/** "newest first", "highest amount first", "merchant A–Z": what the list is actually sorted by. */
+export function describeSort(sortBy?: string, sortOrder?: string): string {
+  const field = sortField(sortBy);
+  const order = sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : SORT_ORDERS[field].default;
+  switch (field) {
+    case 'amount':
+      return order === 'desc' ? 'highest amount first' : 'lowest amount first';
+    case 'merchant':
+      return order === 'asc' ? 'merchant A–Z' : 'merchant Z–A';
+    default:
+      return order === 'desc' ? 'newest first' : 'oldest first';
+  }
+}
+
+/** The fields the Filters sheet edits. Search and the search-all toggle live outside it. */
+const SHEET_FIELDS = [
+  'category',
+  'merchant',
+  'minAmount',
+  'maxAmount',
+  'startDate',
+  'endDate',
+  'isBusinessExpense',
+  'sortBy',
+  'sortOrder',
+] as const satisfies ReadonlyArray<keyof ReceiptFilters>;
+
 interface ReceiptSearchFiltersProps {
   filters: ReceiptFilters
   onFiltersChange: (filters: ReceiptFilters) => void
@@ -60,6 +109,18 @@ export function ReceiptSearchFilters({
   const [showSearchTips, setShowSearchTips] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // The debounced search below fires 500 ms later; reading filters from here rather than from the
+  // render that scheduled it stops it overwriting a sort or filter changed in between.
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
+  // A search cleared from outside (the "Clear search" button under an empty result) also clears
+  // the box; it used to leave the old text sitting there over an unfiltered list.
+  const [seenSearch, setSeenSearch] = useState(filters.search);
+  if (filters.search !== seenSearch) {
+    setSeenSearch(filters.search);
+    if (!filters.search) setSearchValue('');
+  }
 
   // Keyboard shortcut to focus search (Cmd/Ctrl + K)
   useEffect(() => {
@@ -69,7 +130,7 @@ export function ReceiptSearchFilters({
         searchInputRef.current?.focus();
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
@@ -83,8 +144,10 @@ export function ReceiptSearchFilters({
 
     // Set new timeout
     searchTimeoutRef.current = setTimeout(() => {
-      const newFilters = { ...filters, search: searchValue || undefined };
-      onFiltersChange(newFilters);
+      const current = filtersRef.current;
+      const search = searchValue || undefined;
+      if (search === current.search) return;
+      onFiltersChange({ ...current, search });
     }, 500); // 500ms debounce delay
 
     // Cleanup on unmount
@@ -99,10 +162,28 @@ export function ReceiptSearchFilters({
     ([key, value]) => value && key !== 'sortBy' && key !== 'sortOrder' && key !== 'search' && key !== 'searchAllHouseholds',
   ).length;
 
+  /*
+   * The sheet's copy of the filters was taken once, on mount, and Apply sent that copy back
+   * whole: it dropped whatever had been searched since and put back the sort from when the page
+   * loaded. It is now refreshed each time the sheet opens, and Apply writes only the sheet's own
+   * fields over the current filters.
+   */
+  const handleSheetOpenChange = (open: boolean) => {
+    if (open) setLocalFilters(filters);
+    setIsOpen(open);
+  };
+
   const handleApplyFilters = () => {
-    onFiltersChange(localFilters);
+    const next: ReceiptFilters = { ...filters };
+    for (const field of SHEET_FIELDS) {
+      next[field] = localFilters[field];
+    }
+    onFiltersChange(next);
     setIsOpen(false);
   };
+
+  const localSortField = sortField(localFilters.sortBy);
+  const localSortOrders = SORT_ORDERS[localSortField];
 
   const handleClearAll = () => {
     const clearedFilters = {
@@ -150,6 +231,7 @@ export function ReceiptSearchFilters({
           <Input
             ref={searchInputRef}
             placeholder="Search receipts, merchants, or items..."
+            aria-label="Search receipts"
             value={searchValue}
             onChange={(e) => handleSearchChange(e.target.value)}
             onFocus={() => setShowSearchTips(true)}
@@ -162,7 +244,7 @@ export function ReceiptSearchFilters({
               <Command className="h-3 w-3" />K
             </kbd>
           </div>
-          
+
           {/* Search suggestions dropdown */}
           {showSearchTips && !searchValue && (
             <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover p-2 shadow-md">
@@ -199,7 +281,7 @@ export function ReceiptSearchFilters({
         )}
 
         {/* Advanced Filters */}
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <Sheet open={isOpen} onOpenChange={handleSheetOpenChange}>
           <SheetTrigger asChild>
             <Button variant="outline" className="relative">
               <Filter className="mr-2 h-4 w-4" />
@@ -292,6 +374,7 @@ export function ReceiptSearchFilters({
                   <Input
                     type="number"
                     placeholder="Min"
+                    aria-label="Minimum amount"
                     value={localFilters.minAmount || ''}
                     onChange={(e) =>
                       setLocalFilters({
@@ -307,6 +390,7 @@ export function ReceiptSearchFilters({
                   <Input
                     type="number"
                     placeholder="Max"
+                    aria-label="Maximum amount"
                     value={localFilters.maxAmount || ''}
                     onChange={(e) =>
                       setLocalFilters({
@@ -324,13 +408,14 @@ export function ReceiptSearchFilters({
             {/* Date Range */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Date Range
+                <Calendar className="h-4 w-4" aria-hidden="true" />
+                Date range
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Input
                     type="date"
+                    aria-label="From"
                     value={localFilters.startDate || ''}
                     onChange={(e) =>
                       setLocalFilters({
@@ -343,6 +428,7 @@ export function ReceiptSearchFilters({
                 <div>
                   <Input
                     type="date"
+                    aria-label="To"
                     value={localFilters.endDate || ''}
                     onChange={(e) =>
                       setLocalFilters({
@@ -358,8 +444,8 @@ export function ReceiptSearchFilters({
             {/* Business Expense Filter */}
             <div className="space-y-2">
               <Label htmlFor="businessExpense" className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4" />
-                Business Expenses
+                <Briefcase className="h-4 w-4" aria-hidden="true" />
+                Business expenses
               </Label>
               <Select
                 value={localFilters.isBusinessExpense || 'all'}
@@ -383,15 +469,15 @@ export function ReceiptSearchFilters({
 
             {/* Sort Options */}
             <div className="space-y-2">
-              <Label>Sort by</Label>
+              <Label htmlFor="sortBy">Sort by</Label>
               <div className="grid grid-cols-2 gap-2">
                 <Select
-                  value={localFilters.sortBy || 'date'}
+                  value={localSortField}
                   onValueChange={(value) =>
-                    setLocalFilters({ ...localFilters, sortBy: value })
+                    setLocalFilters({ ...localFilters, sortBy: value, sortOrder: defaultSortOrder(value) })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="sortBy" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -401,17 +487,19 @@ export function ReceiptSearchFilters({
                   </SelectContent>
                 </Select>
                 <Select
-                  value={localFilters.sortOrder || 'desc'}
+                  value={localFilters.sortOrder || localSortOrders.default}
                   onValueChange={(value) =>
                     setLocalFilters({ ...localFilters, sortOrder: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full" aria-label="Order">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="desc">Newest First</SelectItem>
-                    <SelectItem value="asc">Oldest First</SelectItem>
+                    {/* The usual direction first: biggest amount, newest date, A–Z. */}
+                    {(localSortOrders.default === 'asc' ? (['asc', 'desc'] as const) : (['desc', 'asc'] as const)).map((order) => (
+                      <SelectItem key={order} value={order}>{localSortOrders[order]}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -439,18 +527,18 @@ export function ReceiptSearchFilters({
 
         {/* Sort Quick Controls */}
         <Select
-          value={filters.sortBy || 'date'}
+          value={sortField(filters.sortBy)}
           onValueChange={(value) =>
-            onFiltersChange({ ...filters, sortBy: value })
+            onFiltersChange({ ...filters, sortBy: value, sortOrder: defaultSortOrder(value) })
           }
         >
-          <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]" aria-label="Sort receipts by">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="date">Sort by Date</SelectItem>
-            <SelectItem value="amount">Sort by Amount</SelectItem>
-            <SelectItem value="merchant">Sort by Merchant</SelectItem>
+            <SelectItem value="date">Sort by date</SelectItem>
+            <SelectItem value="amount">Sort by amount</SelectItem>
+            <SelectItem value="merchant">Sort by merchant</SelectItem>
           </SelectContent>
         </Select>
       </div>

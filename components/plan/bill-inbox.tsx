@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, ExternalLink, FileText, Loader2, RotateCcw, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -28,20 +29,56 @@ type BillInboxProps = {
 
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp';
 
+const shortDate = (day: string) => formatLocalDate(day, { day: 'numeric', month: 'short' }, 'en-IE');
+
 function money(amount: string | null, currency: string | null, fallbackCurrency: string): string | null {
   const cents = toCents(amount);
   return cents === null ? null : formatCents(cents, currency ?? fallbackCurrency);
 }
 
 /**
+ * The bills already brought in, newest first, for saying what a possible duplicate repeats. Only
+ * fetched when the inbox has one whose original isn't in the inbox itself (it was filed already).
+ */
+function useEarlierBills(householdId: string | undefined, enabled: boolean) {
+  return useQuery<ClientBillDocument[]>({
+    queryKey: ['bill-documents', 'all', householdId ?? null],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (householdId) params.set('householdId', householdId);
+      const res = await fetch(`/api/bills/documents?${params}`);
+      if (!res.ok) throw new Error('Failed to load bills');
+      return res.json() as Promise<ClientBillDocument[]>;
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** "the Electric Ireland bill of 3 Oct": what a possible duplicate is a duplicate of. */
+function describeOriginal(original: ClientBillDocument | undefined): string {
+  if (!original) return 'a bill already brought in';
+  const day = original.issueDate ?? original.dueDate;
+  const name = original.provider ? `the ${original.provider} bill` : `${original.fileName ?? 'a bill'}`;
+  return day ? `${name} of ${shortDate(day)}` : `${name} uploaded ${shortDate(new Date(original.createdAt).toISOString().slice(0, 10))}`;
+}
+
+/**
  * Bills brought in: upload a PDF or a photo (the camera on a phone), it is read, and then filed
  * against the bill it belongs to, which sets that month's amount and due date in the plan. A bill
  * from a provider already filed once goes straight in and shows here as done.
+ *
+ * Titled "Bill inbox": it is where uploaded and emailed bills wait to be filed, and "Bills" was
+ * easily taken for the Bills page in the menu.
  */
 export function BillInbox({ plan, householdId }: BillInboxProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: documents = [] } = useBillInbox(householdId);
   const { mutate: uploadBill, isPending: uploading } = useUploadBill();
+  const missingOriginal = documents.some((document) =>
+    document.duplicateOfId && !documents.some((other) => other.id === document.duplicateOfId));
+  const { data: earlier = [] } = useEarlierBills(householdId, missingOriginal);
+  const findOriginal = (id: string) => documents.find((other) => other.id === id) ?? earlier.find((other) => other.id === id);
 
   const onFiles = (files: FileList | null) => {
     for (const file of Array.from(files ?? [])) {
@@ -59,7 +96,7 @@ export function BillInbox({ plan, householdId }: BillInboxProps) {
   return (
     <Card data-private>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base">Bills</CardTitle>
+        <CardTitle className="text-base">Bill inbox</CardTitle>
         <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
           {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
           Upload a bill
@@ -81,14 +118,21 @@ export function BillInbox({ plan, householdId }: BillInboxProps) {
             Or <Link href="/settings?tab=integrations" className="text-primary underline-offset-2 hover:underline">forward them by email</Link>.
           </p>
         ) : (
-          documents.map((document) => <BillDocumentCard key={document.id} document={document} plan={plan} />)
+          documents.map((document) => (
+            <BillDocumentCard
+              key={document.id}
+              document={document}
+              plan={plan}
+              duplicateOf={document.duplicateOfId ? describeOriginal(findOriginal(document.duplicateOfId)) : null}
+            />
+          ))
         )}
       </CardContent>
     </Card>
   );
 }
 
-function BillDocumentCard({ document, plan }: { document: ClientBillDocument; plan: PlanResponse }) {
+function BillDocumentCard({ document, plan, duplicateOf }: { document: ClientBillDocument; plan: PlanResponse; duplicateOf: string | null }) {
   const { mutate: applyBill, isPending: applying } = useApplyBill();
   const { mutate: retryBill, isPending: retrying } = useRetryBill();
   const { mutate: deleteBill } = useDeleteBill();
@@ -96,7 +140,7 @@ function BillDocumentCard({ document, plan }: { document: ClientBillDocument; pl
   const name = document.provider || document.fileName || 'Bill';
   const amount = money(document.amountDue, document.currency, plan.currency);
   const minimum = money(document.minimumPayment, document.currency, plan.currency);
-  const due = document.dueDate ? formatLocalDate(document.dueDate, { day: 'numeric', month: 'short' }) : null;
+  const due = document.dueDate ? shortDate(document.dueDate) : null;
 
   const apply = (action: ApplyBillAction, done: string) =>
     applyBill({ id: document.id, action }, { onSuccess: () => toast.success(done), onError: (error) => toast.error(error.message) });
@@ -181,13 +225,13 @@ function BillDocumentCard({ document, plan }: { document: ClientBillDocument; pl
             {amount ? <span className="amount font-semibold text-foreground">{amount}</span> : 'No amount found'}
             {due && <> due {due}</>}
             {document.periodStart && document.periodEnd && (
-              <> · {formatLocalDate(document.periodStart, { day: 'numeric', month: 'short' })} – {formatLocalDate(document.periodEnd, { day: 'numeric', month: 'short' })}</>
+              <> · for {shortDate(document.periodStart)} – {shortDate(document.periodEnd)}</>
             )}
           </p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {isCard && <Badge variant="outline">Card statement</Badge>}
             {document.isDirectDebit && <Badge variant="outline">Direct debit</Badge>}
-            {document.duplicateOfId && <Badge variant="secondary">Possible duplicate</Badge>}
+            {duplicateOf && <Badge variant="secondary" className="whitespace-normal text-left">Possible duplicate of {duplicateOf}</Badge>}
           </div>
         </div>
         {fileLink}

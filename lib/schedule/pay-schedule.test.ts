@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paydaysBetween, periodAt, periodContaining, type PaySchedule } from './pay-schedule';
+import { inBucket, paydaysBetween, paydaysDueAndPaid, periodAt, periodContaining, type PaySchedule } from './pay-schedule';
 
 const monthly = (payDay: number, weekendRule = 'previous_business_day'): PaySchedule =>
   ({ frequency: 'monthly', payDay, anchorDate: null, weekendRule });
@@ -7,11 +7,20 @@ const monthly = (payDay: number, weekendRule = 'previous_business_day'): PaySche
 describe('paydaysBetween', () => {
   it('moves a weekend payday to the Friday before by default', () => {
     // 2026-10-25 is a Sunday, 2027-04-25 a Sunday too.
-    expect(paydaysBetween(monthly(25), '2026-10-01', '2026-12-31')).toEqual(['2026-10-23', '2026-11-25', '2026-12-25']);
+    expect(paydaysBetween(monthly(25), '2026-10-01', '2026-12-31')).toEqual(['2026-10-23', '2026-11-25', '2026-12-24']);
+  });
+
+  it('moves a payday off a bank holiday the same way', () => {
+    // Christmas Day 2026 is a Friday: Irish payroll pays on the 24th.
+    expect(paydaysBetween(monthly(25), '2026-12-01', '2027-01-01')).toEqual(['2026-12-24']);
+    // St Patrick's Day 2027 is a Wednesday; Easter Monday 2027 is 29 March.
+    expect(paydaysBetween(monthly(17), '2027-03-01', '2027-04-01')).toEqual(['2027-03-16']);
+    expect(paydaysBetween(monthly(29, 'next_business_day'), '2027-03-10', '2027-04-10')).toEqual(['2027-03-30']);
   });
 
   it('can move it to the Monday after, or leave it', () => {
-    expect(paydaysBetween(monthly(25, 'next_business_day'), '2026-10-01', '2026-11-01')).toEqual(['2026-10-26']);
+    // 26 October 2026 is a bank holiday (the last Monday of October), so the Tuesday.
+    expect(paydaysBetween(monthly(25, 'next_business_day'), '2026-10-01', '2026-11-01')).toEqual(['2026-10-27']);
     expect(paydaysBetween(monthly(25, 'none'), '2026-10-01', '2026-11-01')).toEqual(['2026-10-25']);
   });
 
@@ -58,7 +67,7 @@ describe('periods', () => {
   });
 
   it('steps forwards and back', () => {
-    expect(periodAt(monthly(25), '2026-11-02', 1)).toMatchObject({ start: '2026-11-25', end: '2026-12-25', label: 'December 2026' });
+    expect(periodAt(monthly(25), '2026-11-02', 1)).toMatchObject({ start: '2026-11-25', end: '2026-12-24', label: 'December 2026' });
     expect(periodAt(monthly(25), '2026-11-02', -1)).toMatchObject({ start: '2026-09-25', end: '2026-10-23', label: 'October 2026' });
     expect(periodAt(null, '2026-11-02', 5).label).toBe('April 2027');
   });
@@ -66,5 +75,43 @@ describe('periods', () => {
   it('has 4 whole weeks in any month, and 2 in a fortnight', () => {
     expect(periodContaining(null, '2027-02-10').weeks).toBe(4);
     expect(periodContaining({ frequency: 'fortnightly', payDay: null, anchorDate: '2026-10-16', weekendRule: 'none' }, '2026-10-20').weeks).toBe(2);
+  });
+});
+
+describe('bucketing by the payday as due', () => {
+  it('keeps the unshifted window when a weekend moves payday', () => {
+    // 25 October 2026 is a Sunday, paid on Friday the 23rd: the money comes on the 23rd, but
+    // November's bills run from the 25th to the 24th like every other month.
+    const november = periodContaining(monthly(25), '2026-10-24');
+    expect(november).toMatchObject({ start: '2026-10-23', end: '2026-11-25', label: 'November 2026' });
+    expect(november.bucket).toEqual({ start: '2026-10-25', end: '2026-11-25', dayOfMonth: 25 });
+    expect(paydaysDueAndPaid(monthly(25), '2026-10-01', '2026-11-01')).toEqual([{ due: '2026-10-25', paid: '2026-10-23' }]);
+
+    expect(inBucket(november, '2026-10-24')).toBe(false);
+    expect(inBucket(november, '2026-10-25')).toBe(true);
+    expect(inBucket(november, '2026-11-24')).toBe(true);
+    expect(inBucket(november, '2026-11-25')).toBe(false);
+  });
+
+  it('gives each period one bill on the 30th or 31st when pay is on the 31st', () => {
+    const pay31 = monthly(31, 'none');
+    // Pay on 31 Oct, 30 Nov (clamped), 31 Dec.
+    const november = periodContaining(pay31, '2026-11-10');
+    const december = periodContaining(pay31, '2026-12-10');
+    expect(november.bucket).toEqual({ start: '2026-10-31', end: '2026-11-30', dayOfMonth: 31 });
+    const on30 = ['2026-10-30', '2026-11-30', '2026-12-30'];
+    expect(on30.filter((day) => inBucket(november, day, 30))).toEqual(['2026-11-30']);
+    expect(on30.filter((day) => inBucket(december, day, 30))).toEqual(['2026-12-30']);
+    // A bill on the 31st, clamped to 30 November, belongs to December's period, like 31 October to November's.
+    const on31 = ['2026-10-31', '2026-11-30', '2026-12-31'];
+    expect(on31.filter((day) => inBucket(november, day, 31))).toEqual(['2026-10-31']);
+    expect(on31.filter((day) => inBucket(december, day, 31))).toEqual(['2026-11-30']);
+  });
+
+  it('buckets by the paid days for weekly kinds and calendar months', () => {
+    const fortnightly = { frequency: 'fortnightly', payDay: null, anchorDate: '2026-10-16', weekendRule: 'none' };
+    const period = periodContaining(fortnightly, '2026-10-20');
+    expect(period.bucket).toEqual({ start: period.start, end: period.end, dayOfMonth: null });
+    expect(periodContaining(null, '2026-11-02').bucket).toEqual({ start: '2026-11-01', end: '2026-12-01', dayOfMonth: null });
   });
 });

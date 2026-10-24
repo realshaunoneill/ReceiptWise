@@ -17,17 +17,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { type IncomeSource } from '@/lib/db/schema';
 import { localToday } from '@/lib/dates/local-date';
-import { useDeleteIncome, useSaveIncome } from '@/lib/hooks/use-plan';
+import { type IncomeInput, useAccounts, useDeleteIncome, useSaveIncome } from '@/lib/hooks/use-plan';
+import { ConfirmRemove } from './confirm-remove';
 
 type IncomeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Editing this one; otherwise adding a new income. */
   income?: IncomeSource | null;
-  /** The first income is the primary one, which sets the plan's period. */
+  /**
+   * The first income is the primary one, which sets the plan's period: true when the viewer has
+   * no primary income in any scope (or is editing their only one). Basing it on one scope's list
+   * made a household plan treat someone with a salary as having none.
+   */
   isFirst: boolean;
+  /** The viewer's current primary income, whatever the scope, so making another primary says what it replaces. */
+  currentPrimary?: { id: string; name: string } | null;
   householdId?: string;
 };
+
+/** IncomeInput plus the account it's paid into (the hook's type predates it). */
+type IncomeData = Partial<IncomeInput> & { intoAccountId?: string | null };
+
+const MAIN_ACCOUNT = 'main';
 
 const FREQUENCIES = [
   { value: 'monthly', label: 'Monthly, on a set day' },
@@ -38,13 +50,13 @@ const FREQUENCIES = [
 ];
 
 const WEEKEND_RULES = [
-  { value: 'previous_business_day', label: 'The Friday before' },
-  { value: 'next_business_day', label: 'The Monday after' },
+  { value: 'previous_business_day', label: 'The working day before' },
+  { value: 'next_business_day', label: 'The working day after' },
   { value: 'none', label: 'That day anyway' },
 ];
 
 /** Your pay, and when it lands. The primary income's paydays mark where each period starts. */
-export function IncomeDialog({ open, onOpenChange, income, isFirst, householdId }: IncomeDialogProps) {
+export function IncomeDialog({ open, onOpenChange, income, isFirst, currentPrimary, householdId }: IncomeDialogProps) {
   const [name, setName] = useState('Salary');
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState('monthly');
@@ -52,6 +64,8 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, householdId 
   const [anchorDate, setAnchorDate] = useState(localToday());
   const [weekendRule, setWeekendRule] = useState('previous_business_day');
   const [isPrimary, setIsPrimary] = useState(true);
+  const [intoAccount, setIntoAccount] = useState(MAIN_ACCOUNT);
+  const { data: accounts = [] } = useAccounts(householdId);
   const { mutate: saveIncome, isPending } = useSaveIncome();
   const { mutate: deleteIncome, isPending: deleting } = useDeleteIncome();
 
@@ -64,25 +78,28 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, householdId 
     setAnchorDate(income?.anchorDate ?? localToday());
     setWeekendRule(income?.weekendRule ?? 'previous_business_day');
     setIsPrimary(income?.isPrimary ?? isFirst);
+    setIntoAccount(income?.intoAccountId ?? MAIN_ACCOUNT);
   }, [open, income, isFirst]);
 
   const weekly = ['weekly', 'fortnightly', 'four_weekly'].includes(frequency);
 
+  const replacesPrimary = isPrimary && !isFirst && currentPrimary && currentPrimary.id !== income?.id ? currentPrimary : null;
+  const liveAccounts = accounts.filter((account) => !account.archivedAt);
+
   const save = () => {
+    const data: IncomeData = {
+      name: name.trim() || 'Salary',
+      amount,
+      frequency,
+      payDay: frequency === 'monthly' ? Number(payDay) : null,
+      anchorDate: weekly ? anchorDate : null,
+      weekendRule,
+      isPrimary,
+      intoAccountId: intoAccount === MAIN_ACCOUNT ? null : intoAccount,
+      ...(income ? {} : { householdId: householdId ?? null }),
+    };
     saveIncome(
-      {
-        id: income?.id,
-        data: {
-          name: name.trim() || 'Salary',
-          amount,
-          frequency,
-          payDay: frequency === 'monthly' ? Number(payDay) : null,
-          anchorDate: weekly ? anchorDate : null,
-          weekendRule,
-          isPrimary,
-          ...(income ? {} : { householdId: householdId ?? null }),
-        },
-      },
+      { id: income?.id, data },
       {
         onSuccess: () => {
           toast.success(income ? 'Income updated' : 'Income added');
@@ -116,9 +133,9 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, householdId 
           </div>
 
           <div className="space-y-1.5">
-            <Label>How often</Label>
+            <Label htmlFor="income-frequency">How often</Label>
             <Select value={frequency} onValueChange={setFrequency}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="income-frequency"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {FREQUENCIES.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
               </SelectContent>
@@ -140,9 +157,9 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, householdId 
 
           {frequency !== 'last_working_day' && (
             <div className="space-y-1.5">
-              <Label>If payday falls on a weekend, it arrives</Label>
+              <Label htmlFor="income-weekend">If payday falls on a weekend or bank holiday, it arrives</Label>
               <Select value={weekendRule} onValueChange={setWeekendRule}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="income-weekend"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {WEEKEND_RULES.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
                 </SelectContent>
@@ -150,30 +167,50 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, householdId 
             </div>
           )}
 
+          {(liveAccounts.length > 0 || intoAccount !== MAIN_ACCOUNT) && (
+            <div className="space-y-1.5">
+              <Label htmlFor="income-into">Paid into</Label>
+              <Select value={intoAccount} onValueChange={setIntoAccount}>
+                <SelectTrigger id="income-into"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={MAIN_ACCOUNT}>Your main account</SelectItem>
+                  {liveAccounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>)}
+                  {intoAccount !== MAIN_ACCOUNT && !liveAccounts.some((account) => account.id === intoAccount) && (
+                    <SelectItem value={intoAccount}>Another account</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Used for what&apos;s left until payday, when you add balances.</p>
+            </div>
+          )}
+
           {!isFirst && (
-            <div className="flex items-center gap-2">
-              <Switch id="income-primary" checked={isPrimary} onCheckedChange={setIsPrimary} />
-              <Label htmlFor="income-primary" className="font-normal">My main pay (sets the period)</Label>
+            <div className="space-y-1">
+              <Label htmlFor="income-primary" className="flex min-h-11 cursor-pointer items-center gap-2 font-normal">
+                <Switch id="income-primary" checked={isPrimary} onCheckedChange={setIsPrimary} />
+                My main pay (sets the period)
+              </Label>
+              {replacesPrimary && (
+                <p className="text-xs text-warning">This replaces {replacesPrimary.name} as your main pay, and the periods will follow this one&apos;s paydays.</p>
+              )}
             </div>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
           {income ? (
-            <Button
-              variant="ghost"
-              className="text-destructive"
+            <ConfirmRemove
+              resetKey={open && income.id}
+              question={`Remove ${income.name}?`}
               disabled={deleting}
-              onClick={() => deleteIncome(income.id, {
+              onConfirm={() => deleteIncome(income.id, {
                 onSuccess: () => {
                   toast.success('Income removed');
                   onOpenChange(false);
                 },
                 onError: (error) => toast.error(error.message),
               })}
-            >
-              Remove
-            </Button>
+            />
           ) : <span />}
           <Button onClick={save} disabled={isPending || !amount}>{isPending ? 'Saving…' : 'Save'}</Button>
         </DialogFooter>

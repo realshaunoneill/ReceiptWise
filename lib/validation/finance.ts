@@ -72,6 +72,8 @@ const subscriptionFields = {
   paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
   accountReference: z.string().trim().regex(/^[A-Za-z0-9]{1,4}$/, 'must be the last 4 characters only').nullable().optional()
     .or(z.literal('').transform(() => null)),
+  /** The bank account it comes out of, for the plan's "left until payday"; null = the main one. */
+  paidFromAccountId: z.string().uuid().nullable().optional(),
 };
 
 export const createSubscriptionSchema = z
@@ -197,7 +199,8 @@ export const createIncomeSchema = z
     currency: incomeFields.currency.default('EUR'),
     frequency: incomeFields.frequency.default('monthly'),
     weekendRule: incomeFields.weekendRule.default('previous_business_day'),
-    isPrimary: incomeFields.isPrimary.default(true),
+    // Left unset, the route makes it primary only if the user has no primary yet.
+    isPrimary: incomeFields.isPrimary.optional(),
     status: incomeFields.status.default('active'),
   })
   .strict()

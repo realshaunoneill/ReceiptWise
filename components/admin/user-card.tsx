@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Receipt, Home, Calendar, CreditCard, Mail, Eye, ChevronDown, ChevronUp, Ban, CheckCircle, Edit2, Crown } from 'lucide-react';
 import { useUpdateUser } from '@/hooks/use-admin-users';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
+import { formatInstantDay, formatReceiptAmount } from './format';
 
 interface UserCardProps {
   user: {
@@ -129,7 +130,7 @@ export function UserCard({ user, isExpanded, onToggle, userReceipts, onOpenRecei
             </span>
             <span className="flex items-center gap-1 whitespace-nowrap">
               <Calendar className="h-3 w-3" />
-              Joined {new Date(user.createdAt).toLocaleDateString()}
+              Joined {formatInstantDay(user.createdAt)}
             </span>
           </div>
           {user.isBlocked && user.blockedReason && (
@@ -141,6 +142,7 @@ export function UserCard({ user, isExpanded, onToggle, userReceipts, onOpenRecei
                 variant="ghost"
                 size="sm"
                 className="h-5 w-5 p-0"
+                aria-label="Edit the block reason"
                 onClick={(e) => {
                   e.stopPropagation();
                   setBlockReason(user.blockedReason || '');
@@ -161,10 +163,11 @@ export function UserCard({ user, isExpanded, onToggle, userReceipts, onOpenRecei
             </Badge>
           )}
           
-          {/* Subscription Toggle Button */}
+          {/* Grant or remove the subscription. The badge beside the email shows the state; this
+              button used to repeat it ("Subscribed"), so it read as a second status, not an action. */}
           {!user.isAdmin && (
             <Button
-              variant={user.subscribed ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
               disabled={isPending}
               onClick={(e) => {
@@ -177,7 +180,7 @@ export function UserCard({ user, isExpanded, onToggle, userReceipts, onOpenRecei
               ) : (
                 <>
                   <Crown className="h-3 w-3 mr-1" />
-                  {user.subscribed ? 'Subscribed' : 'Not subscribed'}
+                  {user.subscribed ? 'Remove subscription' : 'Grant subscription'}
                 </>
               )}
             </Button>
@@ -245,7 +248,7 @@ export function UserCard({ user, isExpanded, onToggle, userReceipts, onOpenRecei
                     </div>
                     <div className="flex items-center gap-2 justify-between sm:justify-end">
                       <span className="text-sm font-medium">
-                        {receipt.currency} {receipt.totalAmount}
+                        {formatReceiptAmount(receipt.totalAmount, receipt.currency)}
                       </span>
                       <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
                     </div>

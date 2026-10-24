@@ -2,6 +2,7 @@
 
 import { Camera, ScanLine, Users } from 'lucide-react';
 import { SectionLabel } from '@/components/layout/section-label';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 /**
  * Replaces the previous testimonials/social-proof section.
@@ -19,7 +20,8 @@ const steps = [
     description:
       // Images only (JPG, PNG, WebP) — the upload route rejects PDFs. The extension is not on
       // the Chrome Web Store yet, so it is not offered as a way in here.
-      'Photograph a paper receipt, or upload a photo or a screenshot of one. JPG, PNG and WebP all work.',
+      `Photograph a paper receipt, or upload a photo or a screenshot of one. JPG, PNG and WebP all work.${
+        BILLS_LAUNCHED ? ' Bills too: upload the PDF, or forward the email to your own ReceiptWise address.' : ''}`,
   },
   {
     // Was a Sparkles icon. A scan line says "this is being read" without the
@@ -35,7 +37,7 @@ const steps = [
     step: '03',
     title: 'Everyone sees it',
     description:
-      'Receipts land in your shared household, so a partner, family or roommates all see the same picture of what was spent and by whom.',
+      'Receipts land in your shared household, so a partner, family or housemates all see the same picture of what was spent and by whom.',
   },
 ];
 

@@ -6,7 +6,7 @@ import { TopItemsList } from '@/components/insights/top-items-list';
 import { ItemSearchAnalysis } from '@/components/insights/item-search-analysis';
 import { SubscriptionInsights } from '@/components/insights/subscription-insights';
 import { HouseholdSelector } from '@/components/households/household-selector';
-import { useUser } from '@/lib/hooks/use-user';
+import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,10 +25,9 @@ export default function InsightsPage() {
   const { data: households = [] } = useHouseholds();
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string>();
   const [activeTab, setActiveTab] = useState('overview');
-
-  // Determine view mode based on selection
-  const isPersonalOnly = selectedHouseholdId === 'personal';
-  const actualHouseholdId = isPersonalOnly ? undefined : selectedHouseholdId;
+  // With bills on, the recurring tab holds rent and loans as well as subscriptions.
+  const billsEnabled = useFeature('bills');
+  const recurringLabel = billsEnabled ? 'Bills & subscriptions' : 'Subscriptions';
 
   return (
     <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="insights-title">
@@ -38,20 +37,28 @@ export default function InsightsPage() {
               Insights
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              What you spend on, what you buy most, and what the subscriptions cost.
+              What you spend on, what you buy most, and what the {billsEnabled ? 'bills and subscriptions' : 'subscriptions'} cost.
             </p>
           </div>
 
-          {isSubscribed && (
-            <HouseholdSelector
-              households={[
-                { id: '', name: 'All Receipts' },
-                { id: 'personal', name: 'Personal Only' },
-                ...households,
-              ]}
-              selectedHouseholdId={selectedHouseholdId || ''}
-              onSelect={(id) => setSelectedHouseholdId(id || undefined)}
-            />
+          {/*
+            "All Receipts" and "Personal Only" showed exactly the same figures: the insights
+            routes take a household or nothing, and nothing means the receipts you uploaded.
+            One option, named for what it is and matching the receipts page. The label gives
+            the picker the accessible name it lacked.
+          */}
+          {isSubscribed && households.length > 0 && (
+            <label className="flex items-center gap-4">
+              <span className="sr-only">Show insights for</span>
+              <HouseholdSelector
+                households={[
+                  { id: '', name: 'My receipts' },
+                  ...households,
+                ]}
+                selectedHouseholdId={selectedHouseholdId || ''}
+                onSelect={(id) => setSelectedHouseholdId(id || undefined)}
+              />
+            </label>
           )}
         </div>
 
@@ -241,30 +248,34 @@ export default function InsightsPage() {
             technology behind it was never useful to the person reading it.
           */
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-              <TabsTrigger value="overview" className="gap-2">
+            {/* Tabs sized to their labels, so "Bills & subscriptions" fits on a phone. */}
+            <TabsList className="flex w-full lg:inline-flex lg:w-auto lg:self-start">
+              <TabsTrigger value="overview" className="flex-auto gap-2">
                 <TrendingUp className="hidden h-4 w-4 sm:block" aria-hidden="true" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="items" className="gap-2">
+              <TabsTrigger value="items" className="flex-auto gap-2">
                 <Search className="hidden h-4 w-4 sm:block" aria-hidden="true" />
                 Items
               </TabsTrigger>
-              <TabsTrigger value="subscriptions" className="gap-2">
+              <TabsTrigger value="subscriptions" className="flex-auto gap-2">
                 <CreditCard className="hidden h-4 w-4 sm:block" aria-hidden="true" />
-                Subscriptions
+                {recurringLabel}
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-6 space-y-6">
-              <div className="grid gap-6 lg:grid-cols-2">
-                <SpendingSummaryCard householdId={actualHouseholdId} autoLoad />
-                <TopItemsList householdId={actualHouseholdId} autoLoad />
+              {/* grid-cols-1 is minmax(0, 1fr): without it the one mobile column grew to the
+                  longest item name in Top items, and the page scrolled sideways. */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {/* No autoLoad: the summary is an OpenAI call, written when asked for. */}
+                <SpendingSummaryCard householdId={selectedHouseholdId} />
+                <TopItemsList householdId={selectedHouseholdId} autoLoad />
               </div>
             </TabsContent>
 
             <TabsContent value="items" className="mt-6 space-y-6">
-              <ItemSearchAnalysis householdId={actualHouseholdId} />
+              <ItemSearchAnalysis householdId={selectedHouseholdId} />
             </TabsContent>
 
             <TabsContent value="subscriptions" className="mt-6 space-y-6">

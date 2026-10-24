@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { useFeature } from '@/lib/hooks/use-user';
+import { categoryName, formatDisplayDate } from '@/components/receipts/format';
 import { Loader2, TrendingUp, Calendar, Coins, AlertCircle, ArrowRight } from 'lucide-react';
-import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { daysBetween, fromUtcDate, localToday } from '@/lib/dates/local-date';
 import { monthlyEquivalent } from '@/lib/schedule/billing-schedule';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
@@ -14,17 +16,25 @@ import { cn } from '@/lib/utils';
 import { urgencySurfaceClass } from '@/lib/utils/urgency';
 import Link from 'next/link';
 
+/** Paid without anyone keeping a receipt: a missing one is not something to chase. */
+const AUTOMATIC_METHODS = ['direct_debit', 'standing_order', 'card'];
+
 export function SubscriptionInsights() {
   const { data: subscriptions, isLoading } = useSubscriptions(undefined, 'active', true);
   const { currency: userCurrency } = useCurrency();
+  // With bills on, this list also holds rent, loans and utilities (kind 'bill'), so the card is
+  // named for both. It said "Subscription insights" over an "Active subscriptions" count that
+  // included the rent.
+  const billsEnabled = useFeature('bills');
+  const title = billsEnabled ? 'Bills & subscriptions' : 'Subscription insights';
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Subscription Insights
+          <CardTitle role="heading" aria-level={2} className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" aria-hidden="true" />
+            {title}
           </CardTitle>
           <CardDescription>
             Overview of your recurring expenses
@@ -49,7 +59,13 @@ export function SubscriptionInsights() {
     userCurrency,
   );
   const yearlyTotals = monthlyTotals.map((total) => ({ ...total, amount: total.amount * 12 }));
-  const missingPaymentsCount = subscriptions?.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0) || 0;
+  // Rent and loan payments never come with a receipt, nor does a direct debit or standing order,
+  // so with bills on they counted 45 "missing receipts" that could never be found.
+  const expectsReceipt = (sub: NonNullable<typeof subscriptions>[number]) =>
+    !billsEnabled || (sub.kind !== 'bill' && !AUTOMATIC_METHODS.includes(sub.paymentMethod ?? ''));
+  const missingPaymentsCount = subscriptions
+    ?.filter(expectsReceipt)
+    .reduce((sum, sub) => sum + (sub.missingPayments || 0), 0) || 0;
 
   // Find subscriptions due soon, in calendar days from the user's today
   const today = localToday();
@@ -79,9 +95,9 @@ export function SubscriptionInsights() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          Subscription Insights
+        <CardTitle role="heading" aria-level={2} className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5" aria-hidden="true" />
+          {title}
         </CardTitle>
         <CardDescription>
           Overview of your recurring expenses and upcoming payments
@@ -91,28 +107,29 @@ export function SubscriptionInsights() {
         {/* Summary Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Active Subscriptions</p>
+            <p className="text-sm text-muted-foreground">{billsEnabled ? 'Active' : 'Active subscriptions'}</p>
             <p className="text-2xl font-bold">{activeSubscriptions.length}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Monthly Total</p>
+            <p className="text-sm text-muted-foreground">Monthly total</p>
             <p className="amount text-2xl font-semibold">{formatTotals(monthlyTotals, userCurrency)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Yearly Total</p>
+            <p className="text-sm text-muted-foreground">Yearly total</p>
             <p className="amount text-2xl font-semibold">{formatTotals(yearlyTotals, userCurrency)}</p>
           </div>
           {missingPaymentsCount > 0 && (
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground flex items-center gap-1">
                 <AlertCircle className="h-4 w-4 text-warning" aria-hidden="true" />
-                Missing Receipts
+                Missing receipts
               </p>
               <div className="flex items-baseline gap-2">
                 <p className="amount text-2xl font-semibold text-warning">{missingPaymentsCount}</p>
-                <Link href="/subscriptions?filter=missing">
+                {/* The same rule as the count: with bills on, bills and automatic payments are left out. */}
+                <Link href={billsEnabled ? '/subscriptions?filter=missing&kind=subscription' : '/subscriptions?filter=missing'}>
                   <Button variant="link" size="sm" className="h-auto p-0 text-xs">
-                    View All <ArrowRight className="h-3 w-3 ml-1" />
+                    View all <ArrowRight className="h-3 w-3 ml-1" aria-hidden="true" />
                   </Button>
                 </Link>
               </div>
@@ -123,12 +140,12 @@ export function SubscriptionInsights() {
         {/* Top Categories */}
         {topCategories.length > 0 && (
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Top Spending Categories</h3>
+            <h3 className="text-sm font-semibold">Top spending categories</h3>
             <div className="space-y-2">
               {topCategories.map(([category, amount]) => (
                 <div key={category} className="flex items-center justify-between">
-                  <Badge variant="outline" className="capitalize">
-                    {category}
+                  <Badge variant="outline">
+                    {categoryName(category)}
                   </Badge>
                   <div className="flex items-center gap-2">
                     <span className="amount text-sm font-medium">{formatCurrency(amount, userCurrency)}/mo</span>
@@ -146,8 +163,8 @@ export function SubscriptionInsights() {
         {upcomingSubs.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Upcoming Payments (Next 7 Days)
+              <Calendar className="h-4 w-4" aria-hidden="true" />
+              Upcoming payments (next 7 days)
             </h3>
             <div className="space-y-2">
               {upcomingSubs.map((sub) => (
@@ -161,15 +178,15 @@ export function SubscriptionInsights() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{sub.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {sub.daysUntil === 0 ? 'Due Today' :
-                       sub.daysUntil === 1 ? 'Due Tomorrow' :
+                      {sub.daysUntil === 0 ? 'Due today' :
+                       sub.daysUntil === 1 ? 'Due tomorrow' :
                        `Due in ${sub.daysUntil} days`}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="amount font-semibold">{formatCurrency(parseFloat(sub.amount), sub.currency)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatLocalDate(sub.billingDay, { day: '2-digit', month: 'short' })}
+                      {formatDisplayDate(sub.billingDay, { day: 'numeric', month: 'short' })}
                     </p>
                   </div>
                 </div>
@@ -182,7 +199,7 @@ export function SubscriptionInsights() {
           <div className="text-center py-8">
             <Coins className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-sm text-muted-foreground">
-              No active subscriptions tracked yet.
+              {billsEnabled ? 'No active bills or subscriptions tracked yet.' : 'No active subscriptions tracked yet.'}
             </p>
           </div>
         )}

@@ -138,6 +138,29 @@ describe('computePlan: the monthly sheet', () => {
     expect(plan.flags).toContain('overdue');
   });
 
+  it('never marks a card subscription overdue: it is charged automatically', () => {
+    const input = megan('2026-11-28');
+    input.recurring.push({
+      subscription: bill('netflix', 'Netflix', '17.99', 3, { kind: 'subscription', paymentMethod: 'card' }),
+      payments: [row('netflix-nov', '2026-11-03', '17.99', { amountSource: 'estimate' })],
+      recentPaidAmounts: [],
+    });
+    input.recurring.push({
+      subscription: bill('icloud', 'iCloud+', '2.99', 11, { kind: 'subscription', paymentMethod: 'card' }),
+      payments: [],
+      recentPaidAmounts: [],
+    });
+    const plan = computePlan(input);
+    expect(plan.lines.find((l) => l.label === 'Netflix')!.status).toBe('planned');
+    expect(plan.lines.find((l) => l.label === 'iCloud+')!.status).toBe('planned');
+
+    // The daily job used to mark card charges missed: those aren't overdue either.
+    input.recurring.at(-2)!.payments = [row('netflix-nov', '2026-11-03', '17.99', { status: 'missed' })];
+    expect(computePlan(input).lines.find((l) => l.label === 'Netflix')!.status).toBe('planned');
+    // A manual one and one that never said still go overdue.
+    expect(plan.lines.find((l) => l.label === 'Card')!.status).toBe('overdue');
+  });
+
   it('counts a done goal at what was contributed, and tracks the target', () => {
     const input = megan('2026-11-10');
     input.goals[0] = {
@@ -149,11 +172,113 @@ describe('computePlan: the monthly sheet', () => {
     expect(plan.goals[0]).toMatchObject({ savedCents: 500000, targetCents: 2000000, onTrack: true });
   });
 
+  it("leaves this period out of a goal's months to go once its contribution is in", () => {
+    const input = megan('2026-11-10');
+    // 1 November to 1 August is 9 months: 17,500 ÷ 9 before; once 1,500 is put in this month,
+    // 16,000 is left over the 8 months after it.
+    const goal = { ...input.goals[0].goal, targetAmount: '17500', targetDate: '2027-08-01', savedAmount: '0' };
+    input.goals[0] = { goal, contributions: [] };
+    expect(computePlan(input).goals[0].neededPerCycleCents).toBe(194445);
+
+    input.goals[0] = {
+      goal: { ...goal, savedAmount: '1500' },
+      contributions: [{ id: 'c1', goalId: 'savings', amount: '1500', contributedOn: '2026-11-10' }],
+    };
+    expect(computePlan(input).goals[0]).toMatchObject({ savedCents: 150000, neededPerCycleCents: 200000, onTrack: false });
+  });
+
+  it("uses a linked savings account's balance as what a goal has saved", () => {
+    const savingsAccount = {
+      id: 'rainy', name: 'Rainy day', kind: 'savings', currency: 'EUR', includeInPlan: false, archivedAt: null,
+      latestBalance: { balance: '5000', asOfDate: '2026-11-05', recordedAt: '2026-11-05T09:00:00.000Z' },
+    };
+    const input = megan('2026-11-10', { accounts: [savingsAccount] });
+    input.goals[0] = {
+      goal: { ...input.goals[0].goal, savedAmount: '700', linkedAccountId: 'rainy', targetAmount: '20000' },
+      contributions: [
+        // Before the balance was typed in: already in it. After: not yet.
+        { id: 'c0', goalId: 'savings', amount: '300', contributedOn: '2026-11-05', createdAt: '2026-11-05T08:00:00.000Z' },
+        { id: 'c1', goalId: 'savings', amount: '1200', contributedOn: '2026-11-08', createdAt: '2026-11-08T08:00:00.000Z' },
+      ],
+    };
+    expect(computePlan(input).goals[0]).toMatchObject({
+      savedCents: 500000 + 120000,
+      linkedAccount: { id: 'rainy', name: 'Rainy day', asOfDate: '2026-11-05' },
+    });
+
+    // Without a balance (or in another currency), the typed-in figure.
+    const noBalance = megan('2026-11-10', { accounts: [{ ...savingsAccount, latestBalance: null }] });
+    noBalance.goals[0] = { goal: { ...input.goals[0].goal }, contributions: [] };
+    expect(computePlan(noBalance).goals[0]).toMatchObject({ savedCents: 70000, linkedAccount: null });
+  });
+
   it('flags a missing income and falls back to the calendar month', () => {
     const plan = computePlan(megan('2026-11-10', { incomes: [], period: periodContaining(null, '2026-11-10') }));
     expect(plan.flags).toContain('no_income');
     expect(plan.totals.incomeCents).toBe(0);
     expect(plan.period.calendarMonth).toBe(true);
+  });
+});
+
+describe('computePlan: a payday moved by the weekend', () => {
+  // The staging household: paid on the 25th, the Friday before when that is a weekend. 25 October
+  // 2026 is a Sunday, so November's money comes on Friday the 23rd.
+  const pay25: IncomeLike = { ...salary, payDay: 25, weekendRule: 'previous_business_day' };
+  const sheet = (today: string, overrides: Partial<PlanInput> = {}): PlanInput => ({
+    today,
+    period: periodContaining(pay25, today),
+    currency: 'EUR',
+    incomes: [pay25],
+    recurring: [
+      { subscription: bill('gym', 'Gym', '40', 24), payments: [], recentPaidAmounts: [] },
+      { subscription: bill('bins', 'Bins', '25', 23, { paymentMethod: 'manual' }), payments: [], recentPaidAmounts: [] },
+      { subscription: bill('rent', 'Rent', '1200', 1), payments: [], recentPaidAmounts: [] },
+    ],
+    entries: [],
+    goals: [],
+    accounts: [],
+    ...overrides,
+  });
+  const datesOf = (input: PlanInput, label: string) => computePlan(input).lines.filter((l) => l.label === label).map((l) => l.date);
+
+  it('shows a bill on the 23rd or 24th once in November and once in October', () => {
+    const november = sheet('2026-11-10');
+    expect(november.period).toMatchObject({ start: '2026-10-23', end: '2026-11-25', label: 'November 2026' });
+    expect(datesOf(november, 'Gym')).toEqual(['2026-11-24']);
+    expect(datesOf(november, 'Bins')).toEqual(['2026-11-23']);
+    expect(datesOf(november, 'Rent')).toEqual(['2026-11-01']);
+    expect(datesOf(november, 'Salary')).toEqual(['2026-10-23']);
+
+    const october = sheet('2026-10-10');
+    expect(october.period).toMatchObject({ start: '2026-09-25', end: '2026-10-23', label: 'October 2026' });
+    expect(datesOf(october, 'Gym')).toEqual(['2026-10-24']);
+    expect(datesOf(october, 'Bins')).toEqual(['2026-10-23']);
+    expect(datesOf(october, 'Salary')).toEqual(['2026-09-25']);
+  });
+
+  it('keeps a row that exists for the 24th in its own month too', () => {
+    const input = sheet('2026-11-10');
+    input.recurring[0].payments = [
+      row('gym-oct', '2026-10-24', '40', { status: 'paid', actualAmount: '40', actualDate: at('2026-10-27'), paidVia: 'assumed' }),
+      row('gym-nov', '2026-11-24', '40'),
+    ];
+    expect(datesOf(input, 'Gym')).toEqual(['2026-11-24']);
+    expect(datesOf({ ...input, today: '2026-10-10', period: periodContaining(pay25, '2026-10-10') }, 'Gym')).toEqual(['2026-10-24']);
+  });
+
+  it("still takes October's late bills off the money left until November's payday", () => {
+    // Balance typed on Friday 23 October, payday. The gym direct debit due Saturday the 24th is
+    // collected on Tuesday the 27th (the Monday is a bank holiday): it is on October's sheet, but
+    // the money hasn't gone yet.
+    const input = sheet('2026-10-24', {
+      accounts: [{ id: 'current', name: 'Current', kind: 'current', currency: 'EUR', includeInPlan: true, archivedAt: null, latestBalance: { balance: '4000', asOfDate: '2026-10-23' } }],
+    });
+    const plan = computePlan(input);
+    expect(plan.lines.filter((l) => l.label === 'Gym').map((l) => l.date)).toEqual(['2026-11-24']);
+    // Out before payday: gym 24 Oct and 24 Nov, rent 1 Nov, and bins on 23 Oct and 23 Nov
+    // (paid by hand, and not yet marked paid, so still owed).
+    expect(plan.balance!.outgoingCents).toBe(4000 + 4000 + 120000 + 2500 + 2500);
+    expect(plan.balance!.incomingCents).toBe(0);
   });
 });
 
@@ -187,6 +312,53 @@ describe('computePlan: left until payday from the bank balance', () => {
     // car paid on the 5th, after the 30 Oct balance, still has to come off it
     expect(view.outgoingCents).toBeGreaterThanOrEqual(46900);
     expect(computePlan(input).flags).toContain('stale_balance');
+  });
+
+  it('assumes a card charge before the balance has gone, on the day itself', () => {
+    const input = megan('2026-11-10', { accounts: [current('2500', '2026-11-07')] });
+    // Saturday 7 November: a card is charged that day, a direct debit on the Monday.
+    input.recurring.push(
+      { subscription: bill('netflix', 'Netflix', '17.99', 7, { paymentMethod: 'card' }), payments: [], recentPaidAmounts: [] },
+      { subscription: bill('gym', 'Gym', '40', 7), payments: [], recentPaidAmounts: [] },
+    );
+    const view = computePlan(input).balance!;
+    expect(view.assumedOutKeys).toContain('sub:netflix:2026-11-07');
+    expect(view.assumedOutKeys).not.toContain('sub:gym:2026-11-07');
+  });
+
+  it('shows a shortfall with nothing to split a week or a day', () => {
+    const view = computePlan(megan('2026-11-10', { accounts: [current('100', '2026-11-10')] })).balance!;
+    expect(view.availableCents).toBeLessThan(0);
+    expect(view.perWeekCents).toBeNull();
+    expect(view.perDayCents).toBeNull();
+    const fine = computePlan(megan('2026-11-10', { accounts: [current('5000', '2026-11-10')] })).balance!;
+    expect(fine.perWeekCents).toBe(Math.floor((fine.availableCents * 7) / 21));
+  });
+
+  it('keeps something ticked off after the balance was typed in that day coming off it', () => {
+    const balance = { ...current('2500', '2026-11-10'), latestBalance: { balance: '2500', asOfDate: '2026-11-10', recordedAt: '2026-11-10T09:00:00.000Z' } };
+    const withFood = (doneAt: Date | null) => {
+      const input = megan('2026-11-10', { accounts: [balance] });
+      input.entries.push(entry('food', '2026-11-01', 'Food shop', '320', { doneAt }));
+      return computePlan(input).balance!.availableCents;
+    };
+    const before = withFood(null);
+    // Ticked at noon, after the 9am balance: the balance doesn't show it, so nothing changes.
+    expect(withFood(new Date('2026-11-10T12:00:00.000Z'))).toBe(before);
+    // Ticked at 8am, before the balance: it's already in it.
+    expect(withFood(new Date('2026-11-10T08:00:00.000Z'))).toBe(before + 32000);
+  });
+
+  it('does the same for a bill marked paid on the balance day', () => {
+    const balance = { ...current('2500', '2026-11-10'), latestBalance: { balance: '2500', asOfDate: '2026-11-10', recordedAt: '2026-11-10T09:00:00.000Z' } };
+    const phonePaid = (updatedAt: string) => {
+      const input = megan('2026-11-10', { accounts: [balance] });
+      input.recurring[3].payments = [row('phone-nov', '2026-11-12', '20', {
+        status: 'paid', actualAmount: '20', actualDate: at('2026-11-10'), paidVia: 'manual', updatedAt,
+      })];
+      return computePlan(input).balance!.outgoingCents;
+    };
+    expect(phonePaid('2026-11-10T10:00:00.000Z') - phonePaid('2026-11-10T08:00:00.000Z')).toBe(2000);
   });
 
   it('ignores accounts in another currency or left out of the plan, and needs a balance', () => {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { type Subscription } from '@/lib/db/schema';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { useFeature } from '@/lib/hooks/use-user';
 import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
 import { frequencyLabel } from '@/lib/schedule/billing-schedule';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -30,6 +31,7 @@ export function UpcomingPayments({
 }: UpcomingPaymentsProps) {
   const router = useRouter();
   const { currency: userCurrency } = useCurrency();
+  const billsEnabled = useFeature('bills');
 
   // Active subscriptions due in the next X days, counted in calendar days from the user's today.
   const today = localToday();
@@ -60,8 +62,8 @@ export function UpcomingPayments({
   const getDateLabel = (subscription: Subscription, days: number) => {
     if (days === 0) return 'Today';
     if (days === 1) return 'Tomorrow';
-    if (days <= 7) return `In ${days} day${days === 1 ? '' : 's'}`;
-    return formatLocalDate(fromUtcDate(new Date(subscription.nextBillingDate)), { day: '2-digit', month: 'short' });
+    if (days <= 7) return `In ${days} days`;
+    return formatLocalDate(fromUtcDate(new Date(subscription.nextBillingDate)), { day: 'numeric', month: 'short' }, 'en-IE');
   };
 
   const handleClick = (subscriptionId: string) => {
@@ -79,7 +81,7 @@ export function UpcomingPayments({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5" />
-              Upcoming Payments
+              Upcoming payments
             </CardTitle>
             <CardDescription>
               Next {daysAhead} days • {upcomingPayments.length} payment{upcomingPayments.length === 1 ? '' : 's'}
@@ -114,11 +116,13 @@ export function UpcomingPayments({
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>{getDateLabel(subscription, daysUntil)}</span>
-                    {isUrgent && (
+                    {/* One label: a row due today said both "Today" and "Due Today". */}
+                    {isUrgent ? (
                       <Badge variant="destructive" className="text-xs">
-                        {daysUntil === 0 ? 'Due Today' : 'Due Soon'}
+                        {daysUntil === 0 ? 'Due today' : getDateLabel(subscription, daysUntil)}
                       </Badge>
+                    ) : (
+                      <span>{getDateLabel(subscription, daysUntil)}</span>
                     )}
                   </div>
                 </div>
@@ -139,7 +143,7 @@ export function UpcomingPayments({
             className="w-full"
             onClick={() => router.push('/subscriptions')}
           >
-            View All Subscriptions
+            {billsEnabled ? 'View all bills' : 'View all subscriptions'}
           </Button>
         </div>
       </CardContent>

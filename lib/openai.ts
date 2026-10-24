@@ -177,6 +177,7 @@ REQUIRED FIELDS:
 - total: total amount (number)
 - currency: currency code (e.g., "GBP", "USD", "EUR")
 - date: the date of the transaction or document itself (format as YYYY-MM-DD): "Date", "Transaction date", "Invoice date", "Bill date". NOT a due date, which is when a payment is still to be made. If no date is visible, use today's date: ${currentDate}
+  Irish, UK and European receipts write dates day first: 09/10/2026 is 9 October 2026, not 10 September. Read a numeric date month first only if the receipt is clearly from the US (dollar prices, a US address). A date in the future, or a long way before today, is usually a misread.
 - documentKind: "receipt" for proof of a payment already made (a till receipt, a payment confirmation, an order receipt); "bill" for a bill, statement or invoice asking for a payment not made yet (it has an amount due or a due date); "other" for anything else
 - category: spending category based on merchant and items (choose from: "groceries", "dining", "transportation", "shopping", "entertainment", "healthcare", "utilities", "travel", "gas", "coffee", "pharmacy", "clothing", "electronics", "home", "other")
 
@@ -341,6 +342,16 @@ export async function generateSpendingSummary(
     totalSpent: aggregatedData.totalSpent,
   });
 
+  const money = (amount: number | string) => {
+    const value = typeof amount === 'number' ? amount : Number(amount);
+    if (!Number.isFinite(value)) return `${aggregatedData.currency} ${amount}`;
+    try {
+      return new Intl.NumberFormat('en-IE', { style: 'currency', currency: aggregatedData.currency }).format(value);
+    } catch {
+      return `${aggregatedData.currency} ${value.toFixed(2)}`;
+    }
+  };
+
   const result = await generateText({
     model: openai('gpt-4o-mini'),
     system: 'You are a helpful financial advisor analyzing spending patterns. Provide insights, identify trends, and offer actionable advice. Be concise but insightful. Use a friendly, conversational tone.',
@@ -356,20 +367,22 @@ export async function generateSpendingSummary(
         totalSpent: aggregatedData.totalSpent,
       },
     },
+    // Amounts formatted as the app shows them ("€200.10"): given "EUR 200.1", the summary wrote
+    // money that way too.
     prompt: `Analyze this spending data and provide a summary with insights and recommendations:
 
 Period: ${aggregatedData.period}
 Total Items Purchased: ${aggregatedData.totalItems}
-Total Spent: ${aggregatedData.currency} ${aggregatedData.totalSpent}
+Total Spent: ${money(aggregatedData.totalSpent)}
 
 Top 10 Most Frequently Purchased Items:
 ${aggregatedData.topItems.map((item, i) => `${i + 1}. ${item.name} (${item.count} times)`).join('\n')}
 
 Top 5 Spending Categories:
-${aggregatedData.topCategories.map((cat, i) => `${i + 1}. ${cat.category}: ${aggregatedData.currency} ${cat.total}`).join('\n')}
+${aggregatedData.topCategories.map((cat, i) => `${i + 1}. ${cat.category}: ${money(cat.total)}`).join('\n')}
 
 Top 5 Merchants:
-${aggregatedData.topMerchants.map((m, i) => `${i + 1}. ${m.merchant}: ${aggregatedData.currency} ${m.total}`).join('\n')}
+${aggregatedData.topMerchants.map((m, i) => `${i + 1}. ${m.merchant}: ${money(m.total)}`).join('\n')}
 
 Please provide:
 1. A brief overview of spending patterns

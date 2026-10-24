@@ -1,12 +1,11 @@
 {
   "name": "ReceiptWise - Family Expense & Receipt Tracker",
   "short_name": "ReceiptWise",
-  "description": "Share expenses with family, roommates, or partners. AI-powered receipt scanning and household collaboration in one place.",
+  "description": "Share expenses with family, housemates or a partner. Receipts read for you by AI, and one place for the whole household.",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
-  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/favicon.ico",
@@ -26,13 +25,17 @@
       "purpose": "any"
     },
     {
-      "src": "/logo.png",
+      "src": "/icon-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
   ],
-  "categories": ["finance", "productivity", "business"],
-  "lang": "en-US",
+  "categories": [
+    "finance",
+    "productivity",
+    "business"
+  ],
+  "lang": "en-IE",
   "dir": "ltr"
 }

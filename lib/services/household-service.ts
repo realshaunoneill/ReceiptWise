@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, billDocuments, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
+import { authUser, households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, billDocuments, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
 import { eq, and, asc, inArray, count, ne, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { getAppUrl } from '@/lib/app-url';
@@ -176,22 +176,26 @@ export class HouseholdService {
    * Get all members of a household with their details
    * Validates: Requirements 3.4
    */
-  static async getHouseholdMembers(householdId: string): Promise<HouseholdMember[]> {
+  /** Members with the name from their Google account, where there is one (the list showed email prefixes). */
+  static async getHouseholdMembers(householdId: string): Promise<(HouseholdMember & { name: string | null })[]> {
     const result = await db
       .select({
         userId: users.id,
         email: users.email,
+        name: authUser.name,
         role: householdUsers.role,
         joinedAt: householdUsers.createdAt,
       })
       .from(householdUsers)
       .innerJoin(users, eq(householdUsers.userId, users.id))
+      .leftJoin(authUser, eq(users.authUserId, authUser.id))
       .where(eq(householdUsers.householdId, householdId))
       .orderBy(asc(householdUsers.createdAt));
 
     return result.map(row => ({
       userId: row.userId,
       email: row.email,
+      name: row.name?.trim() || null,
       role: row.role as 'owner' | 'member',
       joinedAt: row.joinedAt,
     }));

@@ -1,16 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Terms of Service - ReceiptWise',
-  description: 'Read the terms and conditions for using ReceiptWise receipt tracking and expense management service.',
-  openGraph: {
-    title: 'Terms of Service - ReceiptWise',
-    description: 'Read the terms and conditions for using ReceiptWise receipt tracking and expense management service.',
-  },
-  alternates: {
-    canonical: '/terms',
-  },
-};
+  description: 'The terms for using ReceiptWise, the household receipt tracker.',
+  path: '/terms',
+});
 
 export default function TermsLayout({
   children,

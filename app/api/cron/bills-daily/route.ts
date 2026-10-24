@@ -11,8 +11,8 @@ export const maxDuration = 300;
  * GET /api/cron/bills-daily (02:00 UTC)
  *
  * Brings every tracked subscription and bill up to date: creates the payment rows for cycles
- * that came round, marks direct debits and standing orders paid once collected, and marks the
- * rest missed after the grace period. This used to happen on every list request instead, with
+ * that came round, marks direct debits, standing orders and card payments paid once collected,
+ * and marks the rest (paid by hand) missed after the grace period. This used to happen on every list request instead, with
  * no lock, which is how duplicate rows were created.
  *
  * Crons only run in production. Nothing else depends on this having run: the plan computes

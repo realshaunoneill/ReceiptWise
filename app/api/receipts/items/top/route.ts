@@ -42,8 +42,9 @@ export async function GET(request: NextRequest) {
       if (membershipCheck) return membershipCheck; // Returns error response if not a member
     }
 
-    // Create cache key from query parameters
-    const cacheKey = `months:${months}|limit:${limit}|sort:${sortBy}|household:${householdId || 'null'}`;
+    // Create cache key from query parameters. v2: entries now carry merchantBreakdown, so the
+    // older cached shape (merchant names only) must not be served.
+    const cacheKey = `v2|months:${months}|limit:${limit}|sort:${sortBy}|household:${householdId || 'null'}`;
 
     // Check cache first
     const cachedResult = await db
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
       totalQuantity: number;
       averagePrice: number;
       category: string | null;
-      merchants: Set<string>;
+      merchants: Map<string, { count: number; total: number }>;
       lastPurchased: string;
       currency: string;
     }>();
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
           totalQuantity: 0,
           averagePrice: 0,
           category: item.category,
-          merchants: new Set(),
+          merchants: new Map(),
           lastPurchased: item.transactionDate || new Date().toISOString().split('T')[0],
           currency: item.currency || user.currency || DEFAULT_CURRENCY,
         });
@@ -144,7 +145,11 @@ export async function GET(request: NextRequest) {
       itemData.count += 1;
       itemData.totalSpent += price;
       itemData.totalQuantity += qty;
-      itemData.merchants.add(item.merchantName || 'Unknown');
+      const merchantName = item.merchantName || 'Unknown';
+      const merchant = itemData.merchants.get(merchantName) ?? { count: 0, total: 0 };
+      merchant.count += 1;
+      merchant.total += price;
+      itemData.merchants.set(merchantName, merchant);
 
       // Update last purchased if more recent
       if (item.transactionDate && item.transactionDate > itemData.lastPurchased) {
@@ -161,7 +166,14 @@ export async function GET(request: NextRequest) {
       averagePrice: parseFloat((item.totalSpent / item.count).toFixed(2)),
       category: item.category,
       merchantCount: item.merchants.size,
-      merchants: Array.from(item.merchants),
+      merchants: Array.from(item.merchants.keys()),
+      // Per-merchant purchases and spend. Item analysis showed "0 purchases" at every merchant
+      // because only the names were returned.
+      merchantBreakdown: Array.from(item.merchants, ([merchant, totals]) => ({
+        merchant,
+        count: totals.count,
+        total: parseFloat(totals.total.toFixed(2)),
+      })),
       lastPurchased: item.lastPurchased,
       currency: item.currency,
     }));

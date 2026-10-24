@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Receipt, Home, Users, Calendar, Mail, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import type { HouseholdWithMembers, ReceiptWithItems, MemberWithUser } from '@/lib/types/api-responses';
+import { formatInstantDay, formatReceiptAmount } from './format';
 
 type HouseholdDetailsWithMembers = HouseholdWithMembers & {
   members?: MemberWithUser[];
@@ -63,7 +64,7 @@ export function HouseholdCard({
             </span>
             <span className="flex items-center gap-1 whitespace-nowrap">
               <Calendar className="h-3 w-3" />
-              {new Date(household.createdAt).toLocaleDateString()}
+              {formatInstantDay(household.createdAt)}
             </span>
           </div>
         </div>
@@ -147,7 +148,7 @@ export function HouseholdCard({
                           </div>
                           <div className="flex items-center gap-2 justify-between sm:justify-end">
                             <span className="text-sm font-medium whitespace-nowrap">
-                              {receipt.currency} {receipt.totalAmount}
+                              {formatReceiptAmount(receipt.totalAmount, receipt.currency)}
                             </span>
                             <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
                           </div>

@@ -363,116 +363,123 @@ export function ReceiptBatchUpload({
               <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
               Add receipts
             </CardTitle>
+            {/* Led with dragging on a phone, which can't drag. */}
             <CardDescription className="mt-1">
-              Drag a stack in, pick files, or take a photo
+              <span className="md:hidden">Take a photo, or choose some you already have</span>
+              <span className="hidden md:inline">Drag a stack in, or pick files</span>
             </CardDescription>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Tips Section. Was headed with a 📸 emoji. */}
-        <div className="space-y-2 rounded-lg border bg-muted/40 p-4 text-sm">
-          <p className="flex items-center gap-2 font-medium text-foreground">
-            <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
-            For a clean read
-          </p>
-          <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-            <li>Flat and well lit, with the whole receipt in frame</li>
-            <li>The total and the date matter most — don&apos;t crop those off</li>
-            <li>Trim the table, the floor and your thumb out of the shot</li>
-            <li>A whole stack can go in at once</li>
-          </ul>
-        </div>
-
-        {/* Upload Area - Drag & Drop Zone */}
-        <div
-          ref={dropZoneRef}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(
-            'relative flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 transition-all duration-200 cursor-pointer',
-            isDragging
-              ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg'
-              : 'border-muted-foreground/25 bg-linear-to-b from-muted/30 to-muted/50 hover:border-primary/50 hover:bg-muted/80',
-          )}
-        >
-          {/* Animated background elements when dragging */}
-          {isDragging && (
-            <div className="absolute inset-0 overflow-hidden rounded-xl">
-              <div className="absolute top-1/4 left-1/4 h-32 w-32 rounded-full bg-primary/20 blur-3xl animate-pulse" />
-              <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-primary/20 blur-3xl animate-pulse delay-150" />
-            </div>
-          )}
-
-          <div className="relative z-10 flex flex-col items-center">
-            {isDragging ? (
-              <>
-                <div className="rounded-full bg-primary/20 p-4 mb-3 animate-bounce">
-                  <FileImage className="h-10 w-10 text-primary" />
-                </div>
-                <span className="text-lg font-semibold text-primary">Drop them here</span>
-              </>
-            ) : (
-              <>
-                <div className="rounded-full bg-muted p-4 mb-3">
-                  <Upload className="h-10 w-10 text-muted-foreground" />
-                </div>
-                <span className="text-base font-medium text-foreground">
-                  Click to upload or drag & drop receipts
-                </span>
-                <span className="mt-1 text-sm text-muted-foreground">
-                  PNG, JPG or WebP (max {MAX_FILE_MB}MB each)
-                </span>
-              </>
-            )}
+        {/* Side by side from lg: stacked, the card was 600px tall across the full width
+            once the "Recent receipts" list beside it went. */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-6">
+          {/* Tips Section. Was headed with a 📸 emoji. */}
+          <div className="space-y-2 rounded-lg border bg-muted/40 p-4 text-sm">
+            <p className="flex items-center gap-2 font-medium text-foreground">
+              <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
+              For a clean read
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+              <li>Flat and well lit, with the whole receipt in frame</li>
+              <li>The total and the date matter most — don&apos;t crop those off</li>
+              <li>Trim the table, the floor and your thumb out of the shot</li>
+              <li>A whole stack can go in at once</li>
+            </ul>
           </div>
 
-          {/* Hidden file inputs */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept={ACCEPT_ATTRIBUTE}
-            multiple
-            onChange={handleFilesChange}
-          />
-          <input
-            ref={cameraInputRef}
-            type="file"
-            className="hidden"
-            accept={ACCEPT_ATTRIBUTE}
-            capture="environment"
-            onChange={handleFilesChange}
-          />
+          <div className="space-y-4">
+            {/* Upload Area - Drag & Drop Zone. Desktop only: on a phone the camera and
+                library buttons below are the way in. */}
+            <div
+              ref={dropZoneRef}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={cn(
+                'relative hidden w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 transition-all duration-200 cursor-pointer md:flex',
+                isDragging
+                  ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg'
+                  : 'border-muted-foreground/25 bg-linear-to-b from-muted/30 to-muted/50 hover:border-primary/50 hover:bg-muted/80',
+              )}
+            >
+              {/* Animated background elements when dragging */}
+              {isDragging && (
+                <div className="absolute inset-0 overflow-hidden rounded-xl">
+                  <div className="absolute top-1/4 left-1/4 h-32 w-32 rounded-full bg-primary/20 blur-3xl animate-pulse" />
+                  <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-primary/20 blur-3xl animate-pulse delay-150" />
+                </div>
+              )}
+
+              <div className="relative z-10 flex flex-col items-center">
+                {isDragging ? (
+                  <>
+                    <div className="rounded-full bg-primary/20 p-4 mb-3 animate-bounce">
+                      <FileImage className="h-10 w-10 text-primary" />
+                    </div>
+                    <span className="text-lg font-semibold text-primary">Drop them here</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-full bg-muted p-4 mb-3">
+                      <Upload className="h-10 w-10 text-muted-foreground" />
+                    </div>
+                    <span className="text-base font-medium text-foreground">
+                      Click to upload or drag & drop receipts
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons. Take photo comes first and is the primary action on a phone. */}
+            <div className="flex gap-3">
+              <Button
+                className="flex-1 h-12 md:hidden"
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                <Camera className="h-4 w-4 mr-2" aria-hidden="true" />
+                Take photo
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 h-12"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FileImage className="h-4 w-4 mr-2" aria-hidden="true" />
+                <span className="md:hidden">Choose photos</span>
+                <span className="hidden md:inline">Browse files</span>
+              </Button>
+            </div>
+
+            {/* The formats and size limit were stated twice, here and in the drop zone. */}
+            <p className="text-xs text-center text-muted-foreground">
+              PNG, JPG or WebP, up to {MAX_FILE_MB} MB each
+            </p>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="flex-1 h-12"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FileImage className="h-4 w-4 mr-2" />
-            Browse Files
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1 h-12 md:hidden"
-            onClick={() => cameraInputRef.current?.click()}
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Take Photo
-          </Button>
-        </div>
-
-        <p className="text-xs text-center text-muted-foreground">
-          Supports PNG, JPG, WebP • Max {MAX_FILE_MB}MB per file
-        </p>
+        {/* Hidden file inputs. Outside the drop zone, which is not shown on a phone. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept={ACCEPT_ATTRIBUTE}
+          multiple
+          onChange={handleFilesChange}
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          className="hidden"
+          accept={ACCEPT_ATTRIBUTE}
+          capture="environment"
+          onChange={handleFilesChange}
+        />
 
         {/* Upload Queue */}
         {uploadItems.length > 0 && (
@@ -502,7 +509,7 @@ export function ReceiptBatchUpload({
               </div>
               {completedCount > 0 && (
                 <Button onClick={clearCompleted} variant="ghost" size="sm" className="text-muted-foreground">
-                  Clear Done
+                  Clear done
                 </Button>
               )}
             </div>
@@ -594,6 +601,7 @@ export function ReceiptBatchUpload({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove ${item.file.name}`}
                       >
                         <X className="h-4 w-4" />
                       </Button>

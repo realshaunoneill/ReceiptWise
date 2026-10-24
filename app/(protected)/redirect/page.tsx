@@ -8,13 +8,16 @@ import { Loader2 } from 'lucide-react';
 import { takePendingInvite } from '@/lib/utils/pending-invite';
 
 /**
- * Smart redirect page that sends users to the appropriate destination based on their subscription
- * - New/Free users (not subscribed): /upgrade (to see premium benefits)
- * - Premium users (subscribed): /dashboard (to start using the app)
+ * Where a sign-in lands:
+ * - a pending invitation, if they opened one while signed out
+ * - /dashboard for Premium, and for a member of a household another member pays for (it covers
+ *   their shared bills and plan; sending them to /upgrade on every sign-in said otherwise)
+ * - /upgrade for everyone else
  */
 export default function RedirectPage() {
   const router = useRouter();
-  const { user, isLoading: userLoading, isSubscribed } = useUser();
+  const { user, isLoading: userLoading, isSubscribed, entitlements } = useUser();
+  const coveredByHousehold = (entitlements?.householdIds.length ?? 0) > 0;
   const { isPending: sessionPending } = useSession();
   const sessionLoaded = !sessionPending;
   const [hasRedirected, setHasRedirected] = useState(false);
@@ -42,7 +45,7 @@ export default function RedirectPage() {
         return;
       }
 
-      if (!isSubscribed) {
+      if (!isSubscribed && !coveredByHousehold) {
         // Free user - send to upgrade page to see premium benefits
         router.replace('/upgrade');
       } else {
@@ -50,7 +53,7 @@ export default function RedirectPage() {
         router.replace('/dashboard');
       }
     }
-  }, [user, userLoading, sessionLoaded, isSubscribed, router, hasRedirected]);
+  }, [user, userLoading, sessionLoaded, isSubscribed, coveredByHousehold, router, hasRedirected]);
 
   // Timeout fallback: if loading takes more than 10 seconds, redirect to dashboard
   useEffect(() => {

@@ -16,7 +16,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Navigation } from '@/components/layout/navigation';
 import { SectionLabel } from '@/components/layout/section-label';
@@ -61,13 +60,13 @@ const features = [
     icon: Users,
     title: 'Household sharing',
     description:
-      'Make a household for your family, your partner or your flatmates. Anyone in it can add a receipt, and everyone sees the same pile.',
+      'Make a household for your family, your partner or your housemates. Anyone in it can add a receipt, and everyone sees the same pile.',
   },
   ...(BILLS_LAUNCHED ? [{
     icon: Wallet,
     title: 'Your month, planned',
     description:
-      'Your pay, the bills on the way and what is left for each week, payday to payday. Upload a bill or forward it by email and it lands in the right month.',
+      'Your pay, the bills on the way and what is left for each week, payday to payday. Upload a bill or forward it by email: it is read for you, and one tap files it against the right bill and month.',
   }] : []),
   {
     icon: Scan,
@@ -123,40 +122,37 @@ const benefits = [
   'Find any receipt by something on it',
 ];
 
-export function LandingPage() {
+/**
+ * `initialSignedIn` comes from the server (app/page.tsx), so the first HTML already has the right
+ * buttons. Every call to action used to be a skeleton until the browser had checked the session,
+ * which left the server-rendered page with no "Sign in", no trial button and no hero action.
+ */
+export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boolean }) {
   const { data: session, isPending } = useSession();
-  const isLoaded = !isPending;
-  const isSignedIn = Boolean(session);
+  const isSignedIn = isPending ? initialSignedIn : Boolean(session);
 
   // Header component that handles loading state gracefully
   const Header = () => {
-    // If loaded and signed in, show full navigation
-    if (isLoaded && isSignedIn) {
+    if (isSignedIn) {
       return <Navigation />;
     }
 
-    // Show landing header (works for both loading and not-signed-in states)
-    // This prevents the flash because we show the same header during loading
     return (
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-lg supports-backdrop-filter:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2" aria-label="ReceiptWise Home">
             <img src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8" aria-hidden="true" />
-            <span className="text-xl font-semibold tracking-tight text-foreground">ReceiptWise</span>
+            <span className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">ReceiptWise</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => scrollToSection('pricing')}>
+            {/* Off on the narrowest phones, where it ran into the wordmark; pricing is a scroll away. */}
+            <Button variant="ghost" size="sm" className="hidden min-[400px]:inline-flex" onClick={() => scrollToSection('pricing')}>
               Pricing
             </Button>
             <ThemeToggle />
-            {!isLoaded ? (
-              // Show skeleton button while loading to prevent flash
-              <Skeleton className="h-9 w-[68px] rounded-md" />
-            ) : (
-              <Button asChild>
-                <Link href="/sign-in">Sign in</Link>
-              </Button>
-            )}
+            <Button asChild>
+              <Link href="/sign-in">Sign in</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -193,17 +189,12 @@ export function LandingPage() {
           </h1>
           <p className="mt-6 max-w-xl text-pretty text-lg text-muted-foreground">
             Photograph a receipt and it is filed, itemised and searchable — for you and
-            for everyone you share the bills with. Built for families, couples and
-            flatmates who are tired of asking who paid for what.
+            for everyone you share the bills with.{BILLS_LAUNCHED && ' Then plan the month: your pay, the bills on the way, and what is left for each week.'}{' '}
+            Built for families, couples and housemates who are tired of asking who paid
+            for what.
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-            {!isLoaded ? (
-              // Show skeleton buttons while loading
-              <>
-                <Skeleton className="h-10 w-44 rounded-md" />
-                <Skeleton className="h-10 w-40 rounded-md" />
-              </>
-            ) : isSignedIn ? (
+            {isSignedIn ? (
               <Button asChild size="lg" className="gap-2">
                 <Link href="/dashboard">
                   Go to dashboard
@@ -228,7 +219,7 @@ export function LandingPage() {
               </>
             )}
           </div>
-          {isLoaded && !isSignedIn && HAS_TRIAL && (
+          {!isSignedIn && HAS_TRIAL && (
             <p className="mt-4 text-sm text-muted-foreground">
               {TRIAL_DAYS} days free. Cancel during the
               trial and you are not charged.
@@ -324,9 +315,7 @@ export function LandingPage() {
                   </li>
                 ))}
               </ul>
-              {!isLoaded ? (
-                <Skeleton className="mt-8 h-10 w-[180px] rounded-md" />
-              ) : isSignedIn ? (
+              {isSignedIn ? (
                 <Button asChild size="lg" className="mt-8 gap-2">
                   <Link href="/dashboard">
                     Go to dashboard
@@ -388,7 +377,7 @@ export function LandingPage() {
           {/* One paid plan with a free trial, by decision — there is no free tier. The €0
               card that used to sit here advertised 5 receipts/month, which the API
               rejected with a 403. */}
-          <LandingPricing isSignedIn={Boolean(isLoaded && isSignedIn)} />
+          <LandingPricing isSignedIn={isSignedIn} />
         </div>
       </section>
 
@@ -414,24 +403,26 @@ export function LandingPage() {
               <Shield className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="mt-4 font-semibold text-foreground">Encrypted in transit &amp; at rest</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Served over TLS. You sign in with Google and pay through Stripe, so there is
-                no password here to leak, and we never see your card details.
+                Served over TLS, and encrypted at rest by our hosting and database providers.
+                You sign in with Google and pay through Stripe, so there is no password here to
+                leak, and we never see your card details.
               </p>
             </div>
             <div>
               <Cloud className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="mt-4 font-semibold text-foreground">Used only to run the app</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Receipts go to OpenAI to be read, and your spending totals to write your
-                summaries. Under OpenAI&apos;s API terms neither is used to train their models.
+                Receipts{BILLS_LAUNCHED && ', and bills you upload or forward,'} go to OpenAI to be
+                read, and your spending totals to write your summaries. Under OpenAI&apos;s API
+                terms none of it is used to train their models.
               </p>
             </div>
             <div>
               <Lock className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="mt-4 font-semibold text-foreground">Yours to take or delete</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Export everything as CSV or JSON whenever you like, and delete your
-                account and its data from Settings.
+                Export everything as CSV, JSON, or HTML with the images whenever you like, and
+                delete your account and its data from Settings.
               </p>
             </div>
           </div>
@@ -442,20 +433,18 @@ export function LandingPage() {
       <section className="border-t bg-primary px-4 py-20" aria-labelledby="cta-title">
         <div className="mx-auto max-w-3xl">
           <h2 id="cta-title" className="text-3xl font-semibold tracking-tight text-primary-foreground sm:text-4xl">
-            {isLoaded && isSignedIn
+            {isSignedIn
               ? 'Your dashboard is waiting.'
               : 'Start with the receipt in your pocket.'}
           </h2>
           <p className="mt-4 max-w-xl text-lg text-primary-foreground/85">
-            {isLoaded && isSignedIn
+            {isSignedIn
               ? 'Pick up where you left off and see where this month has gone.'
               : `Photograph one receipt and you will see the whole thing work.${
                 HAS_TRIAL ? ` ${TRIAL_DAYS} days free, cancel any time before it ends.` : ''
               }`}
           </p>
-          {!isLoaded ? (
-            <Skeleton className="mt-8 h-10 w-[200px] rounded-md bg-primary-foreground/20" />
-          ) : isSignedIn ? (
+          {isSignedIn ? (
             /* On the emerald band, an explicit inverse rather than variant="secondary":
                secondary is a mid slate in dark mode, which on green reads as
                muddy rather than as the obvious thing to press. */
@@ -468,7 +457,7 @@ export function LandingPage() {
           ) : (
             <Button asChild size="lg" className="mt-8 gap-2 bg-background text-foreground hover:bg-background/90">
               <Link href="/sign-up">
-                Create an account
+                {HAS_TRIAL ? 'Start the free trial' : 'Create an account'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
@@ -478,7 +467,7 @@ export function LandingPage() {
       </main>
 
       {/* Exit Intent Popup - only for non-signed-in users */}
-      {isLoaded && !isSignedIn && <ExitIntentPopup />}
+      {!isPending && !isSignedIn && <ExitIntentPopup />}
     </div>
   );
 }

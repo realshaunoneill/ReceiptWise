@@ -14,7 +14,7 @@ export default function RefundPage() {
           <div>
             <h1 id="refund-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Refund Policy</h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              Last updated: September 29, 2026
+              Last updated: October 24, 2026
             </p>
           </div>
           <Link
@@ -42,8 +42,9 @@ export default function RefundPage() {
                   <div>
                     <h3 className="font-medium">14 days to change your mind</h3>
                     <p className="text-sm text-muted-foreground">
-                      Ask within 14 days of being charged and we refund that payment in full. This covers the
-                      right of withdrawal consumers have in the EU and UK, and we apply it to everyone.
+                      Ask within 14 days of a charge, the first payment after your trial or any renewal, and we
+                      refund that payment in full. This covers the right of withdrawal consumers have in the EU and
+                      UK, and we apply it to everyone.
                     </p>
                   </div>
                 </div>
@@ -53,9 +54,9 @@ export default function RefundPage() {
                     <AlertCircle className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
-                    <h3 className="font-medium">Technical Issues</h3>
+                    <h3 className="font-medium">Something not working?</h3>
                     <p className="text-sm text-muted-foreground">
-                      If you experience technical issues that prevent service usage, we'll work with you to resolve it or provide a refund.
+                      If a problem stops you using ReceiptWise, tell us. We'll fix it, or refund you.
                     </p>
                   </div>
                 </div>
@@ -65,9 +66,9 @@ export default function RefundPage() {
                     <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
-                    <h3 className="font-medium">Processing Time</h3>
+                    <h3 className="font-medium">How long a refund takes</h3>
                     <p className="text-sm text-muted-foreground">
-                      Refund requests are typically processed within 5-7 business days through Stripe.
+                      We process it within 5–7 business days, back to the card you paid with. When it shows up then depends on your bank.
                     </p>
                   </div>
                 </div>
@@ -77,9 +78,9 @@ export default function RefundPage() {
                     <XCircle className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
-                    <h3 className="font-medium">Cancellation Anytime</h3>
+                    <h3 className="font-medium">Cancel any time</h3>
                     <p className="text-sm text-muted-foreground">
-                      Cancel any time in the billing portal. Cancelling during the free trial means you are never charged.
+                      Cancel from Settings whenever you like, and you keep Premium until the end of the period you paid for. Cancel during the free trial and you are never charged.
                     </p>
                   </div>
                 </div>
@@ -130,14 +131,7 @@ export default function RefundPage() {
                   <p className="font-medium group-hover:text-primary transition-colors">Go to Settings</p>
                   <p className="text-sm text-muted-foreground">Access your billing portal</p>
                 </div>
-                <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
               </Link>
-
-              <div className="pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  <strong>Note:</strong> When you cancel, you'll retain access to premium features until the end of your current billing period.
-                </p>
-              </div>
 
               <div className="absolute -z-10 left-0 bottom-0 top-1/2 right-1/2 bg-linear-to-bl from-primary/5 via-primary/5 to-transparent blur-3xl" />
             </CardContent>
@@ -177,7 +171,6 @@ export default function RefundPage() {
                   <p className="font-medium group-hover:text-primary transition-colors">Support Center</p>
                   <p className="text-sm text-muted-foreground">More contact options</p>
                 </div>
-                <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
               </Link>
             </div>
 
@@ -205,50 +198,8 @@ export default function RefundPage() {
           </CardContent>
         </Card>
 
-        {/* Additional Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Important Information</CardTitle>
-            <CardDescription>Additional details about our refund process</CardDescription>
-          </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
-            <div className="space-y-4">
-              <p>
-                We strive to make our refund process as simple and fair as possible. Here are some additional details
-                about our policy:
-              </p>
-              <ul className="list-disc pl-4 space-y-2">
-                <li>
-                  <strong>14-Day Window:</strong> Ask within 14 days of a charge — the first payment after your trial,
-                  or a renewal — and that payment is refunded in full. After 14 days, cancelling stops the next
-                  renewal, and you keep access until the end of the period you paid for.
-                </li>
-                <li>
-                  <strong>Cancellation vs Refund:</strong> You can cancel your subscription at any time without
-                  requesting a refund. When you cancel, you'll continue to have access until your billing period ends.
-                </li>
-                <li>
-                  <strong>Technical Issues:</strong> If you experience problems preventing you from using the service,
-                  contact us immediately. We'll work to resolve the issue or process a refund if necessary.
-                </li>
-                <li>
-                  <strong>Processing Time:</strong> Approved refunds are processed within 5-7 business days through
-                  Stripe. The time for the refund to appear in your account depends on your bank or card issuer.
-                </li>
-                <li>
-                  <strong>Refund Method:</strong> Refunds are issued to the original payment method used for the
-                  subscription purchase.
-                </li>
-              </ul>
-              <p className="text-sm text-muted-foreground mt-4">
-                For any questions about our refund policy, please contact us at{' '}
-                <a href="mailto:support@receiptwise.io" className="text-primary hover:underline">
-                  support@receiptwise.io
-                </a>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Was an "Important Information" card that repeated the four points at the top. What it
+            added, the 14-day window covering renewals, is now in the first point. */}
       </main>
     </>
   );

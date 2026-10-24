@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import Link from 'next/link';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 const POPUP_DISMISSED_KEY = 'exitIntentDismissed';
 const POPUP_COOLDOWN_HOURS = 24;
@@ -88,6 +89,7 @@ export function ExitIntentPopup() {
               'Every receipt read and itemised for you',
               'Shared with your household as it arrives',
               'Searchable down to the line item',
+              ...(BILLS_LAUNCHED ? ['Your month planned, payday to payday'] : []),
               'Export it all whenever you want',
             ].map((benefit) => (
               <li key={benefit} className="flex items-start gap-2.5 text-sm">
@@ -101,7 +103,7 @@ export function ExitIntentPopup() {
           <div className="flex flex-col gap-2 pt-2">
             <Button asChild className="w-full gap-2" size="lg">
               <Link href="/sign-up" onClick={handleDismiss}>
-                {hasFreeTrial ? `Start the ${trialDays}-day trial` : 'Create an account'}
+                {hasFreeTrial ? 'Start the free trial' : 'Create an account'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
@@ -116,7 +118,7 @@ export function ExitIntentPopup() {
 
           {hasFreeTrial && (
             <p className="text-center text-xs text-muted-foreground">
-              Cancel anytime during the trial and you won&apos;t be charged
+              Cancel any time during the trial and you won&apos;t be charged
             </p>
           )}
         </div>

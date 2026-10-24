@@ -9,11 +9,13 @@ import { ReceiptDetailModal } from '@/components/receipts/receipt-detail-modal';
 import { categoryBadgeClasses, getCategory } from '@/lib/utils/categories';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { formatCurrency } from '@/lib/utils/currency';
 import { cn } from '@/lib/utils';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 import { useUser } from '@/lib/hooks/use-user';
 import { canRetryReceipt, isStuckProcessing } from '@/lib/utils/receipt-status';
 import { toast } from 'sonner';
+import { formatDisplayDate, formatPaymentMethod } from '@/components/receipts/format';
 
 interface ReceiptListProps {
   receipts: ReceiptWithItems[];
@@ -25,14 +27,9 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptWithItems | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
-  const { format: formatCurrency } = useCurrency();
+  const { currency: userCurrency } = useCurrency();
   // Retry is owner-only on the server; a household member's receipt would just 403.
   const { user: currentUser } = useUser();
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
 
   const handleRetry = async (receiptId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,8 +73,8 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
       <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ReceiptIcon className="h-5 w-5" />
-          Recent Receipts
+          <ReceiptIcon className="h-5 w-5" aria-hidden="true" />
+          Recent receipts
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -94,11 +91,23 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
               const isNotReceipt = receipt.isReceipt === false;
 
               return (
+              /* A div with only onClick before: no tab stop and no key handling, so a
+                 keyboard user could not open a receipt at all. It holds a Try again
+                 button, so it cannot itself be a <button>. */
               <div
                 key={receipt.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleReceiptClick(receipt)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleReceiptClick(receipt);
+                  }
+                }}
                 className={cn(
-                  'flex cursor-pointer flex-col gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center sm:gap-4 sm:p-4',
+                  'flex cursor-pointer flex-col gap-3 rounded-lg border p-3 transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring sm:flex-row sm:items-center sm:gap-4 sm:p-4',
                   isNotReceipt
                     ? 'border-warning/40 bg-warning/8 hover:bg-warning/12'
                     : 'bg-card hover:bg-muted/50',
@@ -134,14 +143,14 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                     <div className="flex items-center gap-2">
                       <Store className="h-4 w-4 text-muted-foreground" />
                       <span className="font-semibold text-foreground">
-                        {receipt.merchantName || 'Unknown Merchant'}
+                        {receipt.merchantName || 'Unknown merchant'}
                       </span>
                     </div>
                     {/* Was `{receipt.currency || '$'} {receipt.totalAmount}` —
                         the ISO code in place of a symbol, and a dollar fallback
                         in a product that defaults to euro. */}
                     <span className="amount text-lg font-semibold text-foreground sm:whitespace-nowrap">
-                      {formatCurrency(parseFloat(receipt.totalAmount || '0'))}
+                      {formatCurrency(parseFloat(receipt.totalAmount || '0'), receipt.currency || userCurrency)}
                     </span>
                   </div>
 
@@ -152,11 +161,11 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                         Not a receipt
                       </Badge>
                     )}
+                    {/* Was the raw "2026-10-21" on desktop and en-US "Oct 21, 2026" on mobile. */}
                     {receipt.transactionDate && (
                       <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span className="hidden sm:inline">{receipt.transactionDate}</span>
-                        <span className="sm:hidden">{formatDate(receipt.transactionDate)}</span>
+                        <Calendar className="h-3 w-3" aria-hidden="true" />
+                        <span>{formatDisplayDate(receipt.transactionDate)}</span>
                       </div>
                     )}
                     {receipt.processingStatus && <ReceiptStatusBadge status={receipt.processingStatus} />}
@@ -170,7 +179,7 @@ export function ReceiptList({ receipts, onReceiptClick, onRetry }: ReceiptListPr
                       </Badge>
                     )}
                     {receipt.paymentMethod && (
-                      <span className="capitalize">{receipt.paymentMethod.replace(/_/g, ' ')}</span>
+                      <span>{formatPaymentMethod(receipt.paymentMethod)}</span>
                     )}
                     {receipt.items && receipt.items.length > 0 && (
                       <span>

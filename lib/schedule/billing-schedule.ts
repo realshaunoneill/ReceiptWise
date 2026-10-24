@@ -1,4 +1,5 @@
 import { type Subscription } from '@/lib/db/schema';
+import { type LocalDate, nextBusinessDay } from '@/lib/dates/local-date';
 
 export const BILLING_FREQUENCIES = ['monthly', 'bimonthly', 'quarterly', 'six_monthly', 'yearly', 'custom', 'once'] as const;
 export type BillingFrequency = typeof BILLING_FREQUENCIES[number];
@@ -164,6 +165,27 @@ export class BillingSchedule {
     }
     return 3 * DAY_MS;
   }
+}
+
+/**
+ * Payment methods that take the money without anyone doing anything, so an occurrence is assumed
+ * paid once its collection day comes (with Undo) and never goes overdue. Only 'manual', and the
+ * older rows that never said (null), wait to be marked paid. Card payments used to be left out,
+ * so card subscriptions like Netflix showed as overdue every month.
+ */
+export const AUTO_PAID_METHODS: readonly string[] = ['direct_debit', 'standing_order', 'card'];
+
+export function isAutoPaid(paymentMethod: string | null | undefined): boolean {
+  return Boolean(paymentMethod && AUTO_PAID_METHODS.includes(paymentMethod));
+}
+
+/**
+ * The day an automatic payment due on `day` leaves the account. Direct debits and standing
+ * orders move to the next business day (weekends and Irish bank holidays); a card is charged on
+ * the day itself, weekends included.
+ */
+export function collectionDate(day: LocalDate, paymentMethod: string | null | undefined): LocalDate {
+  return paymentMethod === 'card' ? day : nextBusinessDay(day);
 }
 
 /** Average days in a month, for turning a custom N-day frequency into a monthly figure. */

@@ -5,6 +5,7 @@ import { savingsGoals } from '@/lib/db/schema';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
 import { canFileFinanceRowUnder, canOwnFinanceRow, canReadFinanceRow } from '@/lib/services/finance-access';
+import { canUseAccount } from '@/lib/services/account-service';
 import { getGoal } from '@/lib/services/goal-service';
 import { parseBody, readJson, updateGoalSchema } from '@/lib/validation/finance';
 
@@ -34,6 +35,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (input.householdId !== undefined && input.householdId !== existing.householdId
       && !(await canFileFinanceRowUnder(input.householdId ?? null, user.id, entitlements))) {
       return NextResponse.json({ error: input.householdId ? 'Not a member of this household' : 'Active subscription required' }, { status: 403 });
+    }
+    if (input.linkedAccountId !== undefined && input.linkedAccountId !== existing.linkedAccountId
+      && !(await canUseAccount(input.linkedAccountId, user.id, entitlements))) {
+      return NextResponse.json({ error: 'linkedAccountId is not one of your accounts' }, { status: 400 });
     }
 
     const [updated] = await db

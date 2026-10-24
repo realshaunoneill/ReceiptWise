@@ -1,8 +1,10 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Receipt, Home, CreditCard, TrendingUp, AlertCircle, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import { Users, Receipt, Home, CreditCard, TrendingUp, AlertCircle, CheckCircle2, Clock, Coins } from 'lucide-react';
 import { useMemo } from 'react';
+import { DEFAULT_CURRENCY, formatCurrency } from '@/lib/utils/currency';
+import { totalsByCurrency } from '@/lib/utils/currency-totals';
 
 interface AdminUser {
   id: string;
@@ -65,11 +67,12 @@ export function AdminStats({ users, households, receipts }: AdminStatsProps) {
     const pendingReceipts = receipts.filter(r => r.processingStatus === 'pending' || r.processingStatus === 'processing').length;
     const receiptsThisWeek = receipts.filter(r => new Date(r.createdAt) >= thisWeek).length;
 
-    // Calculate total value
-    const totalValue = receipts.reduce((sum, r) => {
-      const amount = parseFloat(r.totalAmount || '0');
-      return sum + (isNaN(amount) ? 0 : amount);
-    }, 0);
+    // Totals per currency: there is no conversion, and adding USD into a euro total (with a
+    // hardcoded "€") overstated the euro figure.
+    const totalValue = totalsByCurrency(
+      receipts.map((r) => ({ amount: r.totalAmount, currency: r.currency })),
+      DEFAULT_CURRENCY,
+    );
 
     // Calculate success rate
     const processedReceipts = completedReceipts + failedReceipts;
@@ -209,12 +212,19 @@ export function AdminStats({ users, households, receipts }: AdminStatsProps) {
         <Card className="bg-primary/5 border-primary/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-primary" />
+            <Coins className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(stats.totalValue[0]?.amount ?? 0, stats.totalValue[0]?.currency ?? DEFAULT_CURRENCY)}
+            </div>
+            {stats.totalValue.length > 1 && (
+              <p className="text-sm font-medium">
+                {stats.totalValue.slice(1).map((total) => `+ ${formatCurrency(total.amount, total.currency)}`).join(' ')}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Tracked across all receipts
+              Tracked across all receipts{stats.totalValue.length > 1 ? ', per currency (not converted)' : ''}
             </p>
           </CardContent>
         </Card>

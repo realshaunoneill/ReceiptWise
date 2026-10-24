@@ -1,16 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Refund Policy - ReceiptWise',
-  description: 'Learn about our refund process and subscription management. Pro-rated refunds available within 7 days of purchase.',
-  openGraph: {
-    title: 'Refund Policy - ReceiptWise',
-    description: 'Learn about our refund process and subscription management for ReceiptWise.',
-  },
-  alternates: {
-    canonical: '/refund',
-  },
-};
+  description: 'Ask within 14 days of any charge for a full refund. Cancel any time from Settings.',
+  path: '/refund',
+});
 
 export default function RefundLayout({
   children,

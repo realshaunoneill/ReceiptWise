@@ -46,7 +46,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="" className="h-8 w-auto" />
+            <img src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8" />
             <span className="text-xl font-bold text-foreground">ReceiptWise</span>
           </Link>
           <ThemeToggle />

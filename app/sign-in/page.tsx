@@ -6,14 +6,16 @@ import { Separator } from '@/components/ui/separator';
 import { ScanLine, BarChart3, Users, CheckCircle2 } from 'lucide-react';
 import { SignInPanel } from '@/components/auth/sign-in-panel';
 import { isDevLoginEnabled, isGoogleConfigured } from '@/lib/dev-login';
+import { pageMetadata } from '@/lib/seo';
 import { safeNext } from '@/lib/sign-in-redirect';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Sign in - ReceiptWise',
-  alternates: {
-    canonical: '/sign-in',
-  },
-};
+  description: 'Sign in to ReceiptWise with your Google account.',
+  path: '/sign-in',
+  // robots.txt keeps crawlers off it too.
+  index: false,
+});
 
 export default async function SignInPage({
   searchParams,
@@ -89,10 +91,10 @@ export default async function SignInPage({
               </div>
 
               <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="p-6">
+                <CardContent>
                   <ul className="space-y-3">
                     {[
-                      'Free trial, cancel any time',
+                      'Cancel any time from Settings',
                       'Unlimited receipt storage',
                       'Export everything whenever you want',
                     ].map((item) => (

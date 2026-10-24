@@ -42,9 +42,14 @@ export function useReceiptStats(
 export function useDashboardStats(householdId?: string, personalOnly: boolean = false) {
   // Totals come from the server: computing them here from the first 100 receipts made every
   // figure wrong past 100, and counted pending, failed and not-a-receipt uploads as €0.00 spends.
-  const { data, isLoading: statsLoading } = useReceiptStats(householdId, personalOnly);
+  const { data, isLoading: statsLoading, error: statsError } = useReceiptStats(householdId, personalOnly);
   // The list below the tiles still shows the latest uploads, whatever their status.
-  const { receipts: recentReceipts, isLoading: receiptsLoading } = useRecentReceipts(householdId, 5, personalOnly);
+  const {
+    receipts: recentReceipts,
+    isLoading: receiptsLoading,
+    error: receiptsError,
+    refetch: refetchReceipts,
+  } = useRecentReceipts(householdId, 5, personalOnly);
 
   const stats = {
     totalReceipts: data?.totalReceipts ?? 0,
@@ -60,6 +65,10 @@ export function useDashboardStats(householdId?: string, personalOnly: boolean = 
   return {
     stats,
     isLoading: statsLoading || receiptsLoading,
-    error: null,
+    // Was always null, so a failed stats request rendered as zeros: "no receipts" rather than
+    // an error the page could offer a retry for.
+    error: statsError ?? receiptsError ?? null,
+    // Invalidates everything under ['receipts'], the stats query included.
+    refetch: refetchReceipts,
   };
 }

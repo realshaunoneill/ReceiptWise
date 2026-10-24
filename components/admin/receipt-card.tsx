@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Receipt, Home, Calendar, Mail, Eye, AlertCircle, Briefcase, Tag, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatInstantDay, formatReceiptAmount, formatReceiptDay } from './format';
 
 interface ReceiptCardProps {
   receipt: {
@@ -124,23 +125,24 @@ export function ReceiptCard({ receipt, onOpenReceipt, onDeleted }: ReceiptCardPr
           )}
           <span className="flex items-center gap-1 whitespace-nowrap">
             <Calendar className="h-3 w-3" />
-            {new Date(receipt.transactionDate || receipt.createdAt).toLocaleDateString()}
+            {formatReceiptDay(receipt.transactionDate, receipt.createdAt)}
           </span>
         </div>
       </div>
       <div className="flex items-center gap-3 self-end sm:self-auto">
         <div className="text-right">
           <div className="text-lg font-semibold whitespace-nowrap">
-            {receipt.currency || '€'} {receipt.totalAmount || '0.00'}
+            {formatReceiptAmount(receipt.totalAmount, receipt.currency)}
           </div>
           <div className="text-xs text-muted-foreground whitespace-nowrap">
-            Uploaded {new Date(receipt.createdAt).toLocaleDateString()}
+            Uploaded {formatInstantDay(receipt.createdAt)}
           </div>
         </div>
         <Button
           variant="ghost"
           size="icon"
           className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          aria-label={`Delete receipt from ${receipt.merchantName || 'unknown merchant'}`}
           onClick={(e) => {
             e.stopPropagation();
             setShowDeleteDialog(true);
