@@ -12,6 +12,7 @@ import { PostHogProvider } from '@/lib/providers/posthog-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { getAppUrl } from '@/lib/app-url';
 import { OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from '@/lib/seo';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 import './globals.css';
 
 /*
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
-  keywords: ['receipt tracker', 'expense tracker', 'family expenses', 'household sharing', 'receipt scanner', 'spending tracker', 'subscription tracker', 'shared expenses', 'housemate expenses'],
+  keywords: ['receipt tracker', 'expense tracker', 'family expenses', 'household sharing', 'receipt scanner', 'spending tracker', 'subscription tracker', ...(BILLS_LAUNCHED ? ['bills tracker', 'monthly budget'] : []), 'shared expenses', 'housemate expenses'],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
   publisher: SITE_NAME,

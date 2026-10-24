@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { ScanLine, BarChart3, Users, CheckCircle2 } from 'lucide-react';
+import { ScanLine, BarChart3, Users, CheckCircle2, Wallet } from 'lucide-react';
 import { SignInPanel } from '@/components/auth/sign-in-panel';
 import { isDevLoginEnabled, isGoogleConfigured } from '@/lib/dev-login';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 import { pageMetadata } from '@/lib/seo';
 import { safeNext } from '@/lib/sign-in-redirect';
 
@@ -69,12 +70,18 @@ export default async function SignInPage({
                   </div>
                 </div>
 
+                {/* With bills launched, the plan takes this slot: it is what's new, and the
+                    analytics are a line on the landing page. */}
                 <div className="flex gap-3">
-                  <BarChart3 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                  {BILLS_LAUNCHED
+                    ? <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                    : <BarChart3 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />}
                   <div>
-                    <h2 className="font-semibold text-foreground">Spending analytics</h2>
+                    <h2 className="font-semibold text-foreground">{BILLS_LAUNCHED ? 'Your month, planned' : 'Spending analytics'}</h2>
                     <p className="text-sm text-muted-foreground">
-                      Category breakdowns and trends over the period you choose.
+                      {BILLS_LAUNCHED
+                        ? 'Your pay, the bills on the way, and what is left for each week.'
+                        : 'Category breakdowns and trends over the period you choose.'}
                     </p>
                   </div>
                 </div>

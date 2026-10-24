@@ -61,10 +61,13 @@ export function Navigation() {
 
   // The bills work, behind its flag: a Plan page, and Subscriptions renamed to Bills.
   const billsEnabled = useFeature('bills');
+  // With bills on, Plan and Bills sit together after the dashboard: the month, then what's in it.
   const displayNavItems = billsEnabled
     ? navItems.flatMap((item) => {
-      if (item.href === '/dashboard') return [item, { href: '/plan', label: 'Plan', icon: Wallet }];
-      if (item.href === '/subscriptions') return [{ ...item, label: 'Bills' }];
+      if (item.href === '/dashboard') {
+        return [item, { href: '/plan', label: 'Plan', icon: Wallet }, { href: '/subscriptions', label: 'Bills', icon: Repeat }];
+      }
+      if (item.href === '/subscriptions') return [];
       return [item];
     })
     : [...navItems];

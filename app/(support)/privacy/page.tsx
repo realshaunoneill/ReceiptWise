@@ -20,13 +20,13 @@ export default function PrivacyPage() {
             <CardTitle>1. Who we are</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
-            {/* TODO(operator): GDPR Art. 13(1)(a) requires the controller's identity. Add the
-                operator's legal name (or company name and number) and a postal address here
-                before relying on this policy. Deliberately not filled in by guesswork. */}
             <p>
               ReceiptWise (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) is a receipt and household expense
-              service operated from Ireland. We are the controller of the personal data described in this
-              policy. For anything about your data, contact <a href="mailto:support@receiptwise.io" className="text-primary hover:underline">support@receiptwise.io</a>.
+              service run by Shaun O&apos;Neill in Ireland, who is the controller of the personal data described
+              in this policy. For anything about your data, contact{' '}
+              <a href="mailto:support@receiptwise.io" className="text-primary hover:underline">support@receiptwise.io</a>,
+              or Shaun directly at{' '}
+              <a href="mailto:shaun@shaunoneill.com" className="text-primary hover:underline">shaun@shaunoneill.com</a>.
             </p>
           </CardContent>
         </Card>
@@ -95,15 +95,16 @@ export default function PrivacyPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              Receipts are read by OpenAI&apos;s models through their API: images are sent to <strong>GPT-4o</strong>{' '}
-              to extract the merchant, items and totals, and summarised spending figures are sent to
-              <strong> GPT-4o-mini</strong> to write your spending summaries. Bills and statements you upload or
-              forward (PDFs, photos, or an email&apos;s text when it has no attachment) are sent to <strong>GPT-4o</strong>{' '}
-              to find the provider, the amount due and the due date.
+              Receipts and bills are read by AI models, reached through Vercel&apos;s AI Gateway. Receipt images,
+              and bills and statements you upload or forward (PDFs, photos, or an email&apos;s text when it has no
+              attachment), are sent to <strong>Google&apos;s Gemini</strong> models to extract the merchant,
+              items and totals, or the provider, the amount due and the due date. Summarised spending figures
+              (totals by category and shop, never the receipts themselves) are sent the same way to write your
+              spending summaries. If Google&apos;s models are unavailable, the same request goes to{' '}
+              <strong>OpenAI</strong> instead.
             </p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>OpenAI does not use API data to train its models</li>
-              <li>OpenAI may keep API inputs for a limited period (currently up to 30 days) to monitor for abuse, and then deletes them</li>
+              <li>Requests only go to providers that have agreed with Vercel to keep nothing (zero data retention) and that do not train models on what they are sent</li>
               <li>We store what comes back in our own database</li>
             </ul>
           </CardContent>
@@ -118,8 +119,10 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Google</strong> — you sign in with your Google account; Google tells us your name, email address and profile picture, and knows that you signed in to ReceiptWise</li>
               <li><strong>Stripe</strong> — subscriptions and payments</li>
-              <li><strong>OpenAI</strong> — reading receipts and bills, and writing spending summaries (see section 4)</li>
-              <li><strong>Vercel</strong> — hosting, storage of receipt images and of bills (Vercel Blob; bills in a private store), and cookieless page-view statistics (Vercel Analytics)</li>
+              <li><strong>Google</strong> (Gemini) — reading receipts and bills, and writing spending summaries (see section 4)</li>
+              <li><strong>OpenAI</strong> — the same, only when Google&apos;s models are unavailable</li>
+              <li><strong>Vercel</strong> — hosting, storage of receipt images and of bills (Vercel Blob; bills in a private store), the AI Gateway that passes requests to the two providers above, and cookieless page-view statistics (Vercel Analytics)</li>
+              <li><strong>Migadu</strong> — the support@receiptwise.io mailbox</li>
               <li><strong>Cloudflare</strong> — receives email sent to your forwarding address and passes it to us</li>
               <li><strong>Neon</strong> — our Postgres database, hosted in the London (eu-west-2) region</li>
               <li><strong>PostHog</strong> (EU cloud) — product analytics and session recordings, only if you accept analytics; your email address is attached to your analytics profile so we can answer support questions about it</li>

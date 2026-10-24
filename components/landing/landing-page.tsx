@@ -418,9 +418,10 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
               <Cloud className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="mt-4 font-semibold text-foreground">Used only to run the app</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Receipts{BILLS_LAUNCHED && ', and bills you upload or forward,'} go to OpenAI to be
-                read, and your spending totals to write your summaries. Under OpenAI&apos;s API
-                terms none of it is used to train their models.
+                Receipts{BILLS_LAUNCHED && ', and bills you upload or forward,'} are read by AI
+                models (Google&apos;s Gemini, with OpenAI as a back-up), and your spending totals
+                write your summaries. Only providers that keep nothing and never train on it are
+                used.
               </p>
             </div>
             <div>

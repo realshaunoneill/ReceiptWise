@@ -1,7 +1,7 @@
 {
   "name": "ReceiptWise - Family Expense & Receipt Tracker",
   "short_name": "ReceiptWise",
-  "description": "Share expenses with family, housemates or a partner. Receipts read for you by AI, and one place for the whole household.",
+  "description": "Receipts read for you, the month's bills planned payday to payday, and one place for the whole household.",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",

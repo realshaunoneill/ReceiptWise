@@ -6,6 +6,7 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getAuth } from '@/lib/auth';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 import { HouseholdService } from '@/lib/services/household-service';
 import { InviteActions, RememberInvite } from './invite-actions';
 
@@ -95,9 +96,9 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
               </CardHeader>
               <CardContent className="space-y-5">
                 <p className="text-sm text-muted-foreground">
-                  Joining is free. Once you&apos;re in you can see the household&apos;s receipts —
-                  merchant, date and total. Adding receipts, the line-item detail and the rest of
-                  the household tools need your own Premium subscription.
+                  {BILLS_LAUNCHED
+                    ? 'Joining is free. Once you’re in you can see the household’s receipts, and, if another member has Premium, its shared bills and monthly plan too. Adding receipts of your own and the line-item detail need your own Premium.'
+                    : 'Joining is free. Once you’re in you can see the household’s receipts: merchant, date and total. Adding receipts, the line-item detail and the rest of the household tools need your own Premium subscription.'}
                 </p>
 
                 {userId ? (
