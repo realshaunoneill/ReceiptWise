@@ -44,7 +44,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const authResult = await getAuthenticatedUser(correlationId);
     if (authResult instanceof NextResponse) return authResult;
-    const { user, clerkId } = authResult;
+    const { user, authUserId } = authResult;
 
     // Check subscription
     const subCheck = await requireSubscription(user);
@@ -83,7 +83,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     submitLogEvent('receipt-upload-start', 'Creating receipt database entry', correlationId, {
       userId: user.id,
-      clerkId,
       imageUrl,
       householdId: providedHouseholdId,
       timestamp: new Date().toISOString(),
@@ -123,7 +122,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     submitLogEvent('receipt-db-created', 'Receipt entry created in database with pending status', correlationId, {
       receiptId: receipt.id,
       userId: user.id,
-      clerkId,
       imageUrl,
       householdId,
       processingStatus: 'pending',
@@ -136,7 +134,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const posthog = await getConsentedPostHogClient();
     if (posthog) {
       posthog.capture({
-        distinctId: clerkId,
+        // The same id the browser identifies with (lib/providers/posthog-provider.tsx).
+        distinctId: authUserId,
         event: 'receipt_uploaded',
         properties: {
           receiptId: receipt.id,

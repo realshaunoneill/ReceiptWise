@@ -102,7 +102,6 @@ export async function POST(request: NextRequest) {
     const checkoutSession = await createCheckoutSession(
       user.id,
       user.email,
-      user.clerkId,
       priceId,
       user.stripeCustomerId,
       correlationId,

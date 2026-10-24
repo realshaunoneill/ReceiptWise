@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       Logger.info('No Stripe customer ID found, attempting to find and re-associate', {
         requestId,
         userId: user.id,
-        context: { clerkId: user.clerkId, email: user.email },
+        context: { email: user.email },
       });
 
       stripeCustomerId = await findAndReassociateStripeCustomer(user.id, user.email, correlationId);
@@ -56,7 +56,6 @@ export async function GET(req: NextRequest) {
       requestId,
       userId: user.id,
       context: {
-        clerkId: user.clerkId,
         email: user.email,
         stripeCustomerId: stripeCustomerId,
         subscriptionData,

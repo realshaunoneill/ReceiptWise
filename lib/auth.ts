@@ -1,0 +1,83 @@
+import { betterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { nextCookies } from 'better-auth/next-js';
+import { db } from '@/lib/db';
+import { authAccount, authSession, authUser, authVerification } from '@/lib/db/schema';
+import { isDevLoginEnabled } from '@/lib/dev-login';
+
+/**
+ * Sign-in: Better Auth with Google (moved off Clerk on 2026-10-24, like the other products).
+ *
+ * Better Auth owns who someone is (auth_user, auth_session, auth_account). The app's own `users`
+ * row, with the subscription, households and settings, is linked to it on first sign-in by
+ * lib/auth-helpers.ts, which matches existing accounts by their verified email. So everyone who
+ * used Clerk keeps their data: they sign in with the same Google account and land in it.
+ *
+ * Built on first use rather than at import: betterAuth() touches the database adapter eagerly, and
+ * importing it at module scope would need DATABASE_URL during `next build`.
+ */
+
+const PRODUCTION_URL = 'https://www.receiptwise.io';
+
+/** Where OAuth comes back to: BETTER_AUTH_URL (www in production, staging on Preview), else this deployment. */
+function baseURL(): string {
+  if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
+  if (process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return process.env.NODE_ENV === 'production' ? PRODUCTION_URL : 'http://localhost:3000';
+}
+
+function createAuth() {
+  return betterAuth({
+    database: drizzleAdapter(db, {
+      provider: 'pg',
+      schema: { user: authUser, session: authSession, account: authAccount, verification: authVerification },
+    }),
+    secret: process.env.BETTER_AUTH_SECRET,
+    baseURL: baseURL(),
+    trustedOrigins: [
+      PRODUCTION_URL,
+      'https://receiptwise.io',
+      'https://staging.receiptwise.io',
+      'http://localhost:3000',
+      ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+      ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+      ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
+    ],
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+        // Always ask which Google account: a shared family computer is a common case here.
+        prompt: 'select_account',
+      },
+    },
+    // Off outside local development: Google covers everyone, and there is no password to leak.
+    emailAndPassword: {
+      enabled: isDevLoginEnabled(),
+      requireEmailVerification: false,
+    },
+    session: {
+      // A household app opened a few times a week: a long, rolling session.
+      expiresIn: 60 * 60 * 24 * 30,
+      updateAge: 60 * 60 * 24,
+      // The session is checked on every API request; a signed 5-minute cookie cache saves a
+      // database read each time (Clerk used to cost a network call to fetch the email instead).
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
+    // Sessions don't record the IP address they came from (the privacy policy says so). That also
+    // turns off better-auth's per-IP rate limiting, which on serverless is per instance anyway.
+    advanced: { ipAddress: { disableIpTracking: true } },
+    // Must be last: lets route handlers and server actions set cookies.
+    plugins: [nextCookies()],
+  });
+}
+
+let instance: ReturnType<typeof createAuth> | null = null;
+
+export function getAuth() {
+  instance ??= createAuth();
+  return instance;
+}
+
+export type AuthSession = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['api']['getSession']>>>;

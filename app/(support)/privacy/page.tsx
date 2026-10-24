@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <h1 id="privacy-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Privacy Policy</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: October 23, 2026
+            Last updated: October 24, 2026
           </p>
         </div>
 
@@ -38,7 +38,8 @@ export default function PrivacyPage() {
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p><strong>Account information:</strong></p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Your email address, and the name on your sign-in account, via Clerk</li>
+              <li>Your email address, name and profile picture, from the Google account you sign in with</li>
+              <li>Your sign-in sessions: when each started and the browser it is in (not your IP address), kept for up to 30 days</li>
               <li>Settings you choose, such as your currency and default household</li>
             </ul>
 
@@ -115,7 +116,7 @@ export default function PrivacyPage() {
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>We use these service providers to run ReceiptWise. They process data on our behalf and only for these purposes:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><strong>Clerk</strong> — sign-in and account management</li>
+              <li><strong>Google</strong> — you sign in with your Google account; Google tells us your name, email address and profile picture, and knows that you signed in to ReceiptWise</li>
               <li><strong>Stripe</strong> — subscriptions and payments</li>
               <li><strong>OpenAI</strong> — reading receipts and bills, and writing spending summaries (see section 4)</li>
               <li><strong>Vercel</strong> — hosting, storage of receipt images and of bills (Vercel Blob; bills in a private store), and cookieless page-view statistics (Vercel Analytics)</li>
@@ -133,7 +134,7 @@ export default function PrivacyPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <p>
-              Some of these providers are based in the United States or process data there (for example Clerk,
+              Some of these providers are based in the United States or process data there (for example Google,
               Stripe, OpenAI and Vercel). Where personal data leaves the European Economic Area, the transfer is
               covered by the EU–US Data Privacy Framework where the provider is certified under it, or by the
               European Commission&apos;s Standard Contractual Clauses. You can ask us for details of the
@@ -153,7 +154,7 @@ export default function PrivacyPage() {
               <li>Receipt images are stored at long, unguessable addresses; anyone holding an image&apos;s address can open it, so treat shared links with care</li>
               <li>Bills are stored privately: they can only be opened through the app, by you and anyone you share them with</li>
               <li>Your forwarding address is the only thing that identifies you on forwarded email; you can replace it in Settings at any time, and mail to the old one is then refused</li>
-              <li>Sign-in is handled by Clerk, and payments by Stripe, which is PCI DSS certified</li>
+              <li>You sign in with Google, so ReceiptWise holds no password for you; payments are handled by Stripe, which is PCI DSS certified</li>
               <li>Access to production data is restricted to the operator of the service</li>
             </ul>
             <p>No method of transmission or storage is completely secure, and we cannot guarantee absolute security.</p>
@@ -219,7 +220,7 @@ export default function PrivacyPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-3">
             <ul className="list-disc pl-5 space-y-1">
-              <li><strong>Essential — always on.</strong> Clerk&apos;s session cookies keep you signed in. The service cannot work without them, so they do not need consent.</li>
+              <li><strong>Essential — always on.</strong> A session cookie keeps you signed in. The service cannot work without them, so they do not need consent.</li>
               <li><strong>Analytics — only with consent.</strong> PostHog stores an identifier in a cookie and in local storage to recognise your visits. Nothing from PostHog loads until you choose &quot;Accept&quot;.</li>
               <li>Your consent choice itself is remembered in your browser&apos;s local storage.</li>
               <li>Vercel Analytics counts page views without cookies.</li>

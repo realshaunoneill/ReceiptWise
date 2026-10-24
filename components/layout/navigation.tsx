@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Receipt, Users, Settings, LogOut, TrendingUp, Menu, ShieldCheck, Repeat, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useUser, useClerk } from '@clerk/nextjs';
+import { signOutAndLeave, useSession } from '@/lib/auth-client';
 import { useFeature } from '@/lib/hooks/use-user';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { InvitationNotifications } from '@/components/households/invitation-notifications';
@@ -31,8 +31,10 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname();
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
+  const { data: session, isPending } = useSession();
+  const user = session?.user;
+  const userId = user?.id;
+  const isLoaded = !isPending;
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
@@ -50,12 +52,12 @@ export function Navigation() {
         setIsCheckingAdmin(false);
       }
     }
-    if (user) {
+    if (userId) {
       checkAdmin();
     } else {
       setIsCheckingAdmin(false);
     }
-  }, [user]);
+  }, [userId]);
 
   // The bills work, behind its flag: a Plan page, and Subscriptions renamed to Bills.
   const billsEnabled = useFeature('bills');
@@ -70,9 +72,7 @@ export function Navigation() {
     displayNavItems.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
   }
 
-  const handleLogout = async () => {
-    await signOut();
-  };
+  const handleLogout = () => signOutAndLeave();
 
   // Show loading skeleton while checking auth state
   if (!isLoaded) {
@@ -176,9 +176,9 @@ export function Navigation() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="relative h-8 w-8 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                {user?.imageUrl ? (
+                {user?.image ? (
                   <Image
-                    src={user.imageUrl}
+                    src={user.image}
                     alt="User avatar"
                     width={32}
                     height={32}
@@ -187,15 +187,15 @@ export function Navigation() {
                   />
                 ) : (
                   <div className="h-full w-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                    {user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U'}
+                    {(user?.name || user?.email)?.[0]?.toUpperCase() || 'U'}
                   </div>
                 )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5">
-                <p className="text-sm font-medium">{user?.fullName || user?.firstName || 'User'}</p>
-                <p className="text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</p>
+                <p className="text-sm font-medium">{user?.name || 'User'}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>

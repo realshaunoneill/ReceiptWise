@@ -89,8 +89,8 @@ export async function PATCH(req: NextRequest) {
     // Build update object based on provided fields
     const updates: Record<string, unknown> = {};
 
-    // Email is deliberately not updatable here. It is synced from Clerk's verified primary
-    // address on every request (UserService.getOrCreateUser), and it is what invitations and
+    // Email is deliberately not updatable here. It is synced from the sign-in account's
+    // verified address on every request (UserService.getOrCreateUserForAuth), and it is what invitations and
     // Stripe customer re-association match on — accepting it from the body let anyone claim
     // someone else's household invite or billing portal.
 

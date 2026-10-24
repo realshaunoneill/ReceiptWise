@@ -21,7 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const authResult = await getAuthenticatedUser(correlationId);
     if (authResult instanceof NextResponse) return authResult;
-    const { user, clerkId } = authResult;
+    const { user } = authResult;
 
     // Check subscription for receipt upload
     const subCheck = await requireSubscription(user);
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = (await request.json()) as HandleUploadBody;
 
-    submitLogEvent('receipt-upload', 'Starting receipt upload', correlationId, { userId: user.id, clerkId });
+    submitLogEvent('receipt-upload', 'Starting receipt upload', correlationId, { userId: user.id });
 
     const jsonResponse = await handleUpload({
       body,
@@ -51,7 +51,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           maximumSizeInBytes: MAX_UPLOAD_SIZE_MB * 1024 * 1024,
           tokenPayload: JSON.stringify({
             userId: user.id,
-            clerkId,
             clientPayload,
           }),
         };
@@ -68,7 +67,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // At this point, we just return the completion acknowledgment
     submitLogEvent('receipt-upload-blob-complete', 'Blob upload completed successfully', correlationId, {
       userId: user.id,
-      clerkId,
       responseType: jsonResponse.type,
       timestamp: new Date().toISOString(),
     });

@@ -1,20 +1,35 @@
 import type { Metadata } from 'next';
-import { SignIn } from '@clerk/nextjs';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScanLine, BarChart3, Users, CheckCircle2 } from 'lucide-react';
-import { clerkAppearance } from '@/lib/clerk/appearance';
+import { SignInPanel } from '@/components/auth/sign-in-panel';
+import { isDevLoginEnabled, isGoogleConfigured } from '@/lib/dev-login';
+import { NEW_USER_URL } from '@/lib/sign-in-redirect';
+
+/*
+ * This route did not exist. Every "Start the free trial" CTA on the landing
+ * page and the exit-intent popup pointed at /sign-up,
+ * which fell through to not-found — so nobody could create an account from the
+ * site. Mirrors the sign-in page so the two read as one flow.
+ *
+ * Trial length is derived the same way createCheckoutSession derives it, so
+ * this page never promises a trial that checkout would not grant.
+ */
+const TRIAL_DAYS = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
+  ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS, 10)
+  : 0;
+const HAS_TRIAL = TRIAL_DAYS > 0 && !Number.isNaN(TRIAL_DAYS);
 
 export const metadata: Metadata = {
-  title: 'Sign in - ReceiptWise',
+  title: 'Create an account - ReceiptWise',
   alternates: {
-    canonical: '/sign-in',
+    canonical: '/sign-up',
   },
 };
 
-export default function SignInPage() {
+export default function SignUpPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
@@ -36,15 +51,13 @@ export default function SignInPage() {
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-12 items-center relative">
             {/* Left Side - Benefits */}
             <div className="space-y-8 order-2 lg:order-1">
-              {/* Was preceded by an "✨ AI-powered expense tracking" pill, and the
-                  three feature icons below sat in emerald, blue and orange tiles —
-                  three colours for three items on a page with one accent. */}
               <div>
                 <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                  Welcome back
+                  One receipt pile for the whole household
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground">
-                  Your receipts and your household are where you left them.
+                  Photograph a receipt, and ReceiptWise reads it for you and files it where
+                  everyone who shares the bills can see it.
                 </p>
               </div>
 
@@ -74,7 +87,7 @@ export default function SignInPage() {
                   <div>
                     <h2 className="font-semibold text-foreground">Household sharing</h2>
                     <p className="text-sm text-muted-foreground">
-                      One receipt pile for everyone who shares the bills.
+                      Invite a partner or housemate and see the same receipts.
                     </p>
                   </div>
                 </div>
@@ -84,7 +97,9 @@ export default function SignInPage() {
                 <CardContent className="p-6">
                   <ul className="space-y-3">
                     {[
-                      'Free trial, cancel any time',
+                      HAS_TRIAL
+                        ? `${TRIAL_DAYS} days free, cancel any time before it ends`
+                        : 'Cancel any time',
                       'Unlimited receipt storage',
                       'Export everything whenever you want',
                     ].map((item) => (
@@ -101,37 +116,34 @@ export default function SignInPage() {
             {/* Divider */}
             <Separator orientation="vertical" className="hidden lg:block h-auto absolute left-1/2 top-0 bottom-0 -translate-x-1/2" />
 
-            {/* Right Side - Sign In Form */}
+            {/* Right Side - Sign Up Form */}
             <div className="order-1 lg:order-2">
               <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-8 sm:p-10">
-                  {/* "Welcome back" was here as well as in the h1 to the left of
-                      it — the same greeting twice on one screen. And an "✨ Quick &
-                      Secure Sign In" panel explained how sign-in works directly
-                      above the sign-in form, which explains itself. */}
                   <div className="mb-8">
                     <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                      Sign in
+                      Create your account
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Use the account you signed up with.
+                      {HAS_TRIAL
+                        ? `Next you'll start the ${TRIAL_DAYS}-day trial. Card details are needed to begin; cancel during the trial and nothing is charged.`
+                        : 'It takes under a minute.'}
                     </p>
                   </div>
 
-                  <div className="flex justify-center">
-                    <SignIn
-                      appearance={clerkAppearance}
-                      routing="path"
-                      path="/sign-in"
-                      signUpUrl="/sign-up"
-                      forceRedirectUrl="/redirect"
-                    />
-                  </div>
+                  {/* Google signs in an existing account too, so someone who already has one
+                      lands in it from here as well. */}
+                  <SignInPanel
+                    next={NEW_USER_URL}
+                    googleEnabled={isGoogleConfigured()}
+                    devLogin={isDevLoginEnabled()}
+                    label="Sign up with Google"
+                  />
 
                   <p className="mt-6 text-center text-sm text-muted-foreground">
-                    New here?{' '}
-                    <Link href="/sign-up" className="text-primary underline underline-offset-4">
-                      Create an account
+                    Already have an account?{' '}
+                    <Link href="/sign-in" className="text-primary underline underline-offset-4">
+                      Sign in
                     </Link>
                     .
                   </p>

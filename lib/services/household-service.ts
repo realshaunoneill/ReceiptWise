@@ -25,7 +25,7 @@ export function buildInviteUrl(token: string): string {
   return `${getAppUrl()}/invite/${token}`;
 }
 
-/** Emails are compared lower-cased everywhere; Clerk stores them that way. */
+/** Emails are compared lower-cased everywhere; lib/auth-helpers.ts stores them that way. */
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }

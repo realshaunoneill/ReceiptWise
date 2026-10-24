@@ -23,7 +23,7 @@ import { SectionLabel } from '@/components/layout/section-label';
 import { HowItWorks } from '@/components/landing/how-it-works';
 import { LandingPricing } from '@/components/landing/landing-pricing';
 import { ExitIntentPopup } from '@/components/landing/exit-intent-popup';
-import { useUser } from '@clerk/nextjs';
+import { useSession } from '@/lib/auth-client';
 import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 const scrollToSection = (id: string) => {
@@ -124,7 +124,9 @@ const benefits = [
 ];
 
 export function LandingPage() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { data: session, isPending } = useSession();
+  const isLoaded = !isPending;
+  const isSignedIn = Boolean(session);
 
   // Header component that handles loading state gracefully
   const Header = () => {
@@ -412,8 +414,8 @@ export function LandingPage() {
               <Shield className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="mt-4 font-semibold text-foreground">Encrypted in transit &amp; at rest</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Served over TLS. Sign-in is handled by Clerk and payments by Stripe, so we
-                never store your password or card details.
+                Served over TLS. You sign in with Google and pay through Stripe, so there is
+                no password here to leak, and we never see your card details.
               </p>
             </div>
             <div>

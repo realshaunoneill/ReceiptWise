@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/use-user';
-import { useUser as useClerkUser } from '@clerk/nextjs';
+import { useSession } from '@/lib/auth-client';
 import { Loader2 } from 'lucide-react';
 import { takePendingInvite } from '@/lib/utils/pending-invite';
 
@@ -15,7 +15,8 @@ import { takePendingInvite } from '@/lib/utils/pending-invite';
 export default function RedirectPage() {
   const router = useRouter();
   const { user, isLoading: userLoading, isSubscribed } = useUser();
-  const { isLoaded: clerkLoaded } = useClerkUser();
+  const { isPending: sessionPending } = useSession();
+  const sessionLoaded = !sessionPending;
   const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
@@ -24,8 +25,8 @@ export default function RedirectPage() {
       return;
     }
 
-    // Wait for both Clerk and user data to load
-    if (!clerkLoaded || userLoading) {
+    // Wait for both the session and user data to load
+    if (!sessionLoaded || userLoading) {
       return;
     }
 
@@ -49,12 +50,12 @@ export default function RedirectPage() {
         router.replace('/dashboard');
       }
     }
-  }, [user, userLoading, clerkLoaded, isSubscribed, router, hasRedirected]);
+  }, [user, userLoading, sessionLoaded, isSubscribed, router, hasRedirected]);
 
   // Timeout fallback: if loading takes more than 10 seconds, redirect to dashboard
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (!hasRedirected && clerkLoaded) {
+      if (!hasRedirected && sessionLoaded) {
         setHasRedirected(true);
         // Default to dashboard if we can't determine subscription status
         router.replace('/dashboard');
@@ -62,7 +63,7 @@ export default function RedirectPage() {
     }, 10000); // 10 second timeout
 
     return () => clearTimeout(timeout);
-  }, [hasRedirected, clerkLoaded, router]);
+  }, [hasRedirected, sessionLoaded, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center" role="status" aria-busy="true" aria-label="Redirecting to your destination">

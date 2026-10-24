@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Upload, Camera, ScanLine, FileText, Crown, Tag, Chrome, FileX2, SearchX } from 'lucide-react';
-import { useUser as useClerkUser } from '@clerk/nextjs';
+import { useSession } from '@/lib/auth-client';
 import { useUser } from '@/lib/hooks/use-user';
 import { useReceipts, useRecentReceipts } from '@/lib/hooks/use-receipts';
 import { useHouseholds } from '@/lib/hooks/use-households';
@@ -25,7 +25,7 @@ import { useTrialDays } from '@/lib/hooks/use-trial-days';
 
 function ReceiptsPageContent() {
   const trialDays = useTrialDays();
-  const { user: clerkUser } = useClerkUser();
+  const { data: session } = useSession();
   const { isSubscribed } = useUser();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -161,8 +161,8 @@ function ReceiptsPageContent() {
     }
   };
 
-  // Clerk middleware ensures user is authenticated
-  if (!clerkUser) return null;
+  // proxy.ts and the protected layout keep signed-out visitors away; this covers the gap while loading
+  if (!session) return null;
 
   return (
     <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="receipts-title">

@@ -4,68 +4,52 @@ import { eq } from 'drizzle-orm';
 
 export class UserService {
   /**
-   * Create a new user in the database
+   * The app user for a Better Auth user: found by the link, else by verified email (an account
+   * from the Clerk years, or one whose auth user was recreated), else created. `email` must be the
+   * verified address from the session; this is the only writer of `users.email`, since invitations
+   * are matched on it and Stripe customers re-associated by it.
    */
-  static async createUser(clerkId: string, email: string): Promise<User> {
-    const newUser: NewUser = {
-      clerkId,
-      email,
-      subscribed: false,
-    };
+  static async getOrCreateUserForAuth(authUserId: string, email: string): Promise<User> {
+    const [linked] = await db.select().from(users).where(eq(users.authUserId, authUserId)).limit(1);
 
-    const [user] = await db.insert(users).values(newUser).returning();
-    return user;
-  }
-
-  /**
-   * Get user by Clerk ID
-   */
-  static async getUserByClerkId(clerkId: string): Promise<User | null> {
-    const [user] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1);
-    return user || null;
-  }
-
-  /**
-   * Get or create user by Clerk ID, keeping `users.email` in step with Clerk.
-   *
-   * `email` must be the verified primary address from Clerk (see getClerkUserEmail). It is the
-   * only writer of `users.email`: invitations are matched on it and Stripe customers are
-   * re-associated by it, so it must never be user-editable.
-   */
-  static async getOrCreateUser(clerkId: string, email: string): Promise<User> {
-    const user = await this.getUserByClerkId(clerkId);
-
-    if (user) {
-      if (user.email !== email) {
-        // Another row can only hold this address if that Clerk account was replaced; leave both
+    if (linked) {
+      if (linked.email !== email) {
+        // Another row can only hold this address if its auth user was replaced; leave both
         // untouched rather than violate the unique constraint and lock this user out.
         const holder = await this.getUserByEmail(email);
         if (!holder) {
           const [updated] = await db
             .update(users)
             .set({ email, updatedAt: new Date() })
-            .where(eq(users.id, user.id))
+            .where(eq(users.id, linked.id))
             .returning();
           return updated;
         }
       }
-      return user;
+      return linked;
     }
 
-    // A returning person whose Clerk account was recreated gets a new clerkId but the same
-    // verified address. Inserting would fail on users.email's unique constraint and 500 on every
-    // request, so re-link the existing row instead.
+    // First sign-in for an existing person: link the row that already has this verified address.
     const existing = await this.getUserByEmail(email);
     if (existing) {
       const [relinked] = await db
         .update(users)
-        .set({ clerkId, updatedAt: new Date() })
+        .set({ authUserId, updatedAt: new Date() })
         .where(eq(users.id, existing.id))
         .returning();
       return relinked;
     }
 
-    return this.createUser(clerkId, email);
+    const newUser: NewUser = { authUserId, email, subscribed: false };
+    const [created] = await db
+      .insert(users)
+      .values(newUser)
+      .onConflictDoNothing()
+      .returning();
+    if (created) return created;
+    // Two first requests at once: the other one made the row.
+    const [raced] = await db.select().from(users).where(eq(users.authUserId, authUserId)).limit(1);
+    return raced;
   }
 
   /**

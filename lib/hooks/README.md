@@ -29,7 +29,7 @@ function MyComponent() {
 
 - `user`: User object from database (includes subscription status)
 - `isLoading`: Loading state
-- `isSignedIn`: Whether user is signed in via Clerk
+- `isSignedIn`: Whether there is a sign-in session (Better Auth)
 - `isSubscribed`: Shortcut for `user?.subscribed ?? false`
 - `error`: Error object if fetch failed
 - `refetch`: Function to manually refetch user data

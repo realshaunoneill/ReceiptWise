@@ -57,7 +57,7 @@ This directory contains the database schema, migrations, and connection utilitie
 
 ### Tables
 
-- **users**: User accounts with Clerk authentication
+- **users**: User accounts, linked to their Better Auth identity (`auth_user`) by `auth_user_id`
 - **households**: Shared spaces for financial collaboration
 - **household_users**: Junction table for household membership
 - **bank_connections**: Bank account integrations
@@ -82,7 +82,6 @@ const allUsers = await db.select().from(users);
 
 // Insert example
 await db.insert(users).values({
-  clerkId: 'user_123',
   email: 'user@example.com',
 });
 ```

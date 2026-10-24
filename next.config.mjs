@@ -6,13 +6,10 @@ const nextConfig = {
   images: {
     unoptimized: false,
     remotePatterns: [
+      // Google profile pictures, shown as the avatar in the navigation.
       {
         protocol: 'https',
-        hostname: 'img.clerk.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.clerk.dev',
+        hostname: 'lh3.googleusercontent.com',
       },
     ],
   },

@@ -85,7 +85,6 @@ export async function getTrialDaysForCustomer(customerId: string | null | undefi
 async function createStripeCustomer(
   userId: string,
   email: string,
-  clerkId: string,
   correlationId: CorrelationId,
 ): Promise<string> {
   try {
@@ -114,7 +113,6 @@ async function createStripeCustomer(
       email: email,
       metadata: {
         userId: userId,
-        clerkId: clerkId,
         email: email,
       },
     });
@@ -139,7 +137,6 @@ async function createStripeCustomer(
 export async function getOrCreateStripeCustomer(
   userId: string,
   email: string,
-  clerkId: string,
   stripeCustomerId: string | null | undefined,
   correlationId: CorrelationId,
 ): Promise<string> {
@@ -158,7 +155,7 @@ export async function getOrCreateStripeCustomer(
     }
 
     // Create customer and update database in one operation
-    return await createStripeCustomer(userId, email, clerkId, correlationId);
+    return await createStripeCustomer(userId, email, correlationId);
   } catch (error) {
     submitLogEvent('stripe', `Error getting or creating Stripe customer: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { userId, email }, true);
     throw error;
@@ -176,7 +173,6 @@ export async function getOrCreateStripeCustomer(
 export async function createCheckoutSession(
   userId: string,
   email: string,
-  clerkId: string,
   priceId: string,
   stripeCustomerId: string | null | undefined,
   correlationId: CorrelationId,
@@ -186,7 +182,6 @@ export async function createCheckoutSession(
     const customerId = await getOrCreateStripeCustomer(
       userId,
       email,
-      clerkId,
       stripeCustomerId,
       correlationId,
     );
@@ -239,7 +234,6 @@ export async function createCheckoutSession(
       client_reference_id: userId,
       metadata: {
         userId: userId,
-        clerkId: clerkId,
         email: email,
         ...(hasValidTrial && { trial_days: trialDays.toString() }),
       },

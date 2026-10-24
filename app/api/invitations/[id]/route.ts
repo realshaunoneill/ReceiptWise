@@ -14,7 +14,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /**
  * PATCH /api/invitations/:id — accept or decline from the notifications menu.
  *
- * Matched on the caller's email, which is now always Clerk's verified primary address (it was
+ * Matched on the caller's email, which is always the verified address of the Google account they sign in with (it was
  * user-editable, which let anyone claim an invitation meant for someone else). The link flow
  * uses /api/invitations/token/:token instead.
  */

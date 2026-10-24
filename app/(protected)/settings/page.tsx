@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useUser } from '@clerk/nextjs';
+import { useSession } from '@/lib/auth-client';
 import { useUser as useUserData } from '@/lib/hooks/use-user';
 import { useOnboarding } from '@/components/onboarding/onboarding-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,7 +38,8 @@ const VALID_TABS = ['profile', 'preferences', 'subscription', 'household', 'inte
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user: clerkUser, isLoaded } = useUser();
+  const { data: session, isPending: sessionPending } = useSession();
+  const authUser = session?.user;
   const { user: userData, isLoading: userDataLoading, refetch: refetchUser } = useUserData();
   const { startOnboarding } = useOnboarding();
   const [selectedHousehold, setSelectedHousehold] = useState<string>('none');
@@ -361,7 +362,7 @@ export default function SettingsPage() {
   const isDeletionScheduled = userData?.deletionScheduledAt !== null && userData?.deletionScheduledAt !== undefined;
   const deletionDate = isDeletionScheduled ? new Date(userData.deletionScheduledAt!) : null;
 
-  if (!isLoaded || userDataLoading) {
+  if (sessionPending || userDataLoading) {
     return (
       <main className="container mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
         {/* Header - matches loading.tsx */}
@@ -409,7 +410,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (!clerkUser) {
+  if (!authUser) {
     return null;
   }
 
@@ -463,18 +464,18 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Profile Information</CardTitle>
-                <CardDescription>Your account information from Clerk</CardDescription>
+                <CardDescription>From the Google account you sign in with</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   <Input
                     id="name"
-                    value={clerkUser.fullName || 'Not set'}
+                    value={authUser.name || 'Not set'}
                     disabled
                   />
                   <p className="text-xs text-muted-foreground">
-                    To update your name, please use your Clerk account settings
+                    Change it in your Google account; it updates here the next time you sign in.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -482,15 +483,15 @@ export default function SettingsPage() {
                   <Input
                     id="email"
                     type="email"
-                    value={clerkUser.emailAddresses[0]?.emailAddress || 'No email'}
+                    value={authUser.email || 'No email'}
                     disabled
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="clerk-id">User ID</Label>
+                  <Label htmlFor="user-id">User ID</Label>
                   <Input
-                    id="clerk-id"
-                    value={clerkUser.id}
+                    id="user-id"
+                    value={userData?.id ?? authUser.id}
                     disabled
                     className="font-mono text-xs"
                   />

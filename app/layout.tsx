@@ -2,7 +2,6 @@ import type React from 'react';
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
-import { ClerkProvider } from '@clerk/nextjs';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { Footer } from '@/components/layout/footer';
@@ -104,27 +103,25 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
-      <html lang="en" suppressHydrationWarning>
-        <body className={`${plexSans.variable} ${plexMono.variable} font-sans antialiased`}>
-          <NuqsAdapter>
-            <QueryProvider>
-              <PostHogProvider>
-                <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-                  <StagingBanner />
-                  <div className="flex min-h-screen flex-col">
-                    <div className="flex-1">{children}</div>
-                    <Footer />
-                  </div>
-                  <Toaster />
-                  <ConsentBanner />
-                </ThemeProvider>
-              </PostHogProvider>
-            </QueryProvider>
-          </NuqsAdapter>
-          <Analytics />
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${plexSans.variable} ${plexMono.variable} font-sans antialiased`}>
+        <NuqsAdapter>
+          <QueryProvider>
+            <PostHogProvider>
+              <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+                <StagingBanner />
+                <div className="flex min-h-screen flex-col">
+                  <div className="flex-1">{children}</div>
+                  <Footer />
+                </div>
+                <Toaster />
+                <ConsentBanner />
+              </ThemeProvider>
+            </PostHogProvider>
+          </QueryProvider>
+        </NuqsAdapter>
+        <Analytics />
+      </body>
+    </html>
   );
 }

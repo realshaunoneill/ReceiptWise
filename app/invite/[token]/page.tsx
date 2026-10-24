@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
+import { headers } from 'next/headers';
 import { Users } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getAuth } from '@/lib/auth';
 import { HouseholdService } from '@/lib/services/household-service';
 import { InviteActions, RememberInvite } from './invite-actions';
 
@@ -31,10 +32,11 @@ const CLOSED_MESSAGES: Record<string, string> = {
  */
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const [invitation, { userId }] = await Promise.all([
+  const [invitation, session] = await Promise.all([
     HouseholdService.getInvitationByToken(token),
-    auth(),
+    getAuth().api.getSession({ headers: await headers() }),
   ]);
+  const userId = session?.user.id;
 
   const isPending = invitation?.status === 'pending';
   const expires = invitation?.expiresAt.toLocaleDateString('en-IE', { day: 'numeric', month: 'long' });
@@ -103,14 +105,10 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
                 ) : (
                   <>
                     <RememberInvite token={token} />
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button asChild className="flex-1">
-                        <Link href="/sign-up">Create an account</Link>
-                      </Button>
-                      <Button asChild variant="outline" className="flex-1">
-                        <Link href="/sign-in">I already have one</Link>
-                      </Button>
-                    </div>
+                    {/* One button: signing in with Google creates the account if there isn't one. */}
+                    <Button asChild className="w-full">
+                      <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`}>Sign in to accept</Link>
+                    </Button>
                     <p className="text-xs text-muted-foreground">
                       You&apos;ll come straight back here to accept once you&apos;re signed in.
                     </p>

@@ -1,9 +1,13 @@
 import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, uniqueIndex, date, numeric, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
-// Users Table
+// Users Table: the app's own profile of each person. Sign-in is Better Auth (auth_* tables below);
+// a row is linked to its auth_user by authUserId, made on first sign-in or matched by verified email.
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
-  clerkId: text('clerk_id').notNull().unique(),
+  // From the Clerk years (until 2026-10-24). Kept, nullable, rather than dropped: the build applies
+  // the schema with `drizzle-kit push --force`, where a drop is destructive and unrecoverable.
+  clerkId: text('clerk_id').unique(),
+  authUserId: text('auth_user_id').references((): AnyPgColumn => authUser.id, { onDelete: 'set null' }),
   email: text('email').notNull().unique(),
   subscribed: boolean('subscribed').notNull().default(false),
   isAdmin: boolean('is_admin').notNull().default(false),
@@ -16,6 +20,65 @@ export const users = pgTable('users', {
   onboardingCompletedAt: timestamp('onboarding_completed_at'),
   lastExportedAt: timestamp('last_exported_at'),
   deletionScheduledAt: timestamp('deletion_scheduled_at'), // When account is scheduled for deletion (24 hours from request)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  authUserUnique: uniqueIndex('users_auth_user_uidx').on(table.authUserId),
+}));
+
+// ---------------------------------------------------------------------------------------------
+// Better Auth (lib/auth.ts). Its own tables, prefixed so they never read as the app's `users`.
+// The shape is better-auth 1.7's; the drizzle adapter maps them by the keys in lib/auth.ts.
+// Google is the only provider in production, so `account.password` is only ever set by the
+// development-only email sign-in (lib/dev-login.ts).
+// ---------------------------------------------------------------------------------------------
+
+export const authUser = pgTable('auth_user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const authSession = pgTable('auth_session', {
+  id: text('id').primaryKey(),
+  token: text('token').notNull().unique(),
+  userId: text('user_id').notNull().references(() => authUser.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index('auth_session_user_idx').on(table.userId),
+}));
+
+export const authAccount = pgTable('auth_account', {
+  id: text('id').primaryKey(),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  userId: text('user_id').notNull().references(() => authUser.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at'),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index('auth_account_user_idx').on(table.userId),
+}));
+
+export const authVerification = pgTable('auth_verification', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { useUser } from '@clerk/nextjs';
+import { signOutAndLeave, useSession } from '@/lib/auth-client';
 import { useUser as useUserData } from '@/lib/hooks/use-user';
 import { OnboardingProvider } from '@/components/onboarding/onboarding-provider';
 import { OnboardingTour } from '@/components/onboarding/onboarding-tour';
@@ -10,11 +10,8 @@ import { Navigation } from '@/components/layout/navigation';
 import { ShieldX, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useClerk } from '@clerk/nextjs';
 
 function BlockedUserPage({ reason }: { reason?: string }) {
-  const { signOut } = useClerk();
-
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="text-center max-w-md">
@@ -43,7 +40,7 @@ function BlockedUserPage({ reason }: { reason?: string }) {
               Contact Support
             </a>
           </Button>
-          <Button variant="outline" onClick={() => signOut()}>
+          <Button variant="outline" onClick={() => signOutAndLeave()}>
             Sign Out
           </Button>
         </div>
@@ -73,11 +70,12 @@ export default function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoaded: clerkLoaded, isSignedIn } = useUser();
+  const { data: session, isPending: sessionPending } = useSession();
+  const isSignedIn = Boolean(session);
   const { isLoading: userDataLoading, isBlocked, blockedReason } = useUserData();
 
   // Show loading state while authentication is being checked
-  if (!clerkLoaded || userDataLoading) {
+  if (sessionPending || userDataLoading) {
     return (
       <div className="min-h-screen bg-background">
         {/* Navigation Skeleton */}
@@ -137,7 +135,7 @@ export default function ProtectedLayout({
     );
   }
 
-  // User not signed in (will be redirected by middleware, but show loading)
+  // Not signed in: proxy.ts redirects on the next navigation; render nothing meanwhile
   if (!isSignedIn) {
     return null;
   }

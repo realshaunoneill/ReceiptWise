@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useUser as useClerkUser } from '@clerk/nextjs';
+import { useSession } from '@/lib/auth-client';
 import type { User } from '@/lib/db/schema';
 import type { Feature, FeatureFlags } from '@/lib/features';
 import type { FinanceEntitlements } from '@/lib/services/finance-access';
@@ -54,7 +54,9 @@ async function updateUser(data: Partial<User>): Promise<UserResponse> {
  * Hook to get current user data with subscription status
  */
 export function useUser() {
-  const { isLoaded: isClerkLoaded, isSignedIn, user: clerkUser } = useClerkUser();
+  const { data: session, isPending: isSessionPending } = useSession();
+  const authUserId = session?.user.id;
+  const isSignedIn = Boolean(session);
 
   const {
     data: user,
@@ -62,9 +64,9 @@ export function useUser() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['user', clerkUser?.id],
+    queryKey: ['user', authUserId],
     queryFn: fetchUser,
-    enabled: isClerkLoaded && isSignedIn && !!clerkUser,
+    enabled: Boolean(authUserId),
     retry: (failureCount, error) => {
       // Don't retry if user is blocked
       if ((error as Error & { isBlocked?: boolean })?.isBlocked) {
@@ -81,7 +83,7 @@ export function useUser() {
 
   return {
     user,
-    isLoading: !isClerkLoaded || isLoading,
+    isLoading: isSessionPending || isLoading,
     isSignedIn,
     error,
     refetch,
@@ -106,7 +108,7 @@ export function useUpdateUser() {
     mutationFn: updateUser,
     onSuccess: (data) => {
       // Update the user query cache
-      queryClient.setQueryData(['user', data.clerkId], data);
+      queryClient.setQueryData(['user', data.authUserId], data);
     },
   });
 }

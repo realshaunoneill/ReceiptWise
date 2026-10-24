@@ -1,5 +1,7 @@
-import { auth, clerkClient } from '@clerk/nextjs/server';
+import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { getAuth } from '@/lib/auth';
+import { isDevLoginEnabled } from '@/lib/dev-login';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { UserService } from '@/lib/services/user-service';
 import { randomUUID } from 'crypto';
@@ -10,46 +12,31 @@ import type { User, Receipt } from '@/lib/db/schema';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 
 /**
- * Get the user's primary, verified email from Clerk.
+ * The signed-in person, from the Better Auth session, with their app `users` row.
  *
- * `users.email` is used as an identity key — invitations are matched on it, and Stripe customers
- * are re-associated by it — so it must only ever hold an address Clerk has verified. It is
- * lower-cased so that matching an invitation typed as "Megan@Gmail.com" works.
- */
-export async function getClerkUserEmail(clerkId: string, correlationId?: CorrelationId): Promise<string | null> {
-  try {
-    const client = await clerkClient();
-    const user = await client.users.getUser(clerkId);
-    const primary = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId);
-    const verified = [primary, ...user.emailAddresses].find(
-      (e) => e && e.verification?.status === 'verified',
-    );
-    return verified?.emailAddress.trim().toLowerCase() ?? null;
-  } catch (error) {
-    submitLogEvent('auth', `Error fetching Clerk user: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId || randomUUID() as CorrelationId, { clerkId }, true);
-    return null;
-  }
-}
-
-/**
- * Get or create authenticated user from database
- * Returns user object or NextResponse error
+ * `users.email` is an identity key (invitations are matched on it, Stripe customers re-associated
+ * by it), so only a verified address is accepted: Google's always is. The row is found by its link
+ * to the auth user, or on first sign-in by that verified email, which is how accounts from the
+ * Clerk years carry over.
+ *
+ * Returns { user, authUserId, email, correlationId }, or the error response to send.
  */
 export async function getAuthenticatedUser(correlationId?: CorrelationId) {
   const cid = correlationId || randomUUID() as CorrelationId;
-  const { userId: clerkId } = await auth();
+  const session = await getAuth().api.getSession({ headers: await headers() });
 
-  if (!clerkId) {
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const email = await getClerkUserEmail(clerkId, cid);
-  if (!email) {
-    return NextResponse.json({ error: 'User email not found' }, { status: 400 });
+  const email = session.user.email?.trim().toLowerCase();
+  // Local dev-login accounts have no way to verify an address; nowhere else accepts one unverified.
+  if (!email || (!session.user.emailVerified && !isDevLoginEnabled())) {
+    return NextResponse.json({ error: 'A verified email address is required' }, { status: 400 });
   }
 
   try {
-    const user = await UserService.getOrCreateUser(clerkId, email);
+    const user = await UserService.getOrCreateUserForAuth(session.user.id, email);
 
     // Check if user is blocked
     if (user.isBlocked) {
@@ -63,9 +50,9 @@ export async function getAuthenticatedUser(correlationId?: CorrelationId) {
       );
     }
 
-    return { user, clerkId, email, correlationId: cid };
+    return { user, authUserId: session.user.id, email, correlationId: cid };
   } catch (error) {
-    submitLogEvent('auth', `Error getting/creating user: ${error instanceof Error ? error.message : 'Unknown error'}`, cid, { clerkId }, true);
+    submitLogEvent('auth', `Error getting/creating user: ${error instanceof Error ? error.message : 'Unknown error'}`, cid, { authUserId: session.user.id }, true);
     return NextResponse.json({ error: 'Failed to authenticate user' }, { status: 500 });
   }
 }

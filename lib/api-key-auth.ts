@@ -5,8 +5,8 @@ import { db } from '@/lib/db';
 import { apiKeys, users, type ApiKey, type User } from '@/lib/db/schema';
 
 /*
- * API-key authentication for the Chrome extension routes (/api/extension/*), which sit outside
- * Clerk's middleware.
+ * API-key authentication for the Chrome extension routes (/api/extension/*), which have no sign-in
+ * session.
  *
  * This existed three times with different rules: upload checked blocked + subscribed, process
  * checked neither, and none checked a pending account deletion — so a suspended or lapsed user

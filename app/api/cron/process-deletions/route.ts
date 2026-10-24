@@ -3,10 +3,9 @@ import { randomUUID } from 'crypto';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
 import { del } from '@vercel/blob';
 import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
-import { clerkClient } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { billDocuments, receipts, users } from '@/lib/db/schema';
+import { authUser, billDocuments, receipts, users } from '@/lib/db/schema';
 import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
@@ -98,30 +97,12 @@ async function deleteReceiptBlobs(userId: string, correlationId: CorrelationId):
 }
 
 /**
- * Delete the Clerk identity. Treated as idempotent: an already-deleted user is success,
- * so a partially-failed previous run can be retried safely.
- */
-async function deleteClerkUser(clerkId: string, correlationId: CorrelationId): Promise<void> {
-  try {
-    const client = await clerkClient();
-    await client.users.deleteUser(clerkId);
-  } catch (error) {
-    const status = (error as { status?: number })?.status;
-    if (status === 404) {
-      submitLogEvent('user', 'Clerk user already deleted, continuing', correlationId, { clerkId });
-      return;
-    }
-    throw error;
-  }
-}
-
-/**
  * GET /api/cron/process-deletions
  *
  * Hard-deletes accounts whose 24h deletion window has elapsed. Vercel Cron issues GET
  * requests with the CRON_SECRET as a bearer token.
  *
- * External cleanup (Stripe, Blob, Clerk) runs before the database row is removed, because
+ * External cleanup (Stripe, Blob) runs before the database row is removed, because
  * the row holds the identifiers those systems need. If any step fails the row is left in
  * place and retried on the next run rather than orphaning remote data.
  */
@@ -177,11 +158,14 @@ export async function GET(req: NextRequest) {
           });
         }
 
-        await deleteClerkUser(user.clerkId, correlationId);
-
-        // Receipts, items, household memberships, invitations, api keys and insights
-        // cache all cascade from this row.
-        await db.delete(users).where(eq(users.id, user.id));
+        // The sign-in identity goes with the row, in one transaction: its sessions and Google
+        // link cascade from auth_user, and receipts, items, household memberships, invitations,
+        // api keys and insights cache from users. (Identities from before the move off Clerk
+        // went when that Clerk instance was deleted.)
+        await db.transaction(async (tx) => {
+          await tx.delete(users).where(eq(users.id, user.id));
+          if (user.authUserId) await tx.delete(authUser).where(eq(authUser.id, user.authUserId));
+        });
 
         processed++;
         submitLogEvent('user', 'Account permanently deleted', correlationId, { userId: user.id });
