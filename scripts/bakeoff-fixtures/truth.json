@@ -1,0 +1,223 @@
+{
+  "receipts": [
+    {
+      "file": "receipt-tesco-clean.png",
+      "merchant": "TESCO",
+      "total": 35.56,
+      "date": "2026-10-21",
+      "currency": "EUR",
+      "itemCount": 10,
+      "itemsSum": 35.56
+    },
+    {
+      "file": "receipt-tesco-photo.jpg",
+      "merchant": "TESCO",
+      "total": 35.56,
+      "date": "2026-10-21",
+      "currency": "EUR",
+      "itemCount": 10,
+      "itemsSum": 35.56
+    },
+    {
+      "file": "receipt-lidl-clean.png",
+      "merchant": "LIDL",
+      "total": 19.92,
+      "date": "2026-10-09",
+      "currency": "EUR",
+      "itemCount": 6,
+      "itemsSum": 19.92
+    },
+    {
+      "file": "receipt-lidl-photo.jpg",
+      "merchant": "LIDL",
+      "total": 19.92,
+      "date": "2026-10-09",
+      "currency": "EUR",
+      "itemCount": 6,
+      "itemsSum": 19.92
+    },
+    {
+      "file": "receipt-brazen-clean.png",
+      "merchant": "THE BRAZEN HEAD",
+      "total": 96.71,
+      "date": "2026-10-14",
+      "currency": "EUR",
+      "itemCount": 4,
+      "itemsSum": 85.85
+    },
+    {
+      "file": "receipt-brazen-photo.jpg",
+      "merchant": "THE BRAZEN HEAD",
+      "total": 96.71,
+      "date": "2026-10-14",
+      "currency": "EUR",
+      "itemCount": 4,
+      "itemsSum": 85.85
+    },
+    {
+      "file": "receipt-dunnes-clean.png",
+      "merchant": "DUNNES STORES",
+      "total": 30.53,
+      "date": "2026-10-02",
+      "currency": "EUR",
+      "itemCount": 5,
+      "itemsSum": 37.53
+    },
+    {
+      "file": "receipt-dunnes-photo.jpg",
+      "merchant": "DUNNES STORES",
+      "total": 30.53,
+      "date": "2026-10-02",
+      "currency": "EUR",
+      "itemCount": 5,
+      "itemsSum": 37.53
+    },
+    {
+      "file": "receipt-aldi-clean.png",
+      "merchant": "ALDI",
+      "total": 41.57,
+      "date": "2026-09-26",
+      "currency": "EUR",
+      "itemCount": 18,
+      "itemsSum": 41.57
+    },
+    {
+      "file": "receipt-aldi-photo.jpg",
+      "merchant": "ALDI",
+      "total": 41.57,
+      "date": "2026-09-26",
+      "currency": "EUR",
+      "itemCount": 18,
+      "itemsSum": 41.57
+    },
+    {
+      "file": "receipt-circlek-clean.png",
+      "merchant": "CIRCLE K",
+      "total": 81.75,
+      "date": "2026-10-19",
+      "currency": "EUR",
+      "itemCount": 3,
+      "itemsSum": 81.75
+    },
+    {
+      "file": "receipt-circlek-photo.jpg",
+      "merchant": "CIRCLE K",
+      "total": 81.75,
+      "date": "2026-10-19",
+      "currency": "EUR",
+      "itemCount": 3,
+      "itemsSum": 81.75
+    },
+    {
+      "file": "receipt-bootsuk-clean.png",
+      "merchant": "BOOTS",
+      "total": 43.74,
+      "date": "2026-03-05",
+      "currency": "GBP",
+      "itemCount": 4,
+      "itemsSum": 43.74
+    },
+    {
+      "file": "receipt-bootsuk-photo.jpg",
+      "merchant": "BOOTS",
+      "total": 43.74,
+      "date": "2026-03-05",
+      "currency": "GBP",
+      "itemCount": 4,
+      "itemsSum": 43.74
+    },
+    {
+      "file": "receipt-target-clean.png",
+      "merchant": "TARGET",
+      "total": 53.26,
+      "date": "2026-10-09",
+      "currency": "USD",
+      "itemCount": 4,
+      "itemsSum": 53.26
+    },
+    {
+      "file": "receipt-target-photo.jpg",
+      "merchant": "TARGET",
+      "total": 53.26,
+      "date": "2026-10-09",
+      "currency": "USD",
+      "itemCount": 4,
+      "itemsSum": 53.26
+    },
+    {
+      "file": "receipt-faded-clean.png",
+      "merchant": "SUPERVALU",
+      "total": 17.14,
+      "date": "2026-10-23",
+      "currency": "EUR",
+      "itemCount": 6,
+      "itemsSum": 17.14
+    },
+    {
+      "file": "receipt-faded-photo.jpg",
+      "merchant": "SUPERVALU",
+      "total": 17.14,
+      "date": "2026-10-23",
+      "currency": "EUR",
+      "itemCount": 6,
+      "itemsSum": 17.14
+    },
+    {
+      "file": "receipt-cafe-clean.png",
+      "merchant": "BEAN THERE CAFE",
+      "total": 11.55,
+      "date": "2026-10-12",
+      "currency": "EUR",
+      "itemCount": 2,
+      "itemsSum": 11.55
+    },
+    {
+      "file": "receipt-cafe-photo.jpg",
+      "merchant": "BEAN THERE CAFE",
+      "total": 11.55,
+      "date": "2026-10-12",
+      "currency": "EUR",
+      "itemCount": 2,
+      "itemsSum": 11.55
+    }
+  ],
+  "bills": [
+    {
+      "file": "bill-electric-pdf.pdf",
+      "provider": "Electric Ireland",
+      "documentType": "utility_bill",
+      "amountDue": 142.3,
+      "dueDate": "2026-11-14",
+      "isDirectDebit": true
+    },
+    {
+      "file": "bill-card-pdf.pdf",
+      "provider": "AIB",
+      "documentType": "credit_card_statement",
+      "amountDue": 547.12,
+      "dueDate": "2026-11-20",
+      "minimumPayment": 25.0
+    },
+    {
+      "file": "bill-virgin-photo.jpg",
+      "provider": "Virgin Media",
+      "documentType": "utility_bill",
+      "amountDue": 65.0,
+      "dueDate": "2026-11-03"
+    },
+    {
+      "file": "bill-bordgais-email.txt",
+      "provider": "Bord Gáis Energy",
+      "documentType": "utility_bill",
+      "amountDue": 88.4,
+      "dueDate": "2026-11-09"
+    },
+    {
+      "file": "bill-notification-email.txt",
+      "provider": "Eir",
+      "documentType": "bill_notification",
+      "amountDue": null,
+      "dueDate": null
+    }
+  ]
+}

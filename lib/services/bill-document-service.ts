@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { APICallError, JSONParseError, NoObjectGeneratedError, RetryError, TypeValidationError } from 'ai';
+import { APICallError, JSONParseError, NoObjectGeneratedError, NoOutputGeneratedError, RetryError, TypeValidationError } from 'ai';
 import { and, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { billDocuments, planEntries, subscriptions, type BillDocument, type Subscription } from '@/lib/db/schema';
@@ -32,7 +32,7 @@ function describeBillError(error: unknown): string {
   const inner = RetryError.isInstance(error) ? error.lastError : error;
   const name = inner instanceof Error ? inner.name : '';
   if (name === 'TimeoutError' || name === 'AbortError') return 'Reading this bill took too long. Try again.';
-  if (NoObjectGeneratedError.isInstance(inner) || TypeValidationError.isInstance(inner) || JSONParseError.isInstance(inner)) {
+  if (NoObjectGeneratedError.isInstance(inner) || NoOutputGeneratedError.isInstance(inner) || TypeValidationError.isInstance(inner) || JSONParseError.isInstance(inner)) {
     return "We couldn't read this bill. Try again, or upload a clearer copy.";
   }
   if (APICallError.isInstance(inner) && (inner.statusCode === 429 || (inner.statusCode ?? 0) >= 500)) {

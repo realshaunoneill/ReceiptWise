@@ -1,14 +1,14 @@
-import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
+import { gatewayOptions, modelFor, toTokenUsage, type TokenUsage } from '@/lib/ai-model';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
-import { normalizeReceiptDate, type TokenUsage } from '@/lib/openai';
+import { normalizeReceiptDate } from '@/lib/receipt-ai';
 
 /**
  * Read a bill: who it's from, what's due and when, and for a credit card statement the balance and
- * minimum payment. PDFs go to gpt-4o as a file part (@ai-sdk/openai 1.3 sends the bytes as an
- * OpenAI file input, which gives the model the text and an image of each page, so scanned PDFs
- * work too); photos as an image part; a forwarded email with no attachment as its text.
+ * minimum payment, with the model lib/ai-model.ts picks for bills. PDFs go as a file part (the
+ * model gets the text and an image of each page, so scanned PDFs work too); photos as an image
+ * part; a forwarded email with no attachment as its text.
  *
  * Logging: only ids, the document type and token counts. A bill holds names, addresses and
  * account numbers, so its contents never go to the log sink.
@@ -71,7 +71,7 @@ function prompt(today: string): string {
 
 export async function analyzeBillDocument(
   input: BillInput,
-  context: { userId: string; documentId: string; correlationId: CorrelationId },
+  context: { userId: string; documentId: string; correlationId: CorrelationId; model?: string },
 ): Promise<{ data: BillData; usage: TokenUsage }> {
   const today = new Date().toISOString().split('T')[0];
   const content = input.kind === 'text'
@@ -79,26 +79,31 @@ export async function analyzeBillDocument(
     : input.mimeType === 'application/pdf'
       ? [
         { type: 'text' as const, text: prompt(today) },
-        { type: 'file' as const, data: input.bytes, mimeType: 'application/pdf', filename: input.fileName ?? 'bill.pdf' },
+        { type: 'file' as const, data: input.bytes, mediaType: 'application/pdf', filename: input.fileName ?? 'bill.pdf' },
       ]
       : [
         { type: 'text' as const, text: prompt(today) },
-        { type: 'image' as const, image: input.bytes, mimeType: input.mimeType },
+        { type: 'image' as const, image: input.bytes, mediaType: input.mimeType },
       ];
 
-  const result = await generateObject({
-    model: openai('gpt-4o'),
-    schema: billDataSchema,
+  const model = modelFor('bill', context.model);
+  const generated = await generateText({
+    model,
+    output: Output.object({ schema: billDataSchema, name: 'bill' }),
+    providerOptions: gatewayOptions('bill', context.model),
     maxRetries: 1,
     abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
     messages: [{ role: 'user', content }],
   });
+  const result = { object: generated.output, usage: toTokenUsage(generated.usage, generated.providerMetadata) };
 
   submitLogEvent('bill-document', 'Bill read', context.correlationId, {
     documentId: context.documentId,
     userId: context.userId,
     documentType: result.object.documentType,
     confidence: result.object.confidence,
+    model,
+    servedBy: generated.response.modelId,
     promptTokens: result.usage.promptTokens,
     completionTokens: result.usage.completionTokens,
   });
@@ -119,11 +124,7 @@ export async function analyzeBillDocument(
       accountNumberLast4: last4,
       currency: result.object.currency?.trim().toUpperCase().match(/^[A-Z]{3}$/)?.[0] ?? null,
     },
-    usage: {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
-    },
+    usage: result.usage,
   };
 }
 

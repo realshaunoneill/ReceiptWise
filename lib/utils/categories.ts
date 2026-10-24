@@ -27,7 +27,7 @@ import {
  * up with the raw category string while the timeline lower-cased first, so a
  * capitalised value from the scanner only matched in one of the two.
  *
- * The keys below are exactly the values the extraction prompt in `lib/openai.ts`
+ * The keys below are exactly the values the extraction prompt in `lib/receipt-ai.ts`
  * is allowed to return. Adding a category means adding it there and here.
  */
 

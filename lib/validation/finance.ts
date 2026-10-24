@@ -48,8 +48,10 @@ const day = z.string().transform((value, ctx) => {
 /** A calendar day for the Postgres `date` columns, which hold YYYY-MM-DD strings. */
 const localDate = z.string().refine(isLocalDate, 'must be a YYYY-MM-DD date');
 
-const optionalText = (max: number) => z.string().trim().max(max).nullable().optional()
-  .transform((value) => (value === '' ? null : value));
+// The transform sits before .optional(): zod 4 types a transform after .optional() as a required
+// key (`notes: string | null | undefined`), which made every caller pass every text field.
+const optionalText = (max: number) => z.string().trim().max(max).nullable()
+  .transform((value) => (value === '' ? null : value)).optional();
 
 const subscriptionFields = {
   name: z.string().trim().min(1, 'is required').max(200),
@@ -129,7 +131,13 @@ export function parseBody<T extends z.ZodTypeAny>(
   const result = schema.safeParse(body);
   if (result.success) return { data: result.data };
 
-  const issue = result.error.issues[0];
+  // A union (one entry, or { entries }) that matched neither only says "Invalid input": report the
+  // closest branch's own first problem instead, e.g. "amount must be a number, 0 or more".
+  let issue = result.error.issues[0];
+  if (issue.code === 'invalid_union' && issue.errors.length > 0) {
+    const closest = [...issue.errors].sort((a, b) => a.length - b.length)[0];
+    if (closest[0]) issue = { ...closest[0], path: [...issue.path, ...closest[0].path] } as typeof issue;
+  }
   const field = issue.path.join('.');
   const message = issue.code === 'unrecognized_keys'
     ? `Unknown field: ${issue.keys.join(', ')}`

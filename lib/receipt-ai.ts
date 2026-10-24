@@ -1,9 +1,13 @@
-import { generateObject, generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { generateText, Output } from 'ai';
+import { gatewayOptions, modelFor, toTokenUsage, type TokenUsage } from '@/lib/ai-model';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { z } from 'zod';
 
-// Zod schemas for type-safe AI responses
+// Zod schemas for type-safe AI responses.
+//
+// Every optional field is `.nullable()` and never `.optional()` or `.default()`: OpenAI's strict
+// structured output (which the gateway uses for openai/* models) requires every key to be listed
+// as required, and a request whose schema leaves one out is rejected with a 400 at call time.
 const itemModifierSchema = z.object({
   name: z.string(),
   price: z.number(),
@@ -12,60 +16,56 @@ const itemModifierSchema = z.object({
 
 const receiptItemSchema = z.object({
   name: z.string(),
-  quantity: z.number().nullable().optional(),
+  quantity: z.number().nullable(),
   // Nullable: the model occasionally returns null for one unreadable line, and a strict number
   // here failed schema validation for the whole receipt. Treated as 0 downstream.
   price: z.number().nullable(),
-  category: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  modifiers: z.array(itemModifierSchema).nullable().optional(),
+  category: z.string().nullable(),
+  description: z.string().nullable(),
+  modifiers: z.array(itemModifierSchema).nullable(),
 });
 
 const receiptDataSchema = z.object({
-  isReceipt: z.boolean().default(true).describe('Whether this image appears to be a receipt, invoice, or purchase-related document. False if it\'s a screenshot, meme, random image, etc.'),
+  isReceipt: z.boolean().describe('Whether this image appears to be a receipt, invoice, or purchase-related document. False if it\'s a screenshot, meme, random image, etc.'),
   // A bill asks for a payment not made yet; the app offers to move those to Bills.
-  documentKind: z.enum(['receipt', 'bill', 'other']).nullable().optional(),
-  merchant: z.string().nullable().optional(),
-  total: z.number().nullable().optional(),
-  currency: z.string().nullable().optional(),
-  date: z.string().nullable().optional(),
-  category: z.string().nullable().optional(),
-  items: z.array(receiptItemSchema).nullable().optional(),
+  documentKind: z.enum(['receipt', 'bill', 'other']).nullable(),
+  merchant: z.string().nullable(),
+  total: z.number().nullable(),
+  currency: z.string().nullable(),
+  date: z.string().nullable(),
+  category: z.string().nullable(),
+  items: z.array(receiptItemSchema).nullable(),
   rawItems: z.array(z.object({
     name: z.string(),
     price: z.number().nullable(),
-  })).nullable().optional(),
-  location: z.string().nullable().optional(),
-  subtotal: z.number().nullable().optional(),
-  tax: z.number().nullable().optional(),
-  serviceCharge: z.number().nullable().optional(),
-  paymentMethod: z.string().nullable().optional(),
-  receiptNumber: z.string().nullable().optional(),
-  merchantType: z.string().nullable().optional(),
-  tips: z.number().nullable().optional(),
-  discount: z.number().nullable().optional(),
-  loyaltyNumber: z.string().nullable().optional(),
-  tableNumber: z.string().nullable().optional(),
-  serverName: z.string().nullable().optional(),
-  orderNumber: z.string().nullable().optional(),
-  phoneNumber: z.string().nullable().optional(),
-  website: z.string().nullable().optional(),
-  vatNumber: z.string().nullable().optional(),
-  timeOfDay: z.string().nullable().optional(),
-  customerCount: z.number().nullable().optional(),
-  specialOffers: z.string().nullable().optional(),
-  deliveryFee: z.number().nullable().optional(),
-  packagingFee: z.number().nullable().optional(),
+  })).nullable(),
+  location: z.string().nullable(),
+  subtotal: z.number().nullable(),
+  tax: z.number().nullable(),
+  serviceCharge: z.number().nullable(),
+  paymentMethod: z.string().nullable(),
+  receiptNumber: z.string().nullable(),
+  merchantType: z.string().nullable(),
+  tips: z.number().nullable(),
+  discount: z.number().nullable(),
+  loyaltyNumber: z.string().nullable(),
+  tableNumber: z.string().nullable(),
+  serverName: z.string().nullable(),
+  orderNumber: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  website: z.string().nullable(),
+  vatNumber: z.string().nullable(),
+  timeOfDay: z.string().nullable(),
+  customerCount: z.number().nullable(),
+  specialOffers: z.string().nullable(),
+  deliveryFee: z.number().nullable(),
+  packagingFee: z.number().nullable(),
 });
 
 export type ItemModifier = z.infer<typeof itemModifierSchema>;
 export type ReceiptData = z.infer<typeof receiptDataSchema>;
 
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-}
+export type { TokenUsage };
 
 export interface ReceiptAnalysisResult {
   data: ReceiptData;
@@ -105,17 +105,16 @@ export interface SpendingInsight {
 }
 
 /**
- * Analyze a receipt image with GPT-4o (vision) and return the structured extraction.
+ * Read a receipt image into structured data, with the model lib/ai-model.ts picks for receipts.
  *
- * Used by every processing channel through lib/receipt-processing.ts. GPT-4o rather than
- * GPT-4o-mini: accuracy on faded or crumpled receipts matters more here than the cost difference.
- * (generateSpendingSummary below is the one call that uses gpt-4o-mini.)
+ * Used by every processing channel through lib/receipt-processing.ts.
  */
-export async function analyzeReceiptWithGPT4o(
+export async function analyzeReceiptImage(
   imageUrl: string,
   userEmail: string,
   userId: string,
   correlationId: CorrelationId,
+  options: { model?: string } = {},
 ): Promise<ReceiptAnalysisResult> {
   submitLogEvent('receipt-process', 'Fetching image for analysis', correlationId, { imageUrl, userId });
 
@@ -128,35 +127,24 @@ export async function analyzeReceiptWithGPT4o(
   const inputImageBuffer = await inputImageRes.arrayBuffer();
 
   const buffer = Buffer.from(inputImageBuffer);
-  const base64Image = buffer.toString('base64');
   const mimeType = contentType || 'image/png';
 
-  submitLogEvent('receipt-process', 'Calling OpenAI Vision API with GPT-4o', correlationId, { userId, userEmail });
+  const model = modelFor('receipt', options.model);
+  submitLogEvent('receipt-process', `Reading receipt with ${model}`, correlationId, { userId, model });
 
   // Get current date for context
   const currentDate = new Date().toISOString().split('T')[0];
 
-  // Use GPT-4o for receipt analysis - best accuracy for OCR tasks
-  // especially important for faded, crumpled, or hard-to-read receipts
   let result;
   try {
-    result = await generateObject({
-      model: openai('gpt-4o'),
-      schema: receiptDataSchema,
+    result = await generateText({
+      model,
+      output: Output.object({ schema: receiptDataSchema, name: 'receipt' }),
+      providerOptions: gatewayOptions('receipt', options.model),
       // Without these a slow or failing call retried twice with no deadline, running past the
       // route's maxDuration and leaving the receipt wedged in 'processing'.
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(VISION_TIMEOUT_MS),
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'analyzeReceiptWithGPT4o',
-        metadata: {
-          userId,
-          userEmail,
-          correlationId,
-          purpose: 'receipt_processing',
-        },
-      },
       messages: [
         {
           role: 'user',
@@ -242,7 +230,8 @@ Extract all numeric values as numbers (not strings).`,
           },
           {
             type: 'image',
-            image: `data:${mimeType};base64,${base64Image}`,
+            image: buffer,
+            mediaType: mimeType,
           },
         ],
       },
@@ -286,12 +275,11 @@ Extract all numeric values as numbers (not strings).`,
     throw error;
   }
 
-  submitLogEvent('receipt-process', 'OpenAI API usage', correlationId, {
-    promptTokens: result.usage.promptTokens,
-    completionTokens: result.usage.completionTokens,
-    totalTokens: result.usage.totalTokens,
-    model: 'gpt-4o',
-    userEmail,
+  const usage = toTokenUsage(result.usage, result.providerMetadata);
+  submitLogEvent('receipt-process', 'Receipt read', correlationId, {
+    ...usage,
+    model,
+    servedBy: result.response.modelId,
     userId,
   });
 
@@ -299,27 +287,23 @@ Extract all numeric values as numbers (not strings).`,
   submitLogEvent('receipt-analysis-result', 'Full receipt analysis data extracted', correlationId, {
     userId,
     userEmail,
-    extractedData: result.object,
-    itemCount: result.object.items?.length || 0,
-    rawItemCount: result.object.rawItems?.length || 0,
+    extractedData: result.output,
+    itemCount: result.output.items?.length || 0,
+    rawItemCount: result.output.rawItems?.length || 0,
   });
 
   return {
     data: {
-      ...result.object,
-      date: normalizeReceiptDate(result.object.date),
+      ...result.output,
+      date: normalizeReceiptDate(result.output.date),
     },
-    usage: {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
-    },
+    usage,
   };
 }
 
 
 /**
- * Generate spending summary using GPT-4o Mini
+ * The written spending summary on Insights, with the model lib/ai-model.ts picks for summaries.
  */
 export async function generateSpendingSummary(
   aggregatedData: {
@@ -335,9 +319,8 @@ export async function generateSpendingSummary(
   userId: string,
   correlationId: CorrelationId,
 ): Promise<SpendingInsight> {
-  submitLogEvent('receipt', 'Generating AI spending summary with Vercel AI SDK', correlationId, {
+  submitLogEvent('receipt', 'Generating AI spending summary', correlationId, {
     userId,
-    userEmail,
     totalItems: aggregatedData.totalItems,
     totalSpent: aggregatedData.totalSpent,
   });
@@ -352,21 +335,11 @@ export async function generateSpendingSummary(
     }
   };
 
+  const model = modelFor('summary');
   const result = await generateText({
-    model: openai('gpt-4o-mini'),
+    model,
+    providerOptions: gatewayOptions('summary'),
     system: 'You are a helpful financial advisor analyzing spending patterns. Provide insights, identify trends, and offer actionable advice. Be concise but insightful. Use a friendly, conversational tone.',
-    experimental_telemetry: {
-      isEnabled: true,
-      functionId: 'generateSpendingSummary',
-      metadata: {
-        userId,
-        userEmail,
-        correlationId,
-        purpose: 'spending_summary',
-        totalItems: aggregatedData.totalItems,
-        totalSpent: aggregatedData.totalSpent,
-      },
-    },
     // Amounts formatted as the app shows them ("€200.10"): given "EUR 200.1", the summary wrote
     // money that way too.
     prompt: `Analyze this spending data and provide a summary with insights and recommendations:
@@ -392,27 +365,22 @@ Please provide:
 5. 2-3 actionable recommendations
 
 Keep the response under 300 words and format it in a friendly, easy-to-read way.`,
-    maxTokens: 500,
+    maxOutputTokens: 500,
     temperature: 0.7,
   });
 
+  const usage = toTokenUsage(result.usage, result.providerMetadata);
   submitLogEvent('receipt', 'AI spending summary generated', correlationId, {
-    promptTokens: result.usage.promptTokens,
-    completionTokens: result.usage.completionTokens,
-    totalTokens: result.usage.totalTokens,
-    model: 'gpt-4o-mini',
-    userEmail,
+    ...usage,
+    model,
+    servedBy: result.response.modelId,
     userId,
     summaryText: result.text.trim(),
   });
 
   return {
     summary: result.text.trim(),
-    usage: {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
-    },
+    usage,
   };
 }
 

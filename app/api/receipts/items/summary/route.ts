@@ -4,7 +4,7 @@ import { receipts, receiptItems, insightsCache } from '@/lib/db/schema';
 import { getAuthenticatedUser, requireSubscription, requireHouseholdMembership } from '@/lib/auth-helpers';
 import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
-import { generateSpendingSummary } from '@/lib/openai';
+import { generateSpendingSummary } from '@/lib/receipt-ai';
 import { randomUUID } from 'crypto';
 import { parseMonths, receiptScope, windowStart } from '@/lib/utils/insights-params';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';

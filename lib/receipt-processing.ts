@@ -1,8 +1,8 @@
-import { APICallError, NoObjectGeneratedError, RetryError, TypeValidationError, JSONParseError } from 'ai';
+import { APICallError, NoObjectGeneratedError, NoOutputGeneratedError, RetryError, TypeValidationError, JSONParseError } from 'ai';
 import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { receipts, receiptItems, users, type Receipt, type ReceiptItem } from '@/lib/db/schema';
-import { analyzeReceiptWithGPT4o, type ReceiptData, type TokenUsage } from '@/lib/openai';
+import { analyzeReceiptImage, type ReceiptData, type TokenUsage } from '@/lib/receipt-ai';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
@@ -62,7 +62,7 @@ export function describeProcessingError(error: unknown): string {
     return "The receipt image couldn't be loaded. Try uploading it again.";
   }
   if (
-    NoObjectGeneratedError.isInstance(inner) ||
+    NoObjectGeneratedError.isInstance(inner) || NoOutputGeneratedError.isInstance(inner) ||
     TypeValidationError.isInstance(inner) ||
     JSONParseError.isInstance(inner)
   ) {
@@ -180,7 +180,7 @@ export async function processReceipt(
   let ocrData: ReceiptData;
   let usage: TokenUsage;
   try {
-    const result = await analyzeReceiptWithGPT4o(claimed.imageUrl, user.email, user.id, correlationId);
+    const result = await analyzeReceiptImage(claimed.imageUrl, user.email, user.id, correlationId);
     ocrData = result.data;
     usage = result.usage;
   } catch (error) {
