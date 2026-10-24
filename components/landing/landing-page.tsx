@@ -238,9 +238,9 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
               <source media="(max-width: 639px)" srcSet="/dashboard-mobile-light.webp" width={780} height={1200} />
               <img
                 src="/dashboard-full-light.webp"
-                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends and the latest receipts"
+                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends, the month's plan and the latest receipts"
                 width={1600}
-                height={1493}
+                height={1639}
                 className="h-auto w-full"
               />
             </picture>
@@ -248,9 +248,9 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
               <source media="(max-width: 639px)" srcSet="/dashboard-mobile-dark.webp" width={780} height={1200} />
               <img
                 src="/dashboard-full-dark.webp"
-                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends and the latest receipts"
+                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends, the month's plan and the latest receipts"
                 width={1600}
-                height={1493}
+                height={1639}
                 className="h-auto w-full"
               />
             </picture>
