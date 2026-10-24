@@ -100,12 +100,21 @@ export default function SignInPage() {
                       it — the same greeting twice on one screen. And an "✨ Quick &
                       Secure Sign In" panel explained how sign-in works directly
                       above the sign-in form, which explains itself. */}
+                  {/*
+                    Google is the only sign-in method enabled on this Clerk instance —
+                    no password, no email code, no first-factor strategy of any kind.
+                    An earlier draft of this line read "With Google, or with the email
+                    address you signed up with", which offered a route that does not
+                    exist. Since Google both signs in and registers, there is also no
+                    separate sign-up to send anyone to.
+                  */}
                   <div className="mb-8">
                     <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                       Sign in
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      With Google, or with the email address you signed up with.
+                      ReceiptWise uses your Google account. The same button gets you in
+                      whether you have been here before or not.
                     </p>
                   </div>
 
@@ -133,30 +142,55 @@ export default function SignInPage() {
                           borderRadius: 'var(--radius)',
                           fontFamily: 'var(--font-plex-sans)',
                         },
+                        /*
+                          Every override below carries Tailwind's `!` important
+                          modifier, and it is load-bearing.
+
+                          Clerk injects its own stylesheet after Tailwind's, and its
+                          internal per-element class (`cl-internal-*`) has the same
+                          single-class specificity as a utility. Source order
+                          therefore decides, and Clerk wins: a plain `hidden` landed
+                          on the element and still computed to `display: flex`. That
+                          is why the previous `footer: 'hidden'` in this file never
+                          did anything.
+                        */
                         elements: {
-                          rootBox: 'w-full max-w-md',
-                          card: 'shadow-none border-0 bg-transparent p-0',
-                          headerTitle: 'hidden',
-                          headerSubtitle: 'hidden',
-                          formButtonPrimary: 'bg-primary hover:bg-primary/90',
-                          formFieldInput: 'border-input',
-                          footer: 'hidden',
+                          rootBox: 'w-full',
+                          // Clerk wraps `card` in a `cardBox`, and the card itself
+                          // keeps a solid background — together they were the
+                          // box-inside-a-box sitting inside this page's own Card.
+                          cardBox: 'shadow-none! border-0! bg-transparent! w-full',
+                          card: 'shadow-none! border-0! bg-transparent! p-0! gap-6',
+                          // The Clerk logo is a fixed-colour asset that washes out on
+                          // a dark surface, and the wordmark is already in the header
+                          // of this page. Drop the whole header block.
+                          header: 'hidden!',
+                          logoBox: 'hidden!',
+                          headerTitle: 'hidden!',
+                          headerSubtitle: 'hidden!',
+                          formButtonPrimary: 'bg-primary! hover:bg-primary/90!',
+                          formFieldInput: 'border-input!',
+                          // `border!` for the width as well as `border-border!` for the
+                          // colour — overriding only the colour left the button as
+                          // bare text with an icon, because neutralising the card also
+                          // took this button's own border with it.
+                          socialButtonsBlockButton:
+                            'border! border-border! bg-background! text-foreground! h-10! hover:bg-muted!',
+                          socialButtonsBlockButtonText: 'text-sm! font-medium!',
+                          // `footer` is the "Secured by Clerk" row; `footerAction` is
+                          // the "Don't have an account? Sign up" row. The latter is a
+                          // separate element, which is why hiding `footer` alone left
+                          // it on screen — and it pointed at /sign-up, which does not
+                          // exist. With Google-only auth there is nothing to link to.
+                          footer: 'hidden!',
+                          footerAction: 'hidden!',
                         },
                       }}
                       routing="path"
                       path="/sign-in"
-                      signUpUrl="/sign-up"
                       forceRedirectUrl="/redirect"
                     />
                   </div>
-
-                  <p className="mt-6 text-center text-sm text-muted-foreground">
-                    New here?{' '}
-                    <Link href="/sign-up" className="text-primary underline underline-offset-4">
-                      Create an account
-                    </Link>
-                    .
-                  </p>
                 </CardContent>
               </Card>
             </div>

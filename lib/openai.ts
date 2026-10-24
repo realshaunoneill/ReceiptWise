@@ -1,9 +1,25 @@
-import { generateObject, generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { gateway, generateObject, generateText } from 'ai';
+import { receiptModelId, summaryModelId } from '@/lib/ai-model';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { z } from 'zod';
 
-// Zod schemas for type-safe AI responses
+/*
+ * Zod schemas for type-safe AI responses.
+ *
+ * Every optional field here is `.nullable()` and deliberately NOT `.optional()` —
+ * and nothing uses `.default()` either.
+ * AI SDK 7 sends `generateObject` schemas to OpenAI in strict structured-output
+ * mode, which requires every key in `properties` to also appear in `required`.
+ * Both `.optional()` and `.default()` drop a key from `required`, so the request is
+ * rejected outright:
+ *
+ *   Invalid schema for response_format 'response': ... 'required' is required to be
+ *   supplied and to be an array including every key in properties. Missing 'quantity'.
+ *
+ * That is a 400 at call time, not a type error — it compiles and builds clean, so it
+ * only shows up when a receipt is actually processed. `.nullable()` alone expresses
+ * the same thing ("may have no value") in a form strict mode accepts.
+ */
 const itemModifierSchema = z.object({
   name: z.string(),
   price: z.number(),
@@ -12,46 +28,49 @@ const itemModifierSchema = z.object({
 
 const receiptItemSchema = z.object({
   name: z.string(),
-  quantity: z.number().nullable().optional(),
+  quantity: z.number().nullable(),
   price: z.number(),
-  category: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  modifiers: z.array(itemModifierSchema).nullable().optional(),
+  category: z.string().nullable(),
+  description: z.string().nullable(),
+  modifiers: z.array(itemModifierSchema).nullable(),
 });
 
 const receiptDataSchema = z.object({
-  isReceipt: z.boolean().default(true).describe('Whether this image appears to be a receipt, invoice, or purchase-related document. False if it\'s a screenshot, meme, random image, etc.'),
-  merchant: z.string().nullable().optional(),
-  total: z.number().nullable().optional(),
-  currency: z.string().nullable().optional(),
-  date: z.string().nullable().optional(),
-  category: z.string().nullable().optional(),
-  items: z.array(receiptItemSchema).nullable().optional(),
+  // `.default(true)` was removed for the same reason as `.optional()` below: a
+  // defaulted key is omitted from `required`, which strict mode rejects. The prompt
+  // instructs the model to always set this, so the default was never load-bearing.
+  isReceipt: z.boolean().describe('Whether this image appears to be a receipt, invoice, or purchase-related document. False if it\'s a screenshot, meme, random image, etc.'),
+  merchant: z.string().nullable(),
+  total: z.number().nullable(),
+  currency: z.string().nullable(),
+  date: z.string().nullable(),
+  category: z.string().nullable(),
+  items: z.array(receiptItemSchema).nullable(),
   rawItems: z.array(z.object({
     name: z.string(),
     price: z.number(),
-  })).nullable().optional(),
-  location: z.string().nullable().optional(),
-  subtotal: z.number().nullable().optional(),
-  tax: z.number().nullable().optional(),
-  serviceCharge: z.number().nullable().optional(),
-  paymentMethod: z.string().nullable().optional(),
-  receiptNumber: z.string().nullable().optional(),
-  merchantType: z.string().nullable().optional(),
-  tips: z.number().nullable().optional(),
-  discount: z.number().nullable().optional(),
-  loyaltyNumber: z.string().nullable().optional(),
-  tableNumber: z.string().nullable().optional(),
-  serverName: z.string().nullable().optional(),
-  orderNumber: z.string().nullable().optional(),
-  phoneNumber: z.string().nullable().optional(),
-  website: z.string().nullable().optional(),
-  vatNumber: z.string().nullable().optional(),
-  timeOfDay: z.string().nullable().optional(),
-  customerCount: z.number().nullable().optional(),
-  specialOffers: z.string().nullable().optional(),
-  deliveryFee: z.number().nullable().optional(),
-  packagingFee: z.number().nullable().optional(),
+  })).nullable(),
+  location: z.string().nullable(),
+  subtotal: z.number().nullable(),
+  tax: z.number().nullable(),
+  serviceCharge: z.number().nullable(),
+  paymentMethod: z.string().nullable(),
+  receiptNumber: z.string().nullable(),
+  merchantType: z.string().nullable(),
+  tips: z.number().nullable(),
+  discount: z.number().nullable(),
+  loyaltyNumber: z.string().nullable(),
+  tableNumber: z.string().nullable(),
+  serverName: z.string().nullable(),
+  orderNumber: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  website: z.string().nullable(),
+  vatNumber: z.string().nullable(),
+  timeOfDay: z.string().nullable(),
+  customerCount: z.number().nullable(),
+  specialOffers: z.string().nullable(),
+  deliveryFee: z.number().nullable(),
+  packagingFee: z.number().nullable(),
 });
 
 export type ItemModifier = z.infer<typeof itemModifierSchema>;
@@ -98,27 +117,28 @@ export async function analyzeReceiptWithGPT4o(
   const base64Image = buffer.toString('base64');
   const mimeType = contentType || 'image/png';
 
-  submitLogEvent('receipt-process', 'Calling OpenAI Vision API with GPT-4o', correlationId, { userId, userEmail });
+  const receiptModel = receiptModelId();
+  submitLogEvent('receipt-process', `Extracting receipt with ${receiptModel}`, correlationId, { userId, userEmail, model: receiptModel });
 
   // Get current date for context
   const currentDate = new Date().toISOString().split('T')[0];
 
-  // Use GPT-4o for receipt analysis - best accuracy for OCR tasks
-  // especially important for faded, crumpled, or hard-to-read receipts
+  // Routed through the AI Gateway so the model is configuration, not code. The
+  // accuracy reasoning behind the original gpt-4o choice still holds — faded and
+  // crumpled receipts are the hard case — which is why the default is a full
+  // vision model rather than a mini tier. See lib/ai-model.ts.
   let result;
   try {
     result = await generateObject({
-      model: openai('gpt-4o'),
+      model: gateway(receiptModel),
       schema: receiptDataSchema,
+      // `metadata` was removed from experimental_telemetry in AI SDK 5. Nothing
+      // is lost: every field it carried is already on the submitLogEvent calls
+      // below. It also means userEmail is no longer handed to a second
+      // destination, which was on the list to stop doing regardless.
       experimental_telemetry: {
         isEnabled: true,
-        functionId: 'analyzeReceiptWithGPT4o',
-        metadata: {
-          userId,
-          userEmail,
-          correlationId,
-          purpose: 'receipt_processing',
-        },
+        functionId: 'analyzeReceipt',
       },
       messages: [
         {
@@ -202,8 +222,12 @@ SMART CATEGORIZATION RULES:
 Extract all numeric values as numbers (not strings).`,
           },
           {
-            type: 'image',
-            image: `data:${mimeType};base64,${base64Image}`,
+            // AI SDK 7 deprecates the `image` content part in favour of a `file`
+            // part with an explicit mediaType. The old form still works but logs a
+            // deprecation warning on every receipt processed.
+            type: 'file',
+            mediaType: mimeType,
+            data: base64Image,
           },
         ],
       },
@@ -247,11 +271,11 @@ Extract all numeric values as numbers (not strings).`,
     throw error;
   }
 
-  submitLogEvent('receipt-process', 'OpenAI API usage', correlationId, {
-    promptTokens: result.usage.promptTokens,
-    completionTokens: result.usage.completionTokens,
-    totalTokens: result.usage.totalTokens,
-    model: 'gpt-4o',
+  submitLogEvent('receipt-process', 'Model usage', correlationId, {
+    promptTokens: result.usage.inputTokens ?? 0,
+    completionTokens: result.usage.outputTokens ?? 0,
+    totalTokens: result.usage.totalTokens ?? 0,
+    model: receiptModel,
     userEmail,
     userId,
   });
@@ -267,10 +291,14 @@ Extract all numeric values as numbers (not strings).`,
 
   return {
     data: result.object,
+    // Mapped rather than spread: AI SDK 5 renamed these to inputTokens /
+    // outputTokens, but the object is stored in the receipts table as
+    // `processingTokens`, so keeping the old keys avoids a JSON column with two
+    // different shapes depending on when the row was written.
     usage: {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
+      promptTokens: result.usage.inputTokens ?? 0,
+      completionTokens: result.usage.outputTokens ?? 0,
+      totalTokens: result.usage.totalTokens ?? 0,
     },
   };
 }
@@ -293,7 +321,8 @@ export async function generateSpendingSummary(
   userId: string,
   correlationId: CorrelationId,
 ): Promise<SpendingInsight> {
-  submitLogEvent('receipt', 'Generating AI spending summary with Vercel AI SDK', correlationId, {
+  const summaryModel = summaryModelId();
+  submitLogEvent('receipt', `Generating spending summary with ${summaryModel}`, correlationId, {
     userId,
     userEmail,
     totalItems: aggregatedData.totalItems,
@@ -301,19 +330,11 @@ export async function generateSpendingSummary(
   });
 
   const result = await generateText({
-    model: openai('gpt-4o-mini'),
+    model: gateway(summaryModel),
     system: 'You are a helpful financial advisor analyzing spending patterns. Provide insights, identify trends, and offer actionable advice. Be concise but insightful. Use a friendly, conversational tone.',
     experimental_telemetry: {
       isEnabled: true,
       functionId: 'generateSpendingSummary',
-      metadata: {
-        userId,
-        userEmail,
-        correlationId,
-        purpose: 'spending_summary',
-        totalItems: aggregatedData.totalItems,
-        totalSpent: aggregatedData.totalSpent,
-      },
     },
     prompt: `Analyze this spending data and provide a summary with insights and recommendations:
 
@@ -338,15 +359,15 @@ Please provide:
 5. 2-3 actionable recommendations
 
 Keep the response under 300 words and format it in a friendly, easy-to-read way.`,
-    maxTokens: 500,
+    maxOutputTokens: 500,
     temperature: 0.7,
   });
 
   submitLogEvent('receipt', 'AI spending summary generated', correlationId, {
-    promptTokens: result.usage.promptTokens,
-    completionTokens: result.usage.completionTokens,
-    totalTokens: result.usage.totalTokens,
-    model: 'gpt-4o-mini',
+    promptTokens: result.usage.inputTokens ?? 0,
+    completionTokens: result.usage.outputTokens ?? 0,
+    totalTokens: result.usage.totalTokens ?? 0,
+    model: summaryModel,
     userEmail,
     userId,
     summaryText: result.text.trim(),
@@ -354,10 +375,14 @@ Keep the response under 300 words and format it in a friendly, easy-to-read way.
 
   return {
     summary: result.text.trim(),
+    // Mapped rather than spread: AI SDK 5 renamed these to inputTokens /
+    // outputTokens, but the object is stored in the receipts table as
+    // `processingTokens`, so keeping the old keys avoids a JSON column with two
+    // different shapes depending on when the row was written.
     usage: {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
+      promptTokens: result.usage.inputTokens ?? 0,
+      completionTokens: result.usage.outputTokens ?? 0,
+      totalTokens: result.usage.totalTokens ?? 0,
     },
   };
 }

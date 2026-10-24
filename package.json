@@ -16,7 +16,6 @@
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^1.0.0",
     "@clerk/nextjs": "^6.36.3",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
@@ -53,7 +52,7 @@
     "@vercel/analytics": "^1.6.1",
     "@vercel/blob": "^2.0.0",
     "@vercel/functions": "^3.3.4",
-    "ai": "^4.0.0",
+    "ai": "^7.0.102",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -68,7 +67,6 @@
     "next": "16.1.0",
     "next-themes": "latest",
     "nuqs": "^2.8.6",
-    "openai": "^6.9.1",
     "postgres": "^3.4.7",
     "posthog-js": "^1.309.1",
     "posthog-node": "^5.17.4",
