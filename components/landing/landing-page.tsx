@@ -230,24 +230,30 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
         {/* Dashboard Preview */}
         <div className="mx-auto mt-20 w-full max-w-6xl">
           <div className="overflow-hidden rounded-xl border bg-card shadow-2xl shadow-foreground/5">
-            {/* Light mode screenshot */}
-            {/* WebP at 1600px wide (~45 KB each); the PNGs were 2060px and ~300 KB. Explicit
-                dimensions so the page does not jump when they load. */}
-            <img
-              src="/dashboard-full-light.webp"
-              alt="The ReceiptWise dashboard, showing spending totals, a category breakdown and a list of recent receipts"
-              width={1600}
-              height={1406}
-              className="h-auto w-full dark:hidden"
-            />
-            {/* Dark mode screenshot */}
-            <img
-              src="/dashboard-full-dark.webp"
-              alt="The ReceiptWise dashboard, showing spending totals, a category breakdown and a list of recent receipts"
-              width={1600}
-              height={1408}
-              className="hidden h-auto w-full dark:block"
-            />
+            {/* WebP at 1600px wide (~50 KB each). On a phone the desktop capture shrank to about
+                340px and its text was unreadable, so phones get a phone capture instead (780px,
+                ~25 KB). Light and dark are separate pictures because the theme is a class, not
+                prefers-color-scheme. */}
+            <picture className="block dark:hidden">
+              <source media="(max-width: 639px)" srcSet="/dashboard-mobile-light.webp" width={780} height={1200} />
+              <img
+                src="/dashboard-full-light.webp"
+                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends and the latest receipts"
+                width={1600}
+                height={1493}
+                className="h-auto w-full"
+              />
+            </picture>
+            <picture className="hidden dark:block">
+              <source media="(max-width: 639px)" srcSet="/dashboard-mobile-dark.webp" width={780} height={1200} />
+              <img
+                src="/dashboard-full-dark.webp"
+                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends and the latest receipts"
+                width={1600}
+                height={1493}
+                className="h-auto w-full"
+              />
+            </picture>
           </div>
         </div>
       </section>
@@ -336,18 +342,18 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
                 {/* Light mode screenshot */}
                 <img
                   src="/sharing-light.webp"
-                  alt="A ReceiptWise household, listing its members and the receipts each of them has added"
+                  alt="A ReceiptWise household: its two members, and the receipts each of them has shared with it"
                   width={1600}
-                  height={1141}
+                  height={1187}
                   loading="lazy"
                   className="h-auto w-full dark:hidden"
                 />
                 {/* Dark mode screenshot */}
                 <img
                   src="/sharing-dark.webp"
-                  alt="A ReceiptWise household, listing its members and the receipts each of them has added"
+                  alt="A ReceiptWise household: its two members, and the receipts each of them has shared with it"
                   width={1600}
-                  height={1142}
+                  height={1187}
                   loading="lazy"
                   className="hidden h-auto w-full dark:block"
                 />

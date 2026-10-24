@@ -60,7 +60,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
-          Create Household
+          Create household
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -69,7 +69,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Home className="h-6 w-6 text-primary" />
             </div>
-            <DialogTitle className="text-center">Create Household</DialogTitle>
+            <DialogTitle className="text-center">Create a household</DialogTitle>
             <DialogDescription className="text-center">
               Create a shared space for tracking receipts with family or housemates
             </DialogDescription>
@@ -128,7 +128,7 @@ export function CreateHouseholdDialog({ onHouseholdCreated }: CreateHouseholdDia
                   Creating...
                 </>
               ) : (
-                'Create Household'
+                'Create household'
               )}
             </Button>
           </DialogFooter>

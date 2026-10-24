@@ -61,7 +61,8 @@ export function QuickStats({ stats }: QuickStatsProps) {
   const { format: formatCurrency } = useCurrency();
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+    // Two by two on a phone: one per row, the four cards filled the whole first screen.
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       {statConfig.map((stat) => {
         const Icon = stat.icon;
         const raw = stats[stat.key as keyof QuickStatsProps['stats']];
@@ -79,7 +80,7 @@ export function QuickStats({ stats }: QuickStatsProps) {
 
         return (
           <Card key={stat.key} className="transition-colors hover:border-primary/30">
-            <CardContent className="px-6">
+            <CardContent className="px-4 sm:px-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
