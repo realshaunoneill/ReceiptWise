@@ -314,6 +314,16 @@ describe('computePlan: left until payday from the bank balance', () => {
     expect(computePlan(input).flags).toContain('stale_balance');
   });
 
+  it('keeps a direct debit someone marked as not gone out (bounced) as overdue and still owed', () => {
+    const input = megan('2026-11-10', { accounts: [current('2500', '2026-11-10')] });
+    input.recurring[1].payments = [row('car-nov', '2026-11-05', '469', { status: 'missed', markedByUserId: 'megan' })];
+    const plan = computePlan(input);
+    expect(plan.lines.find((l) => l.key === 'sub:car:2026-11-05')).toMatchObject({ status: 'overdue' });
+    const view = plan.balance!;
+    expect(view.assumedOutKeys).not.toContain('sub:car:2026-11-05');
+    expect(view.outgoingCents).toBe(2000 + 54700 + 94200 + 150000 + 46900);
+  });
+
   it('assumes a card charge before the balance has gone, on the day itself', () => {
     const input = megan('2026-11-10', { accounts: [current('2500', '2026-11-07')] });
     // Saturday 7 November: a card is charged that day, a direct debit on the Monday.

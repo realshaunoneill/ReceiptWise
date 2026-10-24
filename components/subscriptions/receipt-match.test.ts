@@ -12,6 +12,13 @@ describe('receiptMismatches', () => {
     ]);
   });
 
+  it('does not object to a card-statement name when the amount is right', () => {
+    expect(receiptMismatches(
+      { merchantName: 'APPLE.COM/BILL', totalAmount: '2.99', currency: 'EUR' },
+      { name: 'iCloud+', amount: '2.99', currency: 'EUR' },
+    )).toEqual([]);
+  });
+
   it('accepts the right merchant at about the right amount', () => {
     expect(receiptMismatches({ merchantName: 'NETFLIX.COM', totalAmount: '17.99', currency: 'EUR' }, netflix)).toEqual([]);
     // A price rise of a euro or so is not "clearly" wrong.

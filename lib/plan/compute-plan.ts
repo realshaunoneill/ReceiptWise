@@ -58,6 +58,8 @@ export type PaymentLike = {
   actualDate: Date | null;
   actualAmount: string | null;
   paidVia: string | null;
+  /** Who last set the status by hand; null when the daily job did. */
+  markedByUserId?: string | null;
   /** When the row last changed: for a paid row, when it was marked paid (or edited since). */
   updatedAt?: Date | string | null;
 };
@@ -338,9 +340,12 @@ function recurringLines(input: PlanInput, window: Window): PlanLine[] {
         continue;
       }
       const { amountCents, estimated } = unpaidAmount(subscription, payment, recentPaidAmounts);
-      // An automatic payment is never overdue, even on a row the daily job marked missed before
-      // card payments counted as automatic (its next run marks those assumed paid).
-      const overdue = !automatic && (payment.status === 'missed' || day < graceCutoff);
+      // An automatic payment is overdue only when someone said it didn't go out (a bounced direct
+      // debit): missed, set by hand. A row the daily job marked missed before card payments counted
+      // as automatic isn't; its next run marks those assumed paid.
+      const overdue = automatic
+        ? payment.status === 'missed' && Boolean(payment.markedByUserId)
+        : payment.status === 'missed' || day < graceCutoff;
       lines.push({
         ...base, key: `sub:${subscription.id}:${cycleDate}`, date: day, cycleDate, paymentId: payment.id,
         amountCents: amountCents ?? 0, currency, status: overdue ? 'overdue' : 'planned', estimated,
@@ -545,7 +550,8 @@ function balanceView(input: PlanInput, lines: PlanLine[]): BalanceView | null {
     const collected = automatic ? collectionDate(line.date, line.paymentMethod) : line.date;
     if (collected > balanceDate) {
       outgoingCents += line.amountCents;
-    } else if (automatic) {
+    } else if (automatic && line.status !== 'overdue') {
+      // (An overdue automatic payment is one marked as not gone out: still owed, so not this.)
       assumedOutKeys.push(line.key);
     } else {
       outgoingCents += line.amountCents; // an unpaid manual bill is still owed

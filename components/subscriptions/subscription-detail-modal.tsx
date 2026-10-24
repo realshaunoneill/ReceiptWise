@@ -481,9 +481,13 @@ export function SubscriptionDetailModal({
                                 size="icon"
                                 className="h-8 w-8"
                                 disabled={isUpdatingPayment}
-                                onClick={() => handlePaymentChange(payment, { status: 'pending' }, 'Undone')}
-                                title={payment.paidVia === 'assumed' ? "Didn't go out? Undo" : 'Undo'}
-                                aria-label={payment.paidVia === 'assumed' ? "Didn't go out? Undo" : 'Undo'}
+                                // An assumed direct debit that didn't go out (it bounced) becomes missed, set by
+                                // hand, which the daily job leaves alone; back to pending it was assumed paid again.
+                                onClick={() => (payment.paidVia === 'assumed'
+                                  ? handlePaymentChange(payment, { status: 'missed' }, 'Marked as not gone out')
+                                  : handlePaymentChange(payment, { status: 'pending' }, 'Undone'))}
+                                title={payment.paidVia === 'assumed' ? "Didn't go out" : 'Undo'}
+                                aria-label={payment.paidVia === 'assumed' ? "Didn't go out" : 'Undo'}
                               >
                                 <Undo2 className="w-4 h-4" />
                               </Button>

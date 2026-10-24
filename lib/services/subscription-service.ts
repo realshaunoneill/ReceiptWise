@@ -497,7 +497,7 @@ export class SubscriptionService {
    * every card subscription built up a list of missed payments that nothing would clear. The same
    * goes for a bill switched to direct debit after its manual cycles were marked missed.
    */
-  static sortDueRows<T extends { payment: Pick<SubscriptionPayment, 'status' | 'dueDate' | 'expectedDate'>; paymentMethod: string | null }>(
+  static sortDueRows<T extends { payment: Pick<SubscriptionPayment, 'status' | 'dueDate' | 'expectedDate'> & { markedByUserId?: string | null }; paymentMethod: string | null }>(
     rows: T[],
     now: Date,
   ): { assumed: T[]; missed: T[] } {
@@ -507,7 +507,9 @@ export class SubscriptionService {
     const missed: T[] = [];
     for (const row of rows) {
       if (isAutoPaid(row.paymentMethod)) {
-        const open = row.payment.status === 'pending' || row.payment.status === 'missed';
+        // 'missed' only when this job set it. Someone marking a direct debit "didn't go out" (it
+        // bounced) sets it by hand, and that must stay missed rather than be assumed paid again.
+        const open = row.payment.status === 'pending' || (row.payment.status === 'missed' && !row.payment.markedByUserId);
         if (open && collectionDay(row.payment, row.paymentMethod) <= today) assumed.push(row);
       } else if (row.payment.status === 'pending' && nominalDay(row.payment) < missedCutoff) {
         missed.push(row);
@@ -524,13 +526,14 @@ export class SubscriptionService {
    * collected.
    */
   static isOverdue(
-    payment: Pick<SubscriptionPayment, 'status' | 'dueDate' | 'expectedDate'>,
+    payment: Pick<SubscriptionPayment, 'status' | 'dueDate' | 'expectedDate'> & { markedByUserId?: string | null },
     now: Date = new Date(),
     paymentMethod?: string | null,
   ): boolean {
     // A direct debit, standing order or card payment goes out on its own; the daily run marks it
     // assumed paid, including a row it marked missed before card payments counted as automatic.
-    if (isAutoPaid(paymentMethod)) return false;
+    // Only someone saying it didn't go out (missed, set by hand) makes one overdue.
+    if (isAutoPaid(paymentMethod)) return payment.status === 'missed' && Boolean(payment.markedByUserId);
     if (payment.status === 'missed') return true;
     if (payment.status !== 'pending') return false;
     return nominalDay(payment) < fromUtcDate(new Date(now.getTime() - MISSED_GRACE_DAYS * DAY_MS));

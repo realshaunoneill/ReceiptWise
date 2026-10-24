@@ -142,7 +142,13 @@ function RecurringRow({ line, context, handlers }: { line: PlanLine; context: Ro
       checked={paid}
       disabled={isPending || skipped}
       onCheckedChange={(checked) =>
-        change(checked ? { status: 'paid', actualDate: settleDay(plan) } : { status: 'pending' }, checked ? 'Marked paid' : 'Marked not paid')}
+        checked
+          ? change({ status: 'paid', actualDate: settleDay(plan) }, 'Marked paid')
+          // Unticking an assumed direct debit means it didn't go out: missed, which the daily job
+          // won't assume paid again (back to pending, it would be ticked again overnight).
+          : line.paidVia === 'assumed'
+            ? change({ status: 'missed' }, "Marked as didn't go out")
+            : change({ status: 'pending' }, 'Marked not paid')}
       checkboxLabel={paid ? `Mark ${line.label} not paid` : `Mark ${line.label} paid`}
       onLabelClick={() => handlers.onOpenBill(line.sourceId)}
       badges={

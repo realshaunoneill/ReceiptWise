@@ -58,7 +58,9 @@ export function receiptMismatches(receipt: ReceiptLike, expected: ExpectedPaymen
     }
   }
 
-  if (receipt.merchantName && !namesOverlap(receipt.merchantName, expected)) {
+  // The merchant only adds to an amount or currency that's already off. On its own it misfired on
+  // card statement names: "APPLE.COM/BILL" for iCloud+ at exactly the right €2.99.
+  if (problems.length > 0 && receipt.merchantName && !namesOverlap(receipt.merchantName, expected)) {
     problems.push({ kind: 'merchant', merchant: receipt.merchantName });
   }
   return problems;

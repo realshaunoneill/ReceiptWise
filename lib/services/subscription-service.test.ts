@@ -46,6 +46,11 @@ describe('SubscriptionService.isOverdue', () => {
     expect(SubscriptionService.isOverdue(missed, now, 'card')).toBe(false);
     expect(SubscriptionService.isOverdue(missed, now, 'manual')).toBe(true);
   });
+
+  it('counts a direct debit someone marked as not gone out (bounced) as overdue', () => {
+    const bounced = { status: 'missed', dueDate: null, expectedDate: at('2026-10-05'), markedByUserId: 'user-1' };
+    expect(SubscriptionService.isOverdue(bounced, now, 'direct_debit')).toBe(true);
+  });
 });
 
 describe('SubscriptionService.sortDueRows', () => {
@@ -71,6 +76,13 @@ describe('SubscriptionService.sortDueRows', () => {
     const rows = [row('card', 'missed', '2026-09-03'), row('manual', 'missed', '2026-09-03')];
     const { assumed, missed } = SubscriptionService.sortDueRows(rows, now);
     expect(assumed).toEqual([rows[0]]);
+    expect(missed).toEqual([]);
+  });
+
+  it('leaves a direct debit someone marked as not gone out alone, so it stays missed', () => {
+    const bounced = { paymentMethod: 'direct_debit', payment: { status: 'missed', dueDate: null, expectedDate: at('2026-10-05'), markedByUserId: 'user-1' } };
+    const { assumed, missed } = SubscriptionService.sortDueRows([bounced], now);
+    expect(assumed).toEqual([]);
     expect(missed).toEqual([]);
   });
 });
