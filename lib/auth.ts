@@ -1,9 +1,10 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
 import { db } from '@/lib/db';
 import { authAccount, authSession, authUser, authVerification } from '@/lib/db/schema';
-import { isDevLoginEnabled } from '@/lib/dev-login';
+import { isDevLoginEnabled, isTestEmail, TEST_EMAIL_DOMAIN } from '@/lib/dev-login';
 
 /**
  * Sign-in: Better Auth with Google (moved off Clerk on 2026-10-24, like the other products).
@@ -52,10 +53,20 @@ function createAuth() {
         prompt: 'select_account',
       },
     },
-    // Off outside local development: Google covers everyone, and there is no password to leak.
+    // Off except locally and on staging (lib/dev-login.ts): Google covers everyone, and there is no
+    // password to leak.
     emailAndPassword: {
       enabled: isDevLoginEnabled(),
       requireEmailVerification: false,
+    },
+    hooks: {
+      // Password accounts are test accounts: only the reserved test domain. Nothing verifies a
+      // password account's address, so with a real one it could be linked to that person's data.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === '/sign-up/email' && !isTestEmail(ctx.body?.email)) {
+          throw new APIError('BAD_REQUEST', { message: `Password accounts must use an @${TEST_EMAIL_DOMAIN} address.` });
+        }
+      }),
     },
     session: {
       // A household app opened a few times a week: a long, rolling session.

@@ -137,6 +137,7 @@ export default function SignUpPage() {
                     next={NEW_USER_URL}
                     googleEnabled={isGoogleConfigured()}
                     devLogin={isDevLoginEnabled()}
+                    prefillDevLogin={!process.env.VERCEL}
                     label="Sign up with Google"
                   />
 

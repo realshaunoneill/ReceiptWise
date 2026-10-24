@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth-client';
+import { TEST_EMAIL_DOMAIN } from '@/lib/dev-login';
 import { NEW_USER_URL } from '@/lib/sign-in-redirect';
 
 
@@ -21,12 +22,15 @@ function GoogleIcon() {
 }
 
 /**
- * Local development only (lib/dev-login.ts): a real Better Auth session without Google, for manual
- * and automated testing. Signs in, or creates the account on first use.
+ * Locally and on staging only (lib/dev-login.ts): a real Better Auth session without Google, for
+ * manual and automated testing. Signs in, or creates the account on first use; accounts must use
+ * the reserved test domain.
+ *
+ * Prefilled only on a local machine. On staging the account and its password are typed in.
  */
-function DevSignIn({ next }: { next: string }) {
-  const [email, setEmail] = useState('dev@receiptwise.local');
-  const [password, setPassword] = useState('receiptwise-dev-password');
+function DevSignIn({ next, prefill }: { next: string; prefill: boolean }) {
+  const [email, setEmail] = useState(prefill ? `dev@${TEST_EMAIL_DOMAIN}` : '');
+  const [password, setPassword] = useState(prefill ? 'receiptwise-dev-password' : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,10 +54,10 @@ function DevSignIn({ next }: { next: string }) {
         window.location.assign(next);
       }}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dev sign-in</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Test sign-in</p>
       <div className="space-y-1.5">
         <Label htmlFor="dev-email">Email</Label>
-        <Input id="dev-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+        <Input id="dev-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" placeholder={`name@${TEST_EMAIL_DOMAIN}`} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="dev-password">Password</Label>
@@ -63,7 +67,9 @@ function DevSignIn({ next }: { next: string }) {
         {busy ? 'Signing in…' : 'Sign in with password'}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <p className="text-xs text-muted-foreground">Local only: RECEIPTWISE_DEV_LOGIN=1, never on Vercel.</p>
+      <p className="text-xs text-muted-foreground">
+        Test accounts only (@{TEST_EMAIL_DOMAIN}), on a local machine or staging. Never in production.
+      </p>
     </form>
   );
 }
@@ -79,11 +85,14 @@ export function SignInPanel({
   next,
   googleEnabled,
   devLogin,
+  prefillDevLogin = false,
   label = 'Continue with Google',
 }: {
   next: string;
   googleEnabled: boolean;
   devLogin: boolean;
+  /** Fill in the local test account; only on a local machine. */
+  prefillDevLogin?: boolean;
   label?: string;
 }) {
   const [busy, setBusy] = useState(false);
@@ -117,7 +126,7 @@ export function SignInPanel({
         <p className="mt-2 text-sm text-muted-foreground">Google sign-in isn&apos;t configured on this deployment.</p>
       )}
       {error && <p className="mt-3 text-sm text-destructive" role="alert">{error}</p>}
-      {devLogin && <DevSignIn next={next} />}
+      {devLogin && <DevSignIn next={next} prefill={prefillDevLogin} />}
     </>
   );
 }

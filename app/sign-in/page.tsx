@@ -126,7 +126,12 @@ export default async function SignInPage({
                     </p>
                   </div>
 
-                  <SignInPanel next={next} googleEnabled={isGoogleConfigured()} devLogin={isDevLoginEnabled()} />
+                  <SignInPanel
+                    next={next}
+                    googleEnabled={isGoogleConfigured()}
+                    devLogin={isDevLoginEnabled()}
+                    prefillDevLogin={!process.env.VERCEL}
+                  />
                 </CardContent>
               </Card>
             </div>

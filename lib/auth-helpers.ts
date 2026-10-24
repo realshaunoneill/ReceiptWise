@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getAuth } from '@/lib/auth';
-import { isDevLoginEnabled } from '@/lib/dev-login';
+import { isDevLoginEnabled, isTestEmail } from '@/lib/dev-login';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { UserService } from '@/lib/services/user-service';
 import { randomUUID } from 'crypto';
@@ -30,8 +30,9 @@ export async function getAuthenticatedUser(correlationId?: CorrelationId) {
   }
 
   const email = session.user.email?.trim().toLowerCase();
-  // Local dev-login accounts have no way to verify an address; nowhere else accepts one unverified.
-  if (!email || (!session.user.emailVerified && !isDevLoginEnabled())) {
+  // Test accounts (password sign-in, locally and on staging) have no way to verify an address, and
+  // can only use the reserved test domain; any other address must be verified.
+  if (!email || (!session.user.emailVerified && !(isDevLoginEnabled() && isTestEmail(email)))) {
     return NextResponse.json({ error: 'A verified email address is required' }, { status: 400 });
   }
 
