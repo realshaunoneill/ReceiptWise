@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!-- A 1280x800 Web Store screenshot: a caption over a capture. screenshot.html?n=1 to 4; see ../README.md. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ReceiptWise Clipper screenshot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 800px; overflow: hidden; }
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    color: #18181b;
+    background:
+      radial-gradient(circle at 88% -10%, #d7efe3 0, rgba(215, 239, 227, 0) 48%),
+      #f7f6f2;
+    position: relative;
+  }
+  .caption { position: absolute; left: 160px; top: 40px; right: 160px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: #3f3f46; margin-bottom: 14px; }
+  .brand img { width: 26px; height: 26px; }
+  h1 { font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; }
+  p { font-size: 20px; line-height: 1.4; color: #52525b; margin-top: 8px; }
+
+  .window {
+    position: absolute; left: 160px; top: 196px; width: 960px;
+    border-radius: 12px 12px 0 0; overflow: hidden; background: #fff;
+    box-shadow: 0 24px 60px rgba(24, 24, 27, 0.18), 0 0 0 1px rgba(24, 24, 27, 0.08);
+  }
+  .toolbar { height: 38px; background: #ebe9e4; display: flex; align-items: center; gap: 14px; padding: 0 14px; }
+  .dots { display: flex; gap: 7px; }
+  .dots span { width: 11px; height: 11px; border-radius: 50%; background: #d4d1ca; }
+  .url { flex: 1; height: 24px; border-radius: 12px; background: #fff; font-size: 13px; color: #52525b; display: flex; align-items: center; padding: 0 12px; }
+  .ext { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .ext.on { background: #d7efe3; box-shadow: 0 0 0 2px #00825a; }
+  .ext img { width: 18px; height: 18px; }
+  .window > img { display: block; width: 960px; }
+
+  .card { position: absolute; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 24px 60px rgba(24, 24, 27, 0.18), 0 0 0 1px rgba(24, 24, 27, 0.08); }
+</style>
+</head>
+<body>
+<div class="caption">
+  <div class="brand"><img src="../../icons/icon128.png" alt="">ReceiptWise Clipper</div>
+  <h1 id="title"></h1>
+  <p id="sub"></p>
+</div>
+<div id="stage"></div>
+<script>
+  const SHOTS = {
+    1: {
+      title: 'Clip a receipt from any web page',
+      sub: 'Order confirmations, invoices, e-receipts: drag over it and it’s sent to ReceiptWise.',
+      window: { url: 'harbourandpine.ie/order/HP-48213/confirmed', image: 'captures/clip.webp', extOn: true },
+    },
+    2: {
+      title: 'Read and filed in seconds',
+      sub: 'The shop, date, items, VAT and total are read for you and added to your receipts.',
+      window: { url: 'receiptwise.io/receipts', image: 'captures/receipt.webp' },
+    },
+    3: {
+      title: 'Bills go to your Bill inbox',
+      sub: 'Clip a bill and it waits on your Plan, ready to file against the bill it belongs to.',
+      // Just the Plan's column: the page is mostly margin at this width.
+      window: { url: 'receiptwise.io/plan', image: 'captures/bills.webp', crop: { x: 480, w: 1440 } },
+    },
+    4: {
+      title: 'Connect in one click',
+      sub: 'No key to copy. Sign in, press Connect, and revoke it any time in Settings.',
+      cards: [
+        // The connect page's card, cut out of the full-page capture (2400x1500 at 2x).
+        { image: 'captures/connect-done.webp', crop: { x: 672, y: 240, w: 1056, h: 690 }, scale: 0.62, left: 160, top: 240 },
+        { image: 'captures/popup.webp', scale: 0.5, left: 815, top: 218 },
+      ],
+    },
+  };
+
+  const shot = SHOTS[new URLSearchParams(location.search).get('n') || '1'];
+  document.getElementById('title').textContent = shot.title;
+  document.getElementById('sub').textContent = shot.sub;
+  const stage = document.getElementById('stage');
+
+  if (shot.window) {
+    const win = document.createElement('div');
+    win.className = 'window';
+    win.innerHTML = '<div class="toolbar"><div class="dots"><span></span><span></span><span></span></div>'
+      + '<div class="url"></div><div class="ext"><img src="../../icons/icon128.png" alt=""></div></div>';
+    win.querySelector('.url').textContent = shot.window.url;
+    win.querySelector('.ext').classList.toggle('on', Boolean(shot.window.extOn));
+    const img = document.createElement('img');
+    img.src = shot.window.image;
+    if (shot.window.crop) {
+      // Show crop.w pixels of the capture across the window, from crop.x.
+      img.onload = () => {
+        const scale = 960 / shot.window.crop.w;
+        img.style.width = `${img.naturalWidth * scale}px`;
+        img.style.marginLeft = `${-shot.window.crop.x * scale}px`;
+      };
+    }
+    win.append(img);
+    stage.append(win);
+  }
+
+  for (const card of shot.cards || []) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.style.left = `${card.left}px`;
+    el.style.top = `${card.top}px`;
+    const img = document.createElement('img');
+    img.src = card.image;
+    img.onload = () => {
+      const crop = card.crop || { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+      el.style.width = `${crop.w * card.scale}px`;
+      el.style.height = `${crop.h * card.scale}px`;
+      img.style.cssText = `display:block;width:${img.naturalWidth * card.scale}px;margin:${-crop.y * card.scale}px 0 0 ${-crop.x * card.scale}px`;
+    };
+    el.append(img);
+    stage.append(el);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- The 440x280 small promo tile for the Web Store; see ../README.md. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ReceiptWise Clipper promo tile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 440px; height: 280px; overflow: hidden; }
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    color: #18181b;
+    background:
+      radial-gradient(circle at 100% 0%, #cfeadb 0, rgba(207, 234, 219, 0) 60%),
+      #f7f6f2;
+    position: relative;
+  }
+  .text { position: absolute; left: 28px; top: 34px; width: 220px; }
+  .text img { width: 44px; height: 44px; display: block; margin-bottom: 16px; }
+  h1 { font-size: 27px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; }
+  p { font-size: 15px; line-height: 1.35; color: #52525b; margin-top: 10px; font-weight: 500; }
+
+  /* A receipt with a clip selection over it. */
+  .receipt {
+    position: absolute; left: 262px; top: 38px; width: 146px; padding: 14px 13px 16px;
+    background: #fff; border-radius: 4px; transform: rotate(3deg);
+    box-shadow: 0 10px 26px rgba(24, 24, 27, 0.16), 0 0 0 1px rgba(24, 24, 27, 0.06);
+    font: 500 10px/1.6 'IBM Plex Mono', monospace; color: #3f3f46;
+  }
+  .receipt b { display: block; text-align: center; font-size: 12px; color: #18181b; margin-bottom: 6px; letter-spacing: 0.08em; }
+  .receipt div { display: flex; justify-content: space-between; }
+  .receipt .total { border-top: 1px dashed #a1a1aa; margin-top: 6px; padding-top: 5px; color: #18181b; font-size: 11px; }
+  .select {
+    position: absolute; left: 250px; top: 28px; width: 172px; height: 214px;
+    border: 2px solid #00825a; border-radius: 5px; background: rgba(0, 130, 90, 0.06);
+  }
+  .select::after {
+    content: ''; position: absolute; right: -9px; bottom: -9px; width: 14px; height: 14px;
+    border-radius: 50%; background: #00825a; box-shadow: 0 0 0 3px #fff;
+  }
+</style>
+</head>
+<body>
+<div class="text">
+  <img src="../../icons/icon128.png" alt="">
+  <h1>ReceiptWise Clipper</h1>
+  <p>Clip receipts and bills from any web page.</p>
+</div>
+<div class="receipt">
+  <b>HARBOUR &amp; PINE</b>
+  <div><span>Tea towels</span><span>18.00</span></div>
+  <div><span>Mugs x4</span><span>32.00</span></div>
+  <div><span>Oak board</span><span>29.00</span></div>
+  <div><span>Delivery</span><span>4.95</span></div>
+  <div class="total"><span>TOTAL</span><span>€83.95</span></div>
+  <div><span>VAT 23%</span><span>15.70</span></div>
+</div>
+<div class="select"></div>
+</body>
+</html>

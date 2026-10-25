@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <h1 id="privacy-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Privacy Policy</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: October 24, 2026
+            Last updated: October 25, 2026
           </p>
         </div>
 
@@ -57,6 +57,13 @@ export default function PrivacyPage() {
               <li>Bank balances, but only ones you type in yourself. ReceiptWise does not connect to your bank</li>
               <li>Bills and statements you upload or forward to your forwarding address, and what is read off them: who they are from, amounts, dates, billing periods, and the last four characters of an account or card number</li>
               <li>For forwarded email: the sender, the subject and the attachments. The rest of the message is read only when it has no attachment, to find the bill in it</li>
+            </ul>
+
+            <p><strong>The ReceiptWise Clipper extension for Chrome:</strong></p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>It sees a page only when you start a clip on it, by clicking its icon or pressing its shortcut, and it sends us only the area you select, as an image</li>
+              <li>It does not read or send your browsing history, the addresses of pages you visit, or anything else on the page</li>
+              <li>It keeps its key, and the email address of the account it is connected to, in Chrome&apos;s storage for extensions. Chrome copies the key to your other browsers if you use Chrome sync. You can revoke it in Settings → Integrations</li>
             </ul>
 
             <p><strong>Usage information (only if you accept analytics):</strong></p>

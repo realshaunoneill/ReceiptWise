@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- A made-up shop's order confirmation: the page clipped in the store screenshots. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Order confirmed - Harbour &amp; Pine</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; background: #f3efe8; color: #2b2622; }
+  header { background: #fff; border-bottom: 1px solid #e4ddd2; }
+  .bar { max-width: 1040px; margin: 0 auto; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { font-size: 24px; letter-spacing: 0.5px; }
+  .brand span { color: #9a6b3f; }
+  nav { display: flex; gap: 28px; font: 14px/1 -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #5d544b; }
+  main { max-width: 1040px; margin: 0 auto; padding: 36px 24px; display: grid; grid-template-columns: 1fr 380px; gap: 40px; }
+  h1 { font-size: 34px; font-weight: normal; margin-bottom: 10px; }
+  .lede { font: 16px/1.6 -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #5d544b; margin-bottom: 26px; }
+  .ship { font: 15px/1.6 -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #5d544b; background: #fff; border: 1px solid #e4ddd2; border-radius: 6px; padding: 20px 22px; }
+  .ship b { color: #2b2622; display: block; margin-bottom: 4px; }
+  .card { background: #fff; border: 1px solid #e4ddd2; border-radius: 6px; padding: 24px 26px; font: 15px/1.5 -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+  .card h2 { font: normal 21px Georgia, serif; margin-bottom: 4px; }
+  .meta { color: #8a8076; font-size: 13px; margin-bottom: 18px; }
+  .row { display: flex; justify-content: space-between; padding: 9px 0; }
+  .item { border-top: 1px solid #efe9e0; }
+  .item small { display: block; color: #8a8076; font-size: 12px; }
+  .sum { border-top: 1px solid #e4ddd2; margin-top: 6px; padding-top: 12px; }
+  .total { font-weight: 600; font-size: 18px; border-top: 1px solid #2b2622; margin-top: 8px; padding-top: 12px; }
+  .vat, .paid { color: #8a8076; font-size: 13px; }
+  .seller { border-top: 1px solid #efe9e0; margin-top: 10px; padding-top: 12px; color: #8a8076; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">Harbour <span>&amp;</span> Pine</div>
+    <nav><span>Kitchen</span><span>Table</span><span>Bedroom</span><span>Gifts</span><span>Account</span></nav>
+  </div>
+</header>
+<main>
+  <section>
+    <h1>Thank you, Aoife. Your order is confirmed.</h1>
+    <p class="lede">We'll email you when it's on its way. Most orders arrive within two to three working days.</p>
+    <div class="ship">
+      <b>Delivering to</b>
+      Aoife Byrne<br>14 Strand Road<br>Laytown, Co. Meath<br>A92 X7K2
+    </div>
+  </section>
+  <aside class="card">
+    <h2>Order HP-48213</h2>
+    <div class="meta">Placed 22 October 2026</div>
+    <div class="row item"><span>Linen tea towels<small>Sage, set of 2</small></span><span>€18.00</span></div>
+    <div class="row item"><span>Stoneware mug × 4<small>Oat glaze</small></span><span>€32.00</span></div>
+    <div class="row item"><span>Oak serving board<small>Large</small></span><span>€29.00</span></div>
+    <div class="row sum"><span>Subtotal</span><span>€79.00</span></div>
+    <div class="row"><span>Delivery</span><span>€4.95</span></div>
+    <div class="row total"><span>Total</span><span>€83.95</span></div>
+    <div class="row vat"><span>Includes VAT at 23%</span><span>€15.70</span></div>
+    <div class="row paid"><span>Paid with Visa ending 4417</span><span></span></div>
+    <div class="seller">Harbour &amp; Pine Ltd · Galway · VAT IE 3812447KH</div>
+  </aside>
+</main>
+</body>
+</html>
