@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { invalidateReceiptQueries } from '@/lib/hooks/use-receipts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,13 +39,8 @@ export function DeleteReceiptButton({ receiptId, onDeleted }: DeleteReceiptButto
         throw new Error(error.error || 'Failed to delete receipt');
       }
 
-      // Invalidate all receipt-related queries to refresh lists
-      queryClient.invalidateQueries({ queryKey: ['receipts'] });
-      queryClient.invalidateQueries({ queryKey: ['receipt', receiptId] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['spending-trends'] });
-      queryClient.invalidateQueries({ queryKey: ['spending-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['top-items'] });
+      // Lists, totals, insights and plan, before the modal closes; the receipt's own query is left out.
+      await invalidateReceiptQueries(queryClient, ['receipt', receiptId]);
 
       toast.success('Receipt deleted successfully');
       onDeleted();

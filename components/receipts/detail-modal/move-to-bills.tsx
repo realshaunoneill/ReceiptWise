@@ -5,7 +5,9 @@ import { FileText } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { invalidateFinanceQueries } from '@/lib/hooks/use-plan';
+import { FINANCE_QUERY_KEYS } from '@/lib/hooks/use-plan';
+import { RECEIPT_QUERY_KEYS } from '@/lib/hooks/use-receipts';
+import { refreshQueries } from '@/lib/query-refresh';
 
 /**
  * Shown on a receipt the reader thinks is a bill (an amount still to pay). Moving it reads it as a
@@ -23,10 +25,9 @@ export function MoveToBills({ receiptId, onMoved }: { receiptId: string; onMoved
         const body = await res.json().catch(() => null) as { error?: string } | null;
         throw new Error(body?.error ?? 'Failed to move it to bills');
       }
+      // The receipt has gone (it's a bill now), so its own query is left out.
+      await refreshQueries(queryClient, [...RECEIPT_QUERY_KEYS, ...FINANCE_QUERY_KEYS, 'bill-documents'], ['receipt', receiptId]);
       toast.success('Moved to bills. It will appear in your plan to file.');
-      queryClient.invalidateQueries({ queryKey: ['receipts'] });
-      queryClient.invalidateQueries({ queryKey: ['bill-documents'] });
-      invalidateFinanceQueries(queryClient);
       onMoved();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to move it to bills');

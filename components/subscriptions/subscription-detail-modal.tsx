@@ -108,8 +108,8 @@ export function SubscriptionDetailModal({
   const { data: subscription, isLoading } = useSubscription(subscriptionId || '');
   const { mutate: deleteSubscription } = useDeleteSubscription();
   const { mutate: updateSubscription } = useUpdateSubscription(subscriptionId || '');
-  const { mutate: unlinkPayment } = useUnlinkPayment(subscriptionId || '');
-  const { mutate: updatePayment, isPending: isUpdatingPayment } = useUpdatePayment(subscriptionId || '');
+  const { mutate: unlinkPayment } = useUnlinkPayment();
+  const { mutate: updatePayment, isPending: isUpdatingPayment } = useUpdatePayment();
   const billsEnabled = useFeature('bills');
   const { data: households } = useHouseholds();
   // Cancelling and deleting both ask first, inside the dialog. Cancel used to act straight from the menu.

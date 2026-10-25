@@ -36,10 +36,11 @@ function useBillMutation<TVariables, TResult>(mutationFn: (variables: TVariables
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bill-documents'] });
-      invalidateFinanceQueries(queryClient);
-    },
+    // Returned, so the mutation is pending until the inbox and plan on screen have caught up.
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['bill-documents'] }),
+      invalidateFinanceQueries(queryClient),
+    ]),
   });
 }
 

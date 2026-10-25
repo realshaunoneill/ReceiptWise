@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { useCurrency } from '@/lib/hooks/use-currency';
+import { invalidateReceiptQueries } from '@/lib/hooks/use-receipts';
 import { ReceiptHeader } from './detail-modal/receipt-header';
 import { ReceiptBusinessDetails } from './detail-modal/receipt-business-details';
 import { ReceiptBusinessExpenseInfo } from './detail-modal/receipt-business-expense-info';
@@ -43,7 +44,7 @@ export function ReceiptDetailModal({
   const billsEnabled = useFeature('bills');
 
   // Fetch the latest receipt data - this allows us to refresh after retry
-  const { data: fetchedReceipt, refetch: refetchReceipt } = useQuery({
+  const { data: fetchedReceipt } = useQuery({
     queryKey: ['receipt', initialReceipt?.id],
     queryFn: async () => {
       if (!initialReceipt?.id) return null;
@@ -96,14 +97,8 @@ export function ReceiptDetailModal({
   // Check if we're still loading permissions
   const isLoadingPermissions = isLoadingUser || (!!receipt?.householdId && !household && open);
 
-  const handleRetrySuccess = async () => {
-    // Refetch the receipt to get updated data
-    await refetchReceipt();
-
-    // Also invalidate list queries so they show updated data when modal closes
-    queryClient.invalidateQueries({ queryKey: ['receipts'] });
-    queryClient.invalidateQueries({ queryKey: ['recentReceipts'] });
-  };
+  // The receipt itself, and the lists, totals, insights and plan it feeds.
+  const handleRetrySuccess = () => invalidateReceiptQueries(queryClient);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) setIsImageFullscreen(false);
@@ -170,15 +165,8 @@ export function ReceiptDetailModal({
                   isLoadingPermissions={isLoadingPermissions}
                   canModifyReceipt={canModifyReceipt}
                   isReceiptOwner={isReceiptOwner}
-                  onDeleted={() => {
-                    // Invalidate queries to ensure lists refresh after deletion
-                    queryClient.invalidateQueries({ queryKey: ['receipts'] });
-                    queryClient.invalidateQueries({ queryKey: ['spending-summary'] });
-                    queryClient.invalidateQueries({ queryKey: ['top-items'] });
-                    queryClient.invalidateQueries({ queryKey: ['spending-trends'] });
-                    // Close the modal
-                    handleOpenChange(false);
-                  }}
+                  // The delete button has already refreshed what the receipt fed.
+                  onDeleted={() => handleOpenChange(false)}
                   onRetrySuccess={handleRetrySuccess}
                 />
               </div>

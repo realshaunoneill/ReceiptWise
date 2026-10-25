@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
+import { FINANCE_QUERY_KEYS, invalidateFinanceQueries } from '@/lib/hooks/use-plan';
+import { refreshQueries } from '@/lib/query-refresh';
 import { type BillingFrequency } from '@/lib/schedule/billing-schedule';
 
 export type SubscriptionWithPayments = Subscription & {
@@ -113,9 +115,7 @@ export function useSubscriptions(
       if (!res.ok) await throwResponseError(res, 'Failed to fetch subscriptions');
       return res.json();
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - subscriptions don't change frequently
-    gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
-    refetchOnWindowFocus: false, // Don't refetch on tab focus
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -129,7 +129,6 @@ export function useSubscription(id: string) {
       return res.json();
     },
     enabled: !!id,
-    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }
 
@@ -147,10 +146,8 @@ export function useCreateSubscription() {
       if (!res.ok) await throwResponseError(res, 'Failed to create subscription');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['plan'] });
-    },
+    // Returned, so the mutation is pending until the bills and plan on screen have caught up.
+    onSuccess: () => invalidateFinanceQueries(queryClient),
   });
 }
 
@@ -168,11 +165,8 @@ export function useUpdateSubscription(id: string) {
       if (!res.ok) await throwResponseError(res, 'Failed to update subscription');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['plan'] });
-      queryClient.invalidateQueries({ queryKey: ['subscription', id] });
-    },
+    // Returned, so the mutation is pending until the bills and plan on screen have caught up.
+    onSuccess: () => invalidateFinanceQueries(queryClient),
   });
 }
 
@@ -188,15 +182,13 @@ export function useDeleteSubscription() {
       if (!res.ok) await throwResponseError(res, 'Failed to delete subscription');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['plan'] });
-    },
+    // Returned, so the mutation is pending until the bills and plan on screen have caught up.
+    onSuccess: (_data, id) => invalidateFinanceQueries(queryClient, ['subscription', id]),
   });
 }
 
 // Update payment (link receipt or change status)
-export function useUpdatePayment(subscriptionId?: string) {
+export function useUpdatePayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -209,18 +201,14 @@ export function useUpdatePayment(subscriptionId?: string) {
       if (!res.ok) await throwResponseError(res, 'Failed to update payment');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['plan'] });
-      if (subscriptionId) {
-        queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
-      }
-    },
+    // The bill and plan, and the receipt it links (its detail shows the bill). Returned, so the
+    // mutation is pending until the page has caught up.
+    onSuccess: () => refreshQueries(queryClient, [...FINANCE_QUERY_KEYS, 'receipts', 'receipt']),
   });
 }
 
 // Unlink receipt from payment
-export function useUnlinkPayment(subscriptionId?: string) {
+export function useUnlinkPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -231,13 +219,9 @@ export function useUnlinkPayment(subscriptionId?: string) {
       if (!res.ok) await throwResponseError(res, 'Failed to unlink payment');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['plan'] });
-      if (subscriptionId) {
-        queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
-      }
-    },
+    // The bill and plan, and the receipt it links (its detail shows the bill). Returned, so the
+    // mutation is pending until the page has caught up.
+    onSuccess: () => refreshQueries(queryClient, [...FINANCE_QUERY_KEYS, 'receipts', 'receipt']),
   });
 }
 
@@ -255,10 +239,7 @@ export function useUpdateOccurrence(subscriptionId: string) {
       if (!res.ok) await throwResponseError(res, 'Failed to update payment');
       return res.json() as Promise<SubscriptionPayment>;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['plan'] });
-      queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
-    },
+    // Returned, so the mutation is pending until the bills and plan on screen have caught up.
+    onSuccess: () => invalidateFinanceQueries(queryClient),
   });
 }

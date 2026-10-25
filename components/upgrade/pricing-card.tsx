@@ -82,10 +82,12 @@ export function PricingCard() {
   const annualPrice = pricing?.annual ? formatPrice(pricing.annual.amount, pricing.annual.currency) : null;
   const annualMonthlyEquivalent = pricing?.annual ? formatPrice(pricing.annual.amount / 12, pricing.annual.currency) : null;
 
-  // Calculate savings percentage
+  // The annual saving, from the two live prices. None is claimed without both: it used to fall
+  // back to a flat 17%, when the real saving is 16%.
   const savingsPercentage = pricing?.monthly && pricing?.annual
     ? Math.round(((pricing.monthly.amount * 12 - pricing.annual.amount) / (pricing.monthly.amount * 12)) * 100)
-    : 17; // Default to 17% (2 months free)
+    : null;
+  const showSaving = savingsPercentage !== null && savingsPercentage > 0;
 
   if (isLoading) {
     return (
@@ -142,9 +144,11 @@ export function PricingCard() {
               }`}
             >
               Annual
-              <Badge variant="default" className="ml-2 text-xs">
-                Save {savingsPercentage}%
-              </Badge>
+              {showSaving && (
+                <Badge variant="default" className="ml-2 text-xs">
+                  Save {savingsPercentage}%
+                </Badge>
+              )}
             </button>
           </div>
         )}
@@ -178,10 +182,12 @@ export function PricingCard() {
              already being shown as a badge on the Annual toggle. */
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
             <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                <span>{savingsPercentage}% cheaper than paying by the month</span>
-              </li>
+              {showSaving && (
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span>{savingsPercentage}% cheaper than paying by the month</span>
+                </li>
+              )}
               <li className="flex items-start gap-2">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <span>This price is held for the year</span>

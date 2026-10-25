@@ -14,6 +14,7 @@ import {
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { invalidateReceiptQueries } from '@/lib/hooks/use-receipts';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { Badge } from '@/components/ui/badge';
 
@@ -62,9 +63,9 @@ export function ReceiptAssignmentDialog({
 
       return response.json();
     },
-    onSuccess: (_data, householdId) => {
-      queryClient.invalidateQueries({ queryKey: ['receipts'] });
-      queryClient.invalidateQueries({ queryKey: ['receipt', receiptId] });
+    onSuccess: async (_data, householdId) => {
+      // Which lists, totals and plan it counts in has changed, so all of them, before the dialog closes.
+      await invalidateReceiptQueries(queryClient);
 
       if (householdId === null) {
         toast.success('Receipt is now private', {

@@ -75,8 +75,8 @@ export function LinkReceiptDialog({ subscription, payments, children, open: cont
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
-  const { mutate: linkReceipt, isPending } = useUpdatePayment(subscription.id);
-  const { mutate: unlinkReceipt, isPending: isUnlinking } = useUnlinkPayment(subscription.id);
+  const { mutate: linkReceipt, isPending } = useUpdatePayment();
+  const { mutate: unlinkReceipt, isPending: isUnlinking } = useUnlinkPayment();
 
   // Debounce the search so typing doesn't send a request per keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');

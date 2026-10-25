@@ -10,8 +10,12 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
-            refetchOnWindowFocus: false,
+            // Changes made here refresh what they touch straight away (each mutation invalidates its
+            // queries). This is for changes made elsewhere: a clip from the extension, a forwarded
+            // email, a partner in the household. Coming back to the tab looks again once data is
+            // more than 15 seconds old.
+            staleTime: 15 * 1000,
+            refetchOnWindowFocus: true,
           },
         },
       }),

@@ -1,8 +1,9 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { type FinancialAccount, type IncomeSource, type PlanEntry, type SavingsGoal } from '@/lib/db/schema';
 import { localToday } from '@/lib/dates/local-date';
+import { refreshQueries } from '@/lib/query-refresh';
 import { type PlanResponse } from '@/lib/services/plan-service';
 
 /**
@@ -12,11 +13,14 @@ import { type PlanResponse } from '@/lib/services/plan-service';
 
 export type AccountWithBalance = FinancialAccount & { latestBalance: { balance: string; asOfDate: string } | null };
 
-/** Refresh everything the plan is computed from, after any change to one of them. */
-export function invalidateFinanceQueries(queryClient: QueryClient) {
-  for (const key of ['plan', 'subscriptions', 'subscription', 'income', 'goals', 'accounts']) {
-    queryClient.invalidateQueries({ queryKey: [key] });
-  }
+export const FINANCE_QUERY_KEYS = ['plan', 'subscriptions', 'subscription', 'income', 'goals', 'accounts'] as const;
+
+/**
+ * Refresh everything the plan is computed from, after any change to one of them, and resolve once
+ * the page shows it (see refreshQueries). `except`: the query of something just removed.
+ */
+export function invalidateFinanceQueries(queryClient: QueryClient, except?: QueryKey): Promise<void> {
+  return refreshQueries(queryClient, FINANCE_QUERY_KEYS, except);
 }
 
 /** Throw the server's `{ error }` message so toasts say what went wrong. */
@@ -37,6 +41,7 @@ function useFinanceMutation<TVariables, TResult>(mutationFn: (variables: TVariab
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
+    // Returned, so the mutation is pending until the plan on screen has caught up.
     onSuccess: () => invalidateFinanceQueries(queryClient),
   });
 }
@@ -50,7 +55,6 @@ export function usePlan({ offset = 0, householdId, enabled = true }: { offset?: 
       return fetchJson<PlanResponse>(`/api/plan?${params}`, undefined, 'Failed to load the plan');
     },
     enabled,
-    staleTime: 60_000,
     placeholderData: (previous) => previous,
   });
 }

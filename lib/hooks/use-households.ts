@@ -10,8 +10,7 @@ export function useHouseholds() {
       }
       return response.json();
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes - households rarely change
-    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
-    refetchOnWindowFocus: false,
+    staleTime: 10 * 60 * 1000, // households rarely change; joining or leaving one invalidates this
+    gcTime: 30 * 60 * 1000,
   });
 }

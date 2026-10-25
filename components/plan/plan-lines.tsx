@@ -125,15 +125,19 @@ function AmountEditor({
 
 function RecurringRow({ line, context, handlers }: { line: PlanLine; context: RowContext; handlers: PlanLineHandlers }) {
   const { plan } = context;
-  const { mutate: updateOccurrence, isPending } = useUpdateOccurrence(line.sourceId);
+  const { mutate: updateOccurrence, isPending, variables } = useUpdateOccurrence(line.sourceId);
   const change = (data: Parameters<typeof updateOccurrence>[0]['data'], message: string) =>
     updateOccurrence(
       { expectedDate: line.cycleDate!, data },
       { onSuccess: () => toast.success(message), onError: (error) => toast.error(error.message) },
     );
 
-  const paid = line.status === 'paid';
-  const skipped = line.status === 'skipped';
+  // While a change saves and the plan refreshes, show it as made; a failure puts it back.
+  const saving = isPending ? variables?.data : undefined;
+  const paid = saving?.status ? saving.status === 'paid' : line.status === 'paid';
+  const skipped = saving?.status ? saving.status === 'skipped' : line.status === 'skipped';
+  const savingAmount = saving?.actualAmount ?? saving?.expectedAmount;
+  const amountCents = (savingAmount !== undefined ? toCents(savingAmount) : null) ?? line.amountCents;
 
   return (
     <LineShell
@@ -157,7 +161,7 @@ function RecurringRow({ line, context, handlers }: { line: PlanLine; context: Ro
           {line.paidVia === 'receipt' && paid && (
             <Badge variant="outline"><ReceiptIcon className="mr-1 h-3 w-3" />Receipt</Badge>
           )}
-          {line.status === 'overdue' && <Badge variant="destructive">Overdue</Badge>}
+          {line.status === 'overdue' && !saving?.status && <Badge variant="destructive">Overdue</Badge>}
           {line.estimated && !paid && <Badge variant="outline">Estimate</Badge>}
           {skipped && <Badge variant="outline">Skipped</Badge>}
         </>
@@ -165,9 +169,9 @@ function RecurringRow({ line, context, handlers }: { line: PlanLine; context: Ro
       detail={line.paymentMethod ? PAYMENT_METHOD_LABEL[line.paymentMethod] : undefined}
       amount={
         <AmountEditor
-          cents={line.amountCents}
+          cents={amountCents}
           currency={line.currency}
-          estimated={line.estimated && !paid}
+          estimated={line.estimated && !paid && savingAmount === undefined}
           disabled={isPending || skipped}
           onSave={(amount) => change(paid ? { actualAmount: amount } : { expectedAmount: amount }, 'Amount updated')}
         />
@@ -193,10 +197,15 @@ function RecurringRow({ line, context, handlers }: { line: PlanLine; context: Ro
 }
 
 function EntryRow({ line, viewerId, context, handlers }: { line: PlanLine; viewerId: string; context: RowContext; handlers: PlanLineHandlers }) {
-  const { mutate: updateEntry, isPending } = useUpdateEntry();
+  const { mutate: updateEntry, isPending, variables } = useUpdateEntry();
   const { mutate: deleteEntry } = useDeleteEntry();
   const { mutate: createEntries } = useCreateEntries();
   const isOwner = line.ownerUserId === viewerId;
+
+  // While a change saves and the plan refreshes, show it as made; a failure puts it back.
+  const saving = isPending ? variables?.data : undefined;
+  const done = saving?.done ?? line.status === 'done';
+  const amountCents = (saving?.amount !== undefined ? toCents(saving.amount) : null) ?? line.amountCents;
 
   // Remove acts at once, with Undo in the toast (it used to remove for good on one tap).
   const remove = () => deleteEntry(line.sourceId, {
@@ -225,14 +234,14 @@ function EntryRow({ line, viewerId, context, handlers }: { line: PlanLine; viewe
     <LineShell
       line={line}
       context={context}
-      checked={line.status === 'done'}
+      checked={done}
       disabled={isPending}
-      onCheckedChange={(done) => updateEntry({ id: line.sourceId, data: { done } }, { onError: (error) => toast.error(error.message) })}
+      onCheckedChange={(checked) => updateEntry({ id: line.sourceId, data: { done: checked } }, { onError: (error) => toast.error(error.message) })}
       onLabelClick={isOwner ? () => handlers.onEditEntry(line) : undefined}
       detail={line.category ?? undefined}
       amount={
         <AmountEditor
-          cents={line.amountCents}
+          cents={amountCents}
           currency={line.currency}
           estimated={false}
           disabled={!isOwner || isPending}
@@ -279,7 +288,8 @@ function GoalRow({ line, context, handlers }: { line: PlanLine; context: RowCont
   const { plan } = context;
   const { mutate: addContribution, isPending: adding } = useAddContribution();
   const { mutate: removeContributions, isPending: removing } = useRemoveContributions();
-  const done = line.status === 'done';
+  // While it saves and the plan refreshes, show it as made; a failure puts it back.
+  const done = adding ? true : removing ? false : line.status === 'done';
   const summary = plan.goals.find((goal) => goal.id === line.sourceId);
 
   return (

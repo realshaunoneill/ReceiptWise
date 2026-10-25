@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { invalidateReceiptQueries } from '@/lib/hooks/use-receipts';
 
 type BusinessExpenseDialogProps = {
   receiptId: string;
@@ -69,9 +70,9 @@ export function BusinessExpenseDialog({
       if (!res.ok) throw new Error('Failed to update receipt');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['receipt', receiptId] });
-      queryClient.invalidateQueries({ queryKey: ['receipts'] });
+    onSuccess: async () => {
+      // The badge, the lists and the business totals, before the dialog closes.
+      await invalidateReceiptQueries(queryClient);
       toast.success(
         enabled
           ? 'Receipt marked as business expense'

@@ -34,8 +34,6 @@ export function useReceiptStats(
       }
       return response.json();
     },
-    staleTime: 60 * 1000,
-    refetchOnWindowFocus: false,
   });
 }
 

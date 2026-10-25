@@ -1,5 +1,26 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { refreshQueries } from '@/lib/query-refresh';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
+
+export const RECEIPT_QUERY_KEYS = ['receipts', 'receipt', 'topItems', 'spendingSummary', 'itemAnalysis', 'plan'] as const;
+
+/**
+ * Refresh everything a receipt feeds, after one is added, read, changed or removed: the lists and
+ * totals (all under 'receipts'), one receipt, the insights, and the plan's spending this period.
+ * Resolves once the page shows it (see refreshQueries). `except`: the query of a removed receipt.
+ */
+export function invalidateReceiptQueries(queryClient: QueryClient, except?: QueryKey): Promise<void> {
+  return refreshQueries(queryClient, RECEIPT_QUERY_KEYS, except);
+}
+
+/** While a receipt is being read, look again this often; give up on one stuck for longer than this. */
+const PROCESSING_POLL_MS = 3000;
+const PROCESSING_POLL_FOR_MS = 10 * 60 * 1000;
+
+function isBeingRead(receipt: ReceiptWithItems): boolean {
+  return receipt.processingStatus === 'pending' || receipt.processingStatus === 'processing';
+}
 
 interface ReceiptsResponse {
   receipts: ReceiptWithItems[]
@@ -90,19 +111,28 @@ export function useReceipts(
       }
       return response.json();
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes - balance between freshness and performance
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: false, // Don't refetch on tab focus to reduce API calls
+    gcTime: 10 * 60 * 1000,
+    // A receipt from the extension or a forwarded email is read on the server after it appears,
+    // so look again until it's done, as the bill inbox does.
+    refetchInterval: (query) =>
+      query.state.data?.receipts.some((receipt) =>
+        isBeingRead(receipt) && Date.now() - new Date(receipt.createdAt).getTime() < PROCESSING_POLL_FOR_MS)
+        ? PROCESSING_POLL_MS
+        : false,
   });
 
-  const refetch = () => {
-    // Invalidate all receipt queries, regardless of filters/pagination
-    // This ensures fresh data after uploads, deletions, or updates
-    queryClient.invalidateQueries({
-      queryKey: ['receipts'],
-      refetchType: 'active',
-    });
-  };
+  // When one finishes being read, its amount reaches the totals, insights and plan too.
+  const beingReadKey = (query.data?.receipts ?? []).filter(isBeingRead).map((receipt) => receipt.id).join(',');
+  const previouslyBeingRead = useRef<string[]>([]);
+  useEffect(() => {
+    const now = beingReadKey ? beingReadKey.split(',') : [];
+    const finished = previouslyBeingRead.current.some((id) => !now.includes(id));
+    previouslyBeingRead.current = now;
+    if (finished) void invalidateReceiptQueries(queryClient);
+  }, [beingReadKey, queryClient]);
+
+  // Every receipt query, whatever its filters or page, and what receipts feed.
+  const refetch = () => invalidateReceiptQueries(queryClient);
 
   return {
     receipts: query.data?.receipts || [],
