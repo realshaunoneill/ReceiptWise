@@ -4,12 +4,16 @@ import { put } from '@vercel/blob';
 import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
-import { receipts } from '@/lib/db/schema';
+import { receipts, type Receipt, type User } from '@/lib/db/schema';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { getHouseholdMembership } from '@/lib/auth-helpers';
 import { authenticateApiKey } from '@/lib/api-key-auth';
 import { processReceipt } from '@/lib/receipt-processing';
 import { checkReceiptCreationLimit } from '@/lib/receipt-rate-limit';
+import { checkBillDocumentLimit } from '@/lib/bill-rate-limit';
+import { isFeatureEnabled } from '@/lib/features';
+import { moveReceiptToBillsAndRead } from '@/lib/services/receipt-to-bill';
+import { isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 
 export const runtime = 'nodejs';
 // Covers the upload plus the in-process processing started with waitUntil below, which runs
@@ -134,11 +138,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // extension upload sat at 'pending' forever. processReceipt records 'failed' itself on error,
     // and the hourly sweeper catches anything the function was killed before finishing.
     waitUntil(
-      processReceipt(receipt.id, user.id, correlationId).catch((error) => {
-        submitLogEvent('extension-upload', `Background processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {
-          receiptId: receipt.id,
-        }, true);
-      }),
+      processReceipt(receipt.id, user.id, correlationId)
+        .then((result) => (result.ok ? fileBillsAsBills(result.receipt, result.ocrData.documentKind, user, correlationId) : undefined))
+        .catch((error) => {
+          submitLogEvent('extension-upload', `Background processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, {
+            receiptId: receipt.id,
+          }, true);
+        }),
     );
 
     return NextResponse.json(
@@ -160,6 +166,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 500, headers: corsHeaders },
     );
   }
+}
+
+/**
+ * A clip the reader says is a bill (an energy bill or a card statement open in the browser) goes to
+ * the bill inbox, as forwarded email does, instead of sitting in Receipts until someone presses
+ * "Move to Bills". Only where the account has bills and the private store is set up, and within the
+ * bill rate limit; otherwise it stays a receipt, with the button.
+ */
+async function fileBillsAsBills(
+  receipt: Receipt,
+  documentKind: string | null | undefined,
+  user: User,
+  correlationId: CorrelationId,
+): Promise<void> {
+  if (documentKind !== 'bill' || !isFeatureEnabled(user, 'bills') || !isPrivateStoreConfigured()) return;
+  const limit = await checkBillDocumentLimit(user.id);
+  if (limit.limited) return;
+  await moveReceiptToBillsAndRead(receipt, correlationId);
+  submitLogEvent('extension-upload', 'Clipped bill filed in the bill inbox', correlationId, { receiptId: receipt.id });
 }
 
 // Handle CORS preflight

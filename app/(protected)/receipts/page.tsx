@@ -103,7 +103,10 @@ function ReceiptsPageContent() {
       queryKey: ['receipt', linkedReceiptId],
       queryFn: async () => {
         const res = await fetch(`/api/receipts/${linkedReceiptId}`);
-        if (!res.ok) throw new Error('Receipt not found');
+        if (!res.ok) {
+          const body = await res.json().catch(() => null) as { movedToBills?: boolean } | null;
+          throw new Error(body?.movedToBills ? 'moved-to-bills' : 'Receipt not found');
+        }
         return res.json();
       },
       retry: false,
@@ -111,11 +114,17 @@ function ReceiptsPageContent() {
     }).then(receipt => {
       setSelectedReceipt(receipt);
       setIsModalOpen(true);
-    }).catch(() => {
+    }).catch((error: unknown) => {
+      // A clip from the extension that was a bill went to the bill inbox, which is on the Plan.
+      if (error instanceof Error && error.message === 'moved-to-bills') {
+        toast.info('That was a bill, so it’s in your Bill inbox on the Plan.');
+        router.push('/plan');
+        return;
+      }
       toast.error('That receipt couldn’t be found');
       clearLinkedReceipt();
     });
-  }, [linkedReceiptId, allReceipts, queryClient, clearLinkedReceipt]);
+  }, [linkedReceiptId, allReceipts, queryClient, clearLinkedReceipt, router]);
 
   /*
    * A prefetch of /api/receipts/:id/subscription for every receipt on the page used to run here,
@@ -178,7 +187,7 @@ function ReceiptsPageContent() {
                  page, on a palette whose accent is emerald. */
               <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Chrome className="h-3.5 w-3.5" aria-hidden="true" />
-                Online receipts can be clipped from the browser with the extension.
+                Online receipts and bills can be clipped from the browser with the Chrome extension, coming soon.
               </p>
             )}
           </div>

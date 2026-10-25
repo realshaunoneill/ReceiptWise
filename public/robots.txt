@@ -6,6 +6,7 @@ Allow: /
 # not block /dashboard itself.
 Disallow: /api
 Disallow: /admin
+Disallow: /connect
 Disallow: /dashboard
 Disallow: /receipts
 Disallow: /subscriptions

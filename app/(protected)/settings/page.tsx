@@ -769,17 +769,17 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>Chrome Extension</CardTitle>
                 <CardDescription>
-                  Capture receipts from anywhere on the web. The extension is on its way to the
-                  Chrome Web Store; until it is listed, keys created here are ready for when it arrives.
+                  Clip receipts and bills from any web page. The extension is on its way to the
+                  Chrome Web Store.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-lg bg-muted/50 p-4 space-y-3">
                   <h4 className="font-medium text-sm">How it works</h4>
                   <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
-                    <li>Install the ReceiptWise Clipper extension from the Chrome Web Store once it is listed</li>
-                    <li>Create an API key below and copy it into the extension</li>
-                    <li>Use the snipping tool to capture receipts from any webpage</li>
+                    <li>Install ReceiptWise Clipper from the Chrome Web Store once it is listed</li>
+                    <li>In the extension, click <span className="font-medium text-foreground">Connect to ReceiptWise</span>; it gets its own key, listed below</li>
+                    <li>Drag over a receipt or bill on any page; bills go to your Bill inbox</li>
                   </ol>
                 </div>
 

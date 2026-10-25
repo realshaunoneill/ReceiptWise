@@ -1,102 +1,60 @@
-# ReceiptWise Clipper - Chrome Extension
+# ReceiptWise Clipper
 
-A Chrome extension that allows users to quickly capture receipts from anywhere on the web and upload them directly to ReceiptWise.
+A Chrome extension (Manifest V3) that clips a receipt or bill from any web page into ReceiptWise. You drag over it on the page; it's uploaded, read and filed. A bill goes to the Bill inbox, not Receipts.
 
-## Features
+## Using it
 
-- **Snipping Tool**: Click and drag to select any area of a webpage to capture as a receipt
-- **Keyboard Shortcuts**: 
-  - Mac: `⌃ + ⇧ + R` (Control + Shift + R)
-  - Windows/Linux: `Alt + Shift + R`
-- **API Key Authentication**: Securely connect to your ReceiptWise account
-- **Automatic Processing**: Uploaded receipts are automatically processed with OCR
-- **Real-time Notifications**: Get desktop notifications when uploads complete
-- **Selection Size Display**: See the dimensions of your selection while capturing
+1. **Connect.** Click the toolbar icon, then **Connect to ReceiptWise**. A tab opens on receiptwise.io: sign in if asked, then press **Connect**. The page hands the extension its own API key. You can revoke that key any time in Settings → Integrations.
+   - The fallback, **Use an API key instead**, takes a key created in Settings → Integrations.
+2. **Clip.** Click the icon, then **Clip a receipt or bill**, or press `⌃⇧R` on a Mac (`Alt+Shift+R` elsewhere). Drag over the receipt; `Esc` cancels.
+   - On pages Chrome won't let an extension draw on (Gmail, Google sign-in, the Web Store), a screenshot opens in a cropper tab instead.
+3. A notification says it was sent. Click it to open the receipt. If it was a bill, you're taken to the Bill inbox on the Plan.
 
-## Installation
+Needs ReceiptWise Premium.
 
-### From Chrome Web Store
-*(Coming soon)*
+## Permissions, and why
 
-### Development Setup
+| Permission | For |
+| --- | --- |
+| `activeTab` | The page you clip from, and only when you click the icon or press the shortcut. |
+| `scripting` | Drawing the selection overlay on that page. |
+| `storage` | The API key (`storage.sync`), the account it belongs to, and a screenshot passed to the cropper (`storage.local`). |
+| `notifications` | "Sent" and error messages. |
+| host `https://www.receiptwise.io/*` | Uploads, and checking the key. |
 
-1. Clone/download this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable **"Developer mode"** in the top right corner
-4. Click **"Load unpacked"**
-5. Select the `chrome-extension` folder
-6. The ReceiptWise Clipper icon should appear in your toolbar
-7. (Optional) Pin the extension for easy access
+There is no access to other sites: no `<all_urls>`, no `tabs`. `externally_connectable` lets only receiptwise.io pages message the extension, and the service worker checks the sender's origin as well.
 
-## Setup
-
-1. Click the extension icon in your toolbar
-2. Get your API key from [ReceiptWise Settings](https://www.receiptwise.io/settings?tab=integrations)
-3. Paste your API key (starts with `rw_`) and click **Connect Account**
-4. You're ready to capture receipts!
-
-## Usage
-
-### Capture a Receipt
-1. Navigate to any webpage with a receipt
-2. Click the extension icon → **Capture Receipt**
-   - Or use keyboard shortcut: `⌃⇧R` (Mac) / `Alt+Shift+R` (Windows)
-3. Click and drag to select the receipt area
-4. Release to upload automatically
-5. View your receipt in ReceiptWise
-
-### Tips
-- Press `Esc` to cancel a capture
-- Minimum selection size is 20×20 pixels
-- The selection box shows dimensions while dragging
-- Click the notification to open your receipts
-
-## File Structure
+## How it fits together
 
 ```
 chrome-extension/
-├── manifest.json          # Extension configuration
-├── background/
-│   └── service-worker.js  # Background script for handling uploads
-├── content/
-│   ├── content.js         # Content script for screen capture
-│   └── content.css        # Styles for capture overlay
-├── popup/
-│   ├── popup.html         # Extension popup UI
-│   ├── popup.css          # Popup styles
-│   └── popup.js           # Popup logic
-└── icons/
-    ├── icon16.svg
-    ├── icon32.svg
-    ├── icon48.svg
-    └── icon128.svg
+├── manifest.json
+├── config.js                  # The site it talks to (one place)
+├── background/service-worker.js   # Starts captures, uploads, takes the key from the connect page
+├── content/content.{js,css}   # The selection overlay, injected on demand
+├── cropper/cropper.{html,js}  # Fallback for pages the overlay can't run on
+├── shared/image.js            # Crop, scale to 2400 px max, encode as WebP for upload
+├── popup/popup.{html,css,js}  # Connect, account, capture button
+├── icons/
+├── store/                     # Chrome Web Store listing copy and images (not packaged)
+└── scripts/                   # Icon generation, packaging (not packaged)
 ```
 
-## API Endpoints
+The server routes it uses are all in the Next.js app:
+- `POST /api/extension/verify`: checks the key and returns `{ user: { email, subscribed } }`.
+- `POST /api/extension/upload`: takes a multipart `file` (WebP, JPEG or PNG). It creates a receipt and reads it, and moves it to the Bill inbox if the reader says it's a bill.
+- `POST /api/extension/connect`: called by the signed-in `/connect/extension` page. It mints the key handed to the extension. Once the extension is listed, set `EXTENSION_IDS` to its Web Store id, so only that extension can be given a key.
 
-The extension communicates with these ReceiptWise API endpoints:
+Uploads are WebP at most 2400 px on the longest side, because Vercel functions refuse request bodies over 4.5 MB.
 
-- `POST /api/extension/verify` - Verify API key validity
-- `POST /api/extension/upload` - Upload receipt image
-- `POST /api/extension/process` - Process uploaded receipt with OCR
+## Development
 
-## Security
+1. Edit `config.js` to point at your dev server, e.g. `http://localhost:3000`. Add that origin to `host_permissions` and `externally_connectable.matches` in `manifest.json`. **Put both back before packaging.**
+2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder.
+3. After a change, press the reload icon on the extension's card, then reload the page you're testing on.
 
-- API keys are stored securely using Chrome's `storage.sync` API
-- All communication with ReceiptWise uses HTTPS
-- API keys can be regenerated at any time from Settings
+## Packaging for the Web Store
 
-## Troubleshooting
+`npm run extension:zip` (from the repo root) writes `receiptwise-clipper-<version>.zip`. It packages only what the extension needs: no `README.md`, `scripts/` or `store/`. It refuses to package if `config.js` or the manifest point anywhere but https://www.receiptwise.io.
 
-**Extension not working?**
-- Make sure you have an active ReceiptWise Premium subscription
-- Try regenerating your API key in Settings > Integrations
-- Check that the extension has the necessary permissions
-
-**Capture not starting?**
-- Refresh the page and try again
-- Some pages may block content scripts (e.g., Chrome Web Store, chrome:// pages)
-
-## License
-
-This extension is part of ReceiptWise and is proprietary software.
+Listing copy, permission justifications, privacy-practices answers and images are in `store/`.

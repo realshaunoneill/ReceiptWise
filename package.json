@@ -17,7 +17,8 @@
     "db:assert": "tsx scripts/assert-schema.ts",
     "db:diff": "dotenv -e .env.local -- tsx scripts/schema-diff.ts",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
-    "bills:daily": "dotenv -e .env.local -- tsx scripts/run-bills-daily.ts"
+    "bills:daily": "dotenv -e .env.local -- tsx scripts/run-bills-daily.ts",
+    "extension:zip": "node chrome-extension/scripts/package.mjs"
   },
   "engines": {
     "node": "24.x"

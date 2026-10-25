@@ -2,10 +2,11 @@
 
 :root {
   /* Colors matching the ReceiptWise app */
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --primary-light: rgba(16, 185, 129, 0.1);
-  --primary-glow: rgba(16, 185, 129, 0.2);
+  /* The app's green since 2026-10-24: white text on #10b981 was 3.0:1, under the 4.5:1 needed. */
+  --primary: #00825a;
+  --primary-hover: #006b4a;
+  --primary-light: rgba(0, 130, 90, 0.1);
+  --primary-glow: rgba(0, 130, 90, 0.2);
   
   --background: #ffffff;
   --background-secondary: #fafafa;
@@ -17,7 +18,7 @@
   
   --input-bg: #fafafa;
   --input-border: #e4e4e7;
-  --input-focus: #10b981;
+  --input-focus: #00825a;
   
   --destructive: #ef4444;
   --destructive-light: rgba(239, 68, 68, 0.1);
@@ -259,6 +260,60 @@ body {
   background: var(--destructive-light);
 }
 
+.btn-secondary {
+  width: 100%;
+  background: var(--background-secondary);
+  color: var(--foreground);
+  border: 1px solid var(--card-border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--primary);
+}
+
+.link-button {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: none;
+  padding: 6px;
+  color: var(--foreground-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--foreground);
+}
+
+#key-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+}
+
+.note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--foreground-muted);
+}
+
+.note-warning {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+}
+
+.note-warning a {
+  color: inherit;
+  font-weight: 600;
+}
+
 /* Help Link */
 .help-link {
   display: inline-flex;
@@ -316,7 +371,7 @@ body {
   flex-direction: column;
   gap: 4px;
   padding: 24px 20px;
-  background: linear-gradient(135deg, var(--primary) 0%, #0d9488 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md), 0 0 0 0 var(--primary-glow);

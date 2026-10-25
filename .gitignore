@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Chrome extension packages (npm run extension:zip)
+receiptwise-clipper-*.zip

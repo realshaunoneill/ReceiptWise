@@ -5,11 +5,10 @@ import { db } from '@/lib/db';
 import { apiKeys } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { generateApiKey } from '@/lib/api-key-auth';
+import { ApiKeyLimitError, createApiKey } from '@/lib/services/api-key-service';
 
 export const runtime = 'nodejs';
 
-const MAX_ACTIVE_KEYS = 10;
 
 /*
  * Keys are stored as a SHA-256 digest (see lib/api-key-auth.ts), so the plaintext exists only in
@@ -82,28 +81,14 @@ export async function POST(req: NextRequest) {
       ? body.name.trim().slice(0, 60)
       : 'Chrome Extension';
 
-    const activeKeys = await db
-      .select({ id: apiKeys.id })
-      .from(apiKeys)
-      .where(and(eq(apiKeys.userId, user.id), eq(apiKeys.isRevoked, false)));
-    if (activeKeys.length >= MAX_ACTIVE_KEYS) {
-      return NextResponse.json(
-        { error: `You can have up to ${MAX_ACTIVE_KEYS} active keys. Revoke one you no longer use first.` },
-        { status: 400 },
-      );
+    let created;
+    let newKey: string;
+    try {
+      ({ record: created, key: newKey } = await createApiKey(user.id, keyName));
+    } catch (error) {
+      if (error instanceof ApiKeyLimitError) return NextResponse.json({ error: error.message }, { status: 400 });
+      throw error;
     }
-
-    // Create new API key: only the digest and a display prefix are stored.
-    const { key: newKey, hash, prefix } = generateApiKey();
-    const [created] = await db
-      .insert(apiKeys)
-      .values({
-        userId: user.id,
-        key: hash,
-        keyPrefix: prefix,
-        name: keyName,
-      })
-      .returning();
 
     submitLogEvent('api-key', 'Created new API key', correlationId, { userId: user.id, keyName });
 
@@ -133,9 +118,9 @@ export async function DELETE(req: NextRequest) {
     if (authResult instanceof NextResponse) return authResult;
     const { user } = authResult;
 
-    // Get key ID from request body
-    const body = await req.json();
-    const { keyId } = body;
+    // The key's id comes in the body. A missing or malformed body is a 400, not a 500.
+    const body = await req.json().catch(() => null) as { keyId?: unknown } | null;
+    const keyId = typeof body?.keyId === 'string' ? body.keyId : null;
 
     if (!keyId) {
       return NextResponse.json(

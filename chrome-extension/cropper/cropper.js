@@ -23,15 +23,15 @@ let currentSelection = null;
 async function loadScreenshot() {
   try {
     const { [`screenshot_${screenshotKey}`]: imageData } = await chrome.storage.local.get(`screenshot_${screenshotKey}`);
-    
+
     if (!imageData) {
       alert('Screenshot not found. Please try again.');
       window.close();
       return;
     }
-    
+
     screenshot.src = imageData;
-    
+
     // Clean up storage after loading
     chrome.storage.local.remove(`screenshot_${screenshotKey}`);
   } catch (error) {
@@ -47,48 +47,48 @@ loadScreenshot();
 // Selection handling
 screenshot.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
-  
+
   isSelecting = true;
   const rect = screenshot.getBoundingClientRect();
   startX = e.clientX - rect.left;
   startY = e.clientY - rect.top;
-  
+
   selection.style.left = `${rect.left + startX}px`;
   selection.style.top = `${rect.top + startY}px`;
   selection.style.width = '0';
   selection.style.height = '0';
   selection.classList.add('active');
-  
+
   e.preventDefault();
 });
 
 document.addEventListener('mousemove', (e) => {
   if (!isSelecting) return;
-  
+
   const rect = screenshot.getBoundingClientRect();
   const currentX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
   const currentY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-  
+
   const width = Math.abs(currentX - startX);
   const height = Math.abs(currentY - startY);
   const left = Math.min(currentX, startX);
   const top = Math.min(currentY, startY);
-  
+
   selection.style.left = `${rect.left + left}px`;
   selection.style.top = `${rect.top + top}px`;
   selection.style.width = `${width}px`;
   selection.style.height = `${height}px`;
-  
+
   // Update size indicator
   sizeIndicator.textContent = `${Math.round(width)} × ${Math.round(height)}`;
-  
+
   currentSelection = { left, top, width, height };
 });
 
 document.addEventListener('mouseup', () => {
   if (!isSelecting) return;
   isSelecting = false;
-  
+
   // Enable upload button if selection is valid
   if (currentSelection && currentSelection.width > 20 && currentSelection.height > 20) {
     uploadBtn.disabled = false;
@@ -102,22 +102,22 @@ document.addEventListener('mouseup', () => {
 // Upload button
 uploadBtn.addEventListener('click', async () => {
   if (!currentSelection) return;
-  
+
   // Disable button and show loading
   uploadBtn.disabled = true;
   loading.classList.remove('hidden');
   updateLoadingText('Preparing image...');
-  
+
   try {
     // Get the actual image dimensions vs displayed dimensions
     const displayedWidth = screenshot.clientWidth;
     const displayedHeight = screenshot.clientHeight;
     const naturalWidth = screenshot.naturalWidth;
     const naturalHeight = screenshot.naturalHeight;
-    
+
     const scaleX = naturalWidth / displayedWidth;
     const scaleY = naturalHeight / displayedHeight;
-    
+
     // Scale selection to actual image coordinates
     const scaledSelection = {
       left: currentSelection.left * scaleX,
@@ -125,35 +125,24 @@ uploadBtn.addEventListener('click', async () => {
       width: currentSelection.width * scaleX,
       height: currentSelection.height * scaleY,
     };
-    
-    // Create canvas and crop
-    const canvas = document.createElement('canvas');
-    canvas.width = scaledSelection.width;
-    canvas.height = scaledSelection.height;
-    
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(
+
+    // Crop and encode for upload (shared/image.js): scaled down if huge, and WebP rather than PNG.
+    const croppedImageData = globalThis.rwEncodeForUpload(
       screenshot,
       scaledSelection.left,
       scaledSelection.top,
       scaledSelection.width,
       scaledSelection.height,
-      0,
-      0,
-      scaledSelection.width,
-      scaledSelection.height,
     );
-    
-    const croppedImageData = canvas.toDataURL('image/png');
-    
+
     updateLoadingText('Uploading to ReceiptWise...');
-    
+
     // Send to background script for upload and wait for response
     const response = await chrome.runtime.sendMessage({
       action: 'uploadReceiptWithResponse',
-      imageData: croppedImageData
+      imageData: croppedImageData,
     });
-    
+
     if (response?.success) {
       // Show success state
       loading.classList.add('success');
@@ -165,7 +154,7 @@ uploadBtn.addEventListener('click', async () => {
     } else {
       throw new Error(response?.error || 'Upload failed');
     }
-    
+
   } catch (error) {
     console.error('Upload error:', error);
     loading.classList.add('hidden');
@@ -208,7 +197,7 @@ function showError(message) {
   }
   errorToast.textContent = message;
   errorToast.style.display = 'block';
-  
+
   // Hide after 4 seconds
   setTimeout(() => {
     errorToast.style.display = 'none';

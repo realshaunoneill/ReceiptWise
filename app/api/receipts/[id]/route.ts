@@ -3,8 +3,8 @@ import { getAuthenticatedUser, requireReceiptAccess, requireReceiptOwner, filter
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { getReceiptById, deleteReceipt } from '@/lib/receipt-scanner';
 import { db } from '@/lib/db';
-import { receipts, subscriptionPayments, subscriptions } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { billDocuments, receipts, subscriptionPayments, subscriptions } from '@/lib/db/schema';
+import { eq, and, isNull } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
 
@@ -23,8 +23,15 @@ export async function GET(
     const receipt = await getReceiptById(receiptId);
 
     if (!receipt) {
+      // A receipt that turned out to be a bill (moved by hand, or a Chrome extension clip filed
+      // automatically) is gone from Receipts: say so, so a link to it can send people to the bill.
+      const [moved] = await db
+        .select({ id: billDocuments.id })
+        .from(billDocuments)
+        .where(and(eq(billDocuments.receiptId, receiptId), eq(billDocuments.userId, user.id), isNull(billDocuments.deletedAt)))
+        .limit(1);
       return NextResponse.json(
-        { error: 'Receipt not found' },
+        { error: 'Receipt not found', ...(moved ? { movedToBills: true } : {}) },
         { status: 404 },
       );
     }

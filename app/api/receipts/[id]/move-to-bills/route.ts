@@ -1,21 +1,17 @@
-import { randomBytes } from 'crypto';
 import { waitUntil } from '@vercel/functions';
 import { type NextRequest, NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { billDocuments, receipts } from '@/lib/db/schema';
+import { receipts } from '@/lib/db/schema';
 import { checkBillDocumentLimit } from '@/lib/bill-rate-limit';
 import { submitLogEvent } from '@/lib/logging';
 import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
 import { processBillDocument, toClientDocument } from '@/lib/services/bill-document-service';
-import { billsPrefix, isPrivateStoreConfigured, putPrivate } from '@/lib/storage/private-blob';
-import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
+import { moveReceiptToBills, MoveToBillsError } from '@/lib/services/receipt-to-bill';
+import { isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 
 export const runtime = 'nodejs';
 export const maxDuration = 90;
-
-const IMAGE_FETCH_TIMEOUT_MS = 15_000;
-const EXTENSIONS: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -41,40 +37,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const limit = await checkBillDocumentLimit(user.id);
     if (limit.limited) return NextResponse.json({ error: limit.message }, { status: 429 });
 
-    const image = await fetch(receipt.imageUrl, { signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS) });
-    if (!image.ok) return NextResponse.json({ error: "The receipt image couldn't be loaded" }, { status: 502 });
-    const mimeType = (image.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
-    if (!EXTENSIONS[mimeType]) return NextResponse.json({ error: 'Only images can be moved' }, { status: 400 });
-    const bytes = Buffer.from(await image.arrayBuffer());
-
-    const pathname = `${billsPrefix(user.id)}receipt-${receipt.id}-${randomBytes(8).toString('hex')}.${EXTENSIONS[mimeType]}`;
-    await putPrivate(pathname, bytes, mimeType);
-
-    const document = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(billDocuments)
-        .values({
-          userId: user.id,
-          householdId: receipt.householdId,
-          source: 'receipt_move',
-          blobPathname: pathname,
-          mimeType,
-          fileName: receipt.merchantName ? `${receipt.merchantName}.${EXTENSIONS[mimeType]}` : null,
-          sizeBytes: bytes.length,
-          receiptId: receipt.id,
-        })
-        .returning();
-      // Soft delete: the receipt and its public image are purged after 30 days as usual.
-      await tx.update(receipts).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(receipts.id, receipt.id));
-      return created;
-    });
-
-    await invalidateInsightsCache(user.id, receipt.householdId ?? undefined, correlationId);
+    const document = await moveReceiptToBills(receipt, correlationId);
     waitUntil(processBillDocument(document.id, correlationId));
-
-    submitLogEvent('bill-document', 'Receipt moved to bills', correlationId, { documentId: document.id, receiptId: receipt.id });
     return NextResponse.json(toClientDocument(document), { status: 201, headers: PRIVATE_NO_STORE });
   } catch (error) {
+    if (error instanceof MoveToBillsError) return NextResponse.json({ error: error.message }, { status: error.status });
     submitLogEvent('bill-document', `Error moving receipt to bills: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { receiptId: id }, true);
     return NextResponse.json({ error: 'Failed to move it to bills' }, { status: 500 });
   }
