@@ -23,7 +23,7 @@ export default function UploadStatus() {
       {pending ? (online ? <ActivityIndicator color={colors.textMuted} /> : <CloudOff size={18} color={colors.textMuted} />) : <RotateCcw size={18} color={colors.bad} />}
       <View style={{ flex: 1 }}>
         <Text variant="callout">{summary}</Text>
-        {!pending && failed[0]?.error && <Text variant="footnote" ink="muted" numberOfLines={2}>{failed[0].error}</Text>}
+        {!pending && !!failed[0]?.error && <Text variant="footnote" ink="muted" numberOfLines={2}>{failed[0].error}</Text>}
       </View>
       {!pending && failed.length > 0 && <Button label="Retry" size="sm" variant="secondary" onPress={() => failed.forEach((item) => retry(item.id))} />}
     </View>

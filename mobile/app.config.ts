@@ -8,6 +8,8 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * Icons and the splash image are drawn from brand/mark.svg once the mark is approved; until then
  * builds use Expo's defaults.
  */
+const CAMERA_PERMISSION = "ReceiptWise uses the camera to scan receipts and bills. They're uploaded to your account so they can be read.";
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'ReceiptWise',
@@ -53,10 +55,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         // Photos are chosen with the system picker, which needs no access to the library.
         photosPermission: false,
-        cameraPermission: "ReceiptWise uses the camera to scan receipts and bills. They're uploaded to your account so they can be read.",
+        cameraPermission: CAMERA_PERMISSION,
         microphonePermission: false,
       },
     ],
+    // VisionKit on iOS, ML Kit on Android (which needs Play services; without them the camera is used).
+    ['react-native-document-scanner-plugin', { cameraPermission: CAMERA_PERMISSION }],
+    '@react-native-community/datetimepicker',
   ],
   experiments: {
     typedRoutes: true,

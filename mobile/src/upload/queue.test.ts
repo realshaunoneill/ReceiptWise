@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { backoffMs, MAX_ATTEMPTS, nextToUpload, nextWakeAt, queueSummary, reduce, type QueueItem } from './queue';
 
 const item = (id: string, createdAt: number, overrides: Partial<QueueItem> = {}): QueueItem => ({
-  id, fileUri: `file:///${id}.jpg`, mimeType: 'image/jpeg', kind: 'receipt', createdAt, status: 'waiting', attempts: 0, notBefore: 0, ...overrides,
+  id, target: 'receipt', files: [{ uri: `file:///${id}.jpg`, mimeType: 'image/jpeg', name: `${id}.jpg` }], kind: 'receipt', createdAt, status: 'waiting', attempts: 0, notBefore: 0, ...overrides,
 });
 
 describe('upload queue', () => {
@@ -11,8 +11,8 @@ describe('upload queue', () => {
     expect(nextToUpload(items, 10)?.id).toBe('a');
     const started = reduce(items, { type: 'start', id: 'a' });
     expect(nextToUpload(started, 10)).toBeUndefined();
-    const done = reduce(started, { type: 'uploaded', id: 'a', receiptId: 'r1' });
-    expect(done[1]).toMatchObject({ status: 'done', receiptId: 'r1' });
+    const done = reduce(started, { type: 'uploaded', id: 'a', resultId: 'r1' });
+    expect(done[1]).toMatchObject({ status: 'done', resultId: 'r1' });
     expect(nextToUpload(done, 10)?.id).toBe('b');
   });
 
@@ -55,5 +55,7 @@ describe('upload queue', () => {
     expect(queueSummary([item('a', 1, { status: 'done' }), item('b', 2, { status: 'uploading' }), item('c', 3)], true)).toBe('Uploading 2 of 3');
     expect(queueSummary([item('a', 1), item('b', 2)], false)).toBe('2 receipts waiting for a connection');
     expect(queueSummary([item('a', 1, { status: 'failed' })], true)).toBe("1 receipt didn't upload");
+    expect(queueSummary([item('a', 1, { target: 'bill', status: 'uploading' })], true)).toBe('Uploading 1 bill');
+    expect(queueSummary([item('a', 1), item('b', 2, { target: 'bill' })], false)).toBe('2 uploads waiting for a connection');
   });
 });

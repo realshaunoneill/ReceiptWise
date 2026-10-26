@@ -1,19 +1,22 @@
 /**
  * The captures waiting to go up, as a pure state machine; src/upload/runner.ts stores it on the
  * phone and does the uploading. A capture is never lost to a dropped connection: it waits, retries
- * with backoff, and each try carries the same id, so the server makes one receipt however many
- * tries it takes (POST /api/receipts/capture, Idempotency-Key).
+ * with backoff, and each try carries the same id, so the server makes one receipt or bill however
+ * many tries it takes (POST /api/receipts/capture or /api/bills/documents/capture, Idempotency-Key).
  */
 
 export type QueueStatus = 'waiting' | 'uploading' | 'done' | 'failed';
 
+/** One file on the phone: the app's own copy, compressed if it's a photo. */
+export type QueueFile = { uri: string; mimeType: string; name: string };
+
 export type QueueItem = {
   /** Also the Idempotency-Key. */
   id: string;
-  /** The compressed image on the phone (the app's own copy). */
-  fileUri: string;
-  mimeType: string;
-  /** 'auto' lets the server move a bill to the bill inbox. */
+  /** A receipt (one photo), or a bill: one PDF, or the pages of a scan, which become one PDF. */
+  target: 'receipt' | 'bill';
+  files: QueueFile[];
+  /** Receipts only: 'auto' lets the server move a bill to the bill inbox. */
   kind: 'receipt' | 'auto';
   /** A household, null for personal, undefined for the default household. */
   householdId?: string | null;
@@ -23,13 +26,14 @@ export type QueueItem = {
   /** Not before this (backoff, or the server's Retry-After). */
   notBefore: number;
   error?: string;
-  receiptId?: string;
+  /** The receipt or bill document it made. */
+  resultId?: string;
 };
 
 export type QueueEvent =
   | { type: 'add'; item: QueueItem }
   | { type: 'start'; id: string }
-  | { type: 'uploaded'; id: string; receiptId: string }
+  | { type: 'uploaded'; id: string; resultId: string }
   /** Worth trying again: offline, a server error, a rate limit. */
   | { type: 'retryable'; id: string; now: number; error: string; retryAfterMs?: number }
   /** Not worth trying again as it is: rejected by the server, or out of tries. */
@@ -55,7 +59,7 @@ export function reduce(items: QueueItem[], event: QueueEvent): QueueItem[] {
     case 'start':
       return update(event.id, (item) => ({ ...item, status: 'uploading', attempts: item.attempts + 1, error: undefined }));
     case 'uploaded':
-      return update(event.id, (item) => ({ ...item, status: 'done', receiptId: event.receiptId, error: undefined }));
+      return update(event.id, (item) => ({ ...item, status: 'done', resultId: event.resultId, error: undefined }));
     case 'retryable':
       return update(event.id, (item) =>
         item.attempts >= MAX_ATTEMPTS
@@ -84,16 +88,23 @@ export function nextWakeAt(items: QueueItem[]): number | null {
   return waiting.length ? Math.min(...waiting) : null;
 }
 
+/** "1 receipt", "3 bills", or "2 uploads" for a mix. */
+function count(items: QueueItem[]): string {
+  const noun = items.every((item) => item.target === 'receipt') ? 'receipt' : items.every((item) => item.target === 'bill') ? 'bill' : 'upload';
+  return items.length === 1 ? `1 ${noun}` : `${items.length} ${noun}s`;
+}
+
 /** Shown under the capture button: "Uploading 2 of 5", "Waiting for a connection", "1 didn't upload". */
 export function queueSummary(items: QueueItem[], online: boolean): string | null {
   const pending = items.filter((item) => item.status === 'waiting' || item.status === 'uploading');
   const failed = items.filter((item) => item.status === 'failed');
   if (pending.length > 0) {
-    if (!online) return `${pending.length === 1 ? '1 receipt' : `${pending.length} receipts`} waiting for a connection`;
+    if (!online) return `${count(pending)} waiting for a connection`;
     const batch = items.filter((item) => item.status !== 'failed');
+    if (batch.length === 1) return `Uploading ${count(batch)}`;
     const position = batch.length - pending.length + 1;
     return `Uploading ${position} of ${batch.length}`;
   }
-  if (failed.length > 0) return `${failed.length === 1 ? "1 receipt didn't" : `${failed.length} receipts didn't`} upload`;
+  if (failed.length > 0) return `${count(failed)} didn't upload`;
   return null;
 }

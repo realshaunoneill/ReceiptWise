@@ -3,19 +3,22 @@ import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { AppState, Platform } from 'react-native';
+import { type WireBillDocument } from '@shared/api/bills';
 import { type WireCaptureResult } from '@shared/api/receipts';
-import { invalidateReceiptQueries } from '@shared/query/refresh';
+import { invalidateFinanceQueries, invalidateReceiptQueries } from '@shared/query/refresh';
 import { api, ApiError } from '../api/client';
 import { queryClient } from '../query/client';
-import { nextToUpload, nextWakeAt, reduce, type QueueEvent, type QueueItem } from './queue';
+import { nextToUpload, nextWakeAt, reduce, type QueueEvent, type QueueFile, type QueueItem } from './queue';
 
 /**
- * Sends captures to POST /api/receipts/capture, one at a time, from the phone's own copies. The
- * queue (src/upload/queue.ts) and its images live in the app's documents, so a capture survives
- * the app being closed, the phone restarting, or no signal: it goes when it can.
+ * Sends captures one at a time, from the phone's own copies: receipts to POST
+ * /api/receipts/capture, bills to POST /api/bills/documents/capture. The queue
+ * (src/upload/queue.ts) and its files live in the app's documents, so a capture survives the app
+ * being closed, the phone restarting, or no signal: it goes when it can.
  *
- * Images are re-encoded first: JPEG, at most 2400 px on the long side, which also turns HEIC
- * photos into something the server reads, and keeps each one well under Vercel's 4.5 MB limit.
+ * Photos are re-encoded first: JPEG, at most 2400 px on the long side, which also turns HEIC
+ * photos into something the server reads, and keeps each one well under Vercel's 4.5 MB limit. A
+ * bill's pages go in one request, so they're made smaller to fit together.
  */
 
 const IS_WEB = Platform.OS === 'web';
@@ -25,6 +28,8 @@ const dir = () => (uploadsDir ??= new Directory(Paths.document, 'uploads'));
 const stateFile = () => new File(dir(), 'queue.json');
 const LONG_EDGE = 2400;
 const MAX_BYTES = 4 * 1024 * 1024;
+/** Everything in one bill's request, under the server's 4 MB (lib/bill-capture.ts). */
+const MAX_BILL_BYTES = 3.9 * 1024 * 1024;
 
 let items: QueueItem[] = [];
 let loaded = false;
@@ -57,8 +62,10 @@ async function load() {
   if (!IS_WEB && stateFile().exists) {
     try {
       const stored = JSON.parse(await stateFile().text()) as QueueItem[];
-      // Only entries whose image is still there (storage outlives app versions, so check it).
-      items = Array.isArray(stored) ? stored.filter((item) => item && typeof item.id === 'string' && new File(item.fileUri).exists) : [];
+      // Only entries whose files are still there (storage outlives app versions, so check it).
+      items = Array.isArray(stored)
+        ? stored.filter((item) => item && typeof item.id === 'string' && Array.isArray(item.files) && item.files.length > 0 && item.files.every((file) => typeof file?.uri === 'string' && new File(file.uri).exists))
+        : [];
     } catch {
       items = [];
     }
@@ -79,47 +86,87 @@ export function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** Compress a photo or scan and keep the app's own copy of it. */
-async function prepare(uri: string, width?: number, height?: number): Promise<string> {
-  const context = ImageManipulator.manipulate(uri);
-  if (width && height && Math.max(width, height) > LONG_EDGE) {
-    context.resize(width >= height ? { width: LONG_EDGE } : { height: LONG_EDGE });
-  }
-  let image = await (await context.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
-  if (IS_WEB) return image.uri;
-  if ((new File(image.uri).size ?? 0) > MAX_BYTES) {
-    const smaller = ImageManipulator.manipulate(image.uri);
-    smaller.resize(width && height && width < height ? { height: 2000 } : { width: 2000 });
-    image = await (await smaller.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.6 });
-  }
+/** Where a new file of the queue's goes. */
+function newCopy(extension: string): File {
   if (!dir().exists) dir().create({ intermediates: true, idempotent: true });
-  const copy = new File(dir(), `${Crypto.randomUUID()}.jpg`);
-  new File(image.uri).copy(copy);
-  return copy.uri;
+  return new File(dir(), `${Crypto.randomUUID()}.${extension}`);
 }
 
-export type CaptureInput = { uri: string; width?: number; height?: number; kind?: 'receipt' | 'auto'; householdId?: string | null };
+const sizeOf = (uri: string) => (IS_WEB ? 0 : new File(uri).size ?? 0);
 
-/** Queue captures to upload; they go at once if there's a connection. */
-export async function enqueue(captures: CaptureInput[]): Promise<void> {
+/** Compress a photo or scan and keep the app's own copy of it. */
+async function prepare(capture: CaptureInput, longEdge = LONG_EDGE, compress = 0.8): Promise<QueueFile> {
+  const { uri } = capture;
+  let { width, height } = capture;
+  if (!width || !height) {
+    // A scan comes without its size.
+    ({ width, height } = await ImageManipulator.manipulate(uri).renderAsync());
+  }
+  const context = ImageManipulator.manipulate(uri);
+  if (Math.max(width, height) > longEdge) {
+    context.resize(width >= height ? { width: longEdge } : { height: longEdge });
+  }
+  let image = await (await context.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress });
+  if (sizeOf(image.uri) > MAX_BYTES) {
+    const smaller = ImageManipulator.manipulate(image.uri);
+    smaller.resize(width < height ? { height: 2000 } : { width: 2000 });
+    image = await (await smaller.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.6 });
+  }
+  const id = Crypto.randomUUID();
+  if (IS_WEB) return { uri: image.uri, mimeType: 'image/jpeg', name: `${id}.jpg` };
+  const copy = newCopy('jpg');
+  new File(image.uri).copy(copy);
+  return { uri: copy.uri, mimeType: 'image/jpeg', name: copy.name };
+}
+
+export type CaptureInput = { uri: string; width?: number; height?: number };
+
+function add(item: Omit<QueueItem, 'id' | 'createdAt' | 'status' | 'attempts' | 'notBefore'>) {
+  emit({ type: 'add', item: { ...item, id: Crypto.randomUUID(), createdAt: Date.now(), status: 'waiting', attempts: 0, notBefore: 0 } });
+}
+
+/** Queue receipts to upload, one per photo; they go at once if there's a connection. */
+export async function enqueue(captures: CaptureInput[], options: { kind?: 'receipt' | 'auto'; householdId?: string | null } = {}): Promise<void> {
   await load();
   for (const capture of captures) {
-    const fileUri = await prepare(capture.uri, capture.width, capture.height);
-    emit({
-      type: 'add',
-      item: {
-        id: Crypto.randomUUID(),
-        fileUri,
-        mimeType: 'image/jpeg',
-        kind: capture.kind ?? 'receipt',
-        householdId: capture.householdId,
-        createdAt: Date.now(),
-        status: 'waiting',
-        attempts: 0,
-        notBefore: 0,
-      },
-    });
+    add({ target: 'receipt', files: [await prepare(capture)], kind: options.kind ?? 'receipt', householdId: options.householdId });
   }
+  void run();
+}
+
+/** Thrown before anything is queued, with words to show. */
+export class CaptureTooLarge extends Error {}
+
+/**
+ * Queue one bill: the pages of a scan or photos (combined into one PDF on the server), or a PDF
+ * as it is. All of it goes in one request, so it must fit under 4 MB together; a bigger PDF is
+ * better forwarded by email.
+ */
+export async function enqueueBill(input: { pages: CaptureInput[] } | { pdf: { uri: string; name: string; size?: number | null } }, householdId: string | null): Promise<void> {
+  await load();
+  let files: QueueFile[];
+  if ('pdf' in input) {
+    const size = input.pdf.size ?? sizeOf(input.pdf.uri);
+    if (size > MAX_BILL_BYTES) throw new CaptureTooLarge('That PDF is over 4 MB, too big to send from the app. Forward it to your ReceiptWise email address instead.');
+    const name = input.pdf.name.replace(/[^\w.\- ]+/g, '_').slice(-80) || 'bill.pdf';
+    if (IS_WEB) {
+      files = [{ uri: input.pdf.uri, mimeType: 'application/pdf', name }];
+    } else {
+      const copy = newCopy('pdf');
+      new File(input.pdf.uri).copy(copy);
+      files = [{ uri: copy.uri, mimeType: 'application/pdf', name }];
+    }
+  } else {
+    // Smaller than a receipt's photo: up to ten have to share one request.
+    const many = input.pages.length > 2;
+    files = [];
+    for (const page of input.pages) files.push(await prepare(page, many ? 1800 : 2200, many ? 0.6 : 0.7));
+    if (files.reduce((total, file) => total + sizeOf(file.uri), 0) > MAX_BILL_BYTES) {
+      files.forEach((file) => removeFile(file.uri));
+      throw new CaptureTooLarge('Those pages are too big to send together. Send fewer pages, or forward the bill by email.');
+    }
+  }
+  add({ target: 'bill', files, kind: 'receipt', householdId });
   void run();
 }
 
@@ -131,7 +178,7 @@ export function retry(id: string) {
 export function discard(id: string) {
   const item = items.find((entry) => entry.id === id);
   emit({ type: 'remove', id });
-  if (item) removeFile(item.fileUri);
+  item?.files.forEach((file) => removeFile(file.uri));
 }
 
 function removeFile(uri: string) {
@@ -146,15 +193,25 @@ function removeFile(uri: string) {
 
 async function formFor(item: QueueItem): Promise<FormData> {
   const form = new FormData();
-  if (IS_WEB) {
-    form.append('file', await (await fetch(item.fileUri)).blob(), `${item.id}.jpg`);
-  } else {
-    // React Native's FormData sends a file from its uri.
-    form.append('file', { uri: item.fileUri, name: `${item.id}.jpg`, type: item.mimeType } as unknown as Blob);
+  for (const file of item.files) {
+    if (IS_WEB) {
+      form.append('file', await (await fetch(file.uri)).blob(), file.name);
+    } else {
+      // React Native's FormData sends a file from its uri.
+      form.append('file', { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+    }
   }
-  form.append('kind', item.kind);
+  if (item.target === 'receipt') form.append('kind', item.kind);
+  if (item.target === 'bill' && item.files[0]?.mimeType === 'application/pdf') form.append('fileName', item.files[0].name);
   if (item.householdId !== undefined) form.append('householdId', item.householdId ?? '');
   return form;
+}
+
+/** Send one capture; the id of what it made. */
+async function send(item: QueueItem): Promise<string> {
+  const request = { method: 'POST' as const, form: await formFor(item), headers: { 'Idempotency-Key': item.id } };
+  if (item.target === 'bill') return (await api<WireBillDocument>('/api/bills/documents/capture', request)).id;
+  return (await api<WireCaptureResult>('/api/receipts/capture', request)).receiptId;
 }
 
 /** Upload whatever is waiting, one at a time, until nothing is due. */
@@ -166,14 +223,15 @@ export async function run(): Promise<void> {
     for (let item = nextToUpload(items, Date.now()); item; item = nextToUpload(items, Date.now())) {
       emit({ type: 'start', id: item.id });
       try {
-        const result = await api<WireCaptureResult>('/api/receipts/capture', {
-          method: 'POST',
-          form: await formFor(item),
-          headers: { 'Idempotency-Key': item.id },
-        });
-        emit({ type: 'uploaded', id: item.id, receiptId: result.receiptId });
-        removeFile(item.fileUri);
-        void invalidateReceiptQueries(queryClient);
+        const resultId = await send(item);
+        emit({ type: 'uploaded', id: item.id, resultId });
+        item.files.forEach((file) => removeFile(file.uri));
+        if (item.target === 'bill') {
+          void queryClient.invalidateQueries({ queryKey: ['bill-documents'] });
+          void invalidateFinanceQueries(queryClient);
+        } else {
+          void invalidateReceiptQueries(queryClient);
+        }
       } catch (error) {
         const apiError = error instanceof ApiError ? error : null;
         const retryable = !apiError || ['offline', 'server', 'rate-limited'].includes(apiError.kind);
@@ -223,7 +281,7 @@ export function startUploads(): () => void {
 
 /** Forget every waiting capture (signing out): the next account mustn't upload them. */
 export function clearQueue() {
-  for (const item of items) removeFile(item.fileUri);
+  for (const item of items) item.files.forEach((file) => removeFile(file.uri));
   items = [];
   persist();
   for (const listener of listeners) listener();

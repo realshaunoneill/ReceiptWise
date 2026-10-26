@@ -15,6 +15,8 @@ import ErrorScreen from '../src/components/ErrorScreen';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { useSession } from '../src/hooks/useSession';
 import { persistOptions, queryClient } from '../src/query/client';
+import { usePresentations } from '../src/ui/stack';
+import { setScope } from '../src/scope';
 import { clearQueue, startUploads } from '../src/upload/runner';
 
 // A deep link straight to a receipt still has the tabs beneath it, so Back stays in the app.
@@ -30,6 +32,7 @@ void SplashScreen.preventAutoHideAsync();
 
 function Navigator() {
   const { theme, colors } = useTheme();
+  const { sheet, tallSheet, modal } = usePresentations();
   const session = useSession();
   const signedIn = !!session.data;
 
@@ -43,9 +46,13 @@ function Navigator() {
     return startUploads();
   }, [signedIn]);
 
-  // A queue left by whoever was signed in mustn't upload into the next account.
+  // A queue left by whoever was signed in mustn't upload into the next account, nor its
+  // household stay in view.
   useEffect(() => {
-    if (session.isSuccess && !signedIn) clearQueue();
+    if (session.isSuccess && !signedIn) {
+      clearQueue();
+      setScope(null);
+    }
   }, [session.isSuccess, signedIn]);
 
   useEffect(() => {
@@ -68,6 +75,21 @@ function Navigator() {
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="capture" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+
+          {/* The plan */}
+          <Stack.Screen name="sheets/plan-entry" options={sheet} />
+          <Stack.Screen name="sheets/plan-amount" options={sheet} />
+          <Stack.Screen name="sheets/plan-paste" options={tallSheet} />
+          <Stack.Screen name="sheets/plan-income" options={modal} />
+          <Stack.Screen name="sheets/plan-goal" options={modal} />
+          <Stack.Screen name="sheets/plan-balances" options={modal} />
+
+          {/* Receipts */}
+          <Stack.Screen name="sheets/receipt-filters" options={sheet} />
+
+          {/* Bills */}
+
+          {/* Settings and households */}
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
