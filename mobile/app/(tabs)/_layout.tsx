@@ -36,7 +36,8 @@ export default function TabLayout() {
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} md="settings" />
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Badge hidden={invitations === 0}>{String(invitations)}</NativeTabs.Trigger.Badge>
+        {/* Left out at zero: the web preview ignores `hidden` and showed a 0. */}
+        {invitations > 0 && <NativeTabs.Trigger.Badge>{String(invitations)}</NativeTabs.Trigger.Badge>}
       </NativeTabs.Trigger>
     </NativeTabs>
   );
