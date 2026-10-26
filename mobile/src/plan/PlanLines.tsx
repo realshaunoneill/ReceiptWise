@@ -108,6 +108,7 @@ function RecurringRow({ line, context }: { line: Line; context: Context }) {
       { label: "Don't skip", run: () => change({ status: 'pending' }), show: skipped },
       { label: 'Skip this time', run: () => change({ status: 'skipped' }), show: !skipped && !paid },
       { label: 'Bill details', run: () => router.push({ pathname: '/bills/[id]', params: { id: line.sourceId } }), show: true },
+      ...viewBill(line).map((option) => ({ ...option, show: true })),
     ].filter((option) => option.show);
     const index = await choose(line.label, options.map((option) => ({ label: option.label })));
     if (index !== null) options[index].run();
@@ -155,10 +156,22 @@ function EntryRow({ line, context }: { line: Line; context: Context }) {
   const edit = () => router.push({ pathname: '/sheets/plan-entry', params: { id: line.sourceId, offset: String(context.offset) } });
 
   const menu = async () => {
-    const index = await choose(line.label, [{ label: 'Change the amount' }, { label: 'Edit' }, { label: 'Remove', destructive: true }]);
-    if (index === 0) openAmount(line, { kind: 'entry', id: line.sourceId });
-    if (index === 1) edit();
-    if (index === 2 && (await confirm(`Remove ${line.label}?`, `It comes out of ${monthOf(context.plan)}'s plan.`, 'Remove'))) remove.mutate(line.sourceId);
+    const options = [
+      ...(isOwner ? [
+        { label: 'Change the amount', run: () => openAmount(line, { kind: 'entry', id: line.sourceId }) },
+        { label: 'Edit', run: edit },
+      ] : []),
+      ...viewBill(line),
+      ...(isOwner ? [{
+        label: 'Remove',
+        destructive: true,
+        run: async () => {
+          if (await confirm(`Remove ${line.label}?`, `It comes out of ${monthOf(context.plan)}'s plan.`, 'Remove')) remove.mutate(line.sourceId);
+        },
+      }] : []),
+    ];
+    const index = await choose(line.label, options);
+    if (index !== null) void options[index].run();
   };
 
   return (
@@ -171,7 +184,7 @@ function EntryRow({ line, context }: { line: Line; context: Context }) {
       checkLabel={done ? `Mark ${line.label} not done` : `Mark ${line.label} done`}
       detail={[shortDay(line.date), line.category ?? undefined].filter(Boolean).join(' · ')}
       amountInk={line.direction === 'in' ? 'good' : undefined}
-      onPress={isOwner ? () => void menu() : undefined}
+      onPress={isOwner || line.billDocumentId ? () => void menu() : undefined}
       onAmountPress={isOwner ? () => openAmount(line, { kind: 'entry', id: line.sourceId }) : undefined}
       accessibilityHint="Change the amount, edit or remove it"
       error={update.error?.message ?? remove.error?.message}
@@ -263,15 +276,10 @@ function Shell({ line, context, checked, disabled, onToggle, checkLabel, detail,
   const sharedWith = context.plan.scope.type === 'mine' && line.householdId ? context.householdNames[line.householdId] ?? 'your household' : null;
   const notCounted = line.notCountedReason === 'other_currency' ? `not counted (${line.currency})` : undefined;
 
+  // The tick, the line and the amount are three controls side by side, not one inside another: a
+  // button inside a button hid the tick and the amount from VoiceOver (and isn't valid on the web).
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={`${line.label}, ${amount}${detail ? `, ${detail}` : ''}`}
-      accessibilityHint={accessibilityHint}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', paddingVertical: space.sm, paddingRight: space.lg, minHeight: 56, backgroundColor: pressed ? colors.cardPressed : 'transparent' })}
-    >
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: space.lg, minHeight: 56 }}>
       {onToggle ? (
         <Pressable
           onPress={() => {
@@ -292,7 +300,14 @@ function Shell({ line, context, checked, disabled, onToggle, checkLabel, detail,
       ) : (
         <View style={{ width: 60 }} />
       )}
-      <View style={{ flex: 1, gap: 2 }}>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={`${line.label}, ${amount}${detail ? `, ${detail}` : ''}`}
+        accessibilityHint={accessibilityHint}
+        style={({ pressed }) => ({ flex: 1, gap: 2, paddingVertical: space.sm, alignSelf: 'stretch', justifyContent: 'center', backgroundColor: pressed ? colors.cardPressed : 'transparent' })}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
           <Text
             variant="callout"
@@ -310,22 +325,16 @@ function Shell({ line, context, checked, disabled, onToggle, checkLabel, detail,
           <View style={{ flexDirection: 'row', gap: space.xs, flexWrap: 'wrap', marginTop: 2 }}>
             {badges}
             {!!line.billDocumentId && (
-              <Pressable
-                onPress={() => void openPrivateFile(`/api/bills/documents/${line.billDocumentId}/file`, `${line.label} bill`)}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel={`View the ${line.label} bill`}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border }}
-              >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border }}>
                 <FileText size={12} color={colors.textSecondary} />
-                <Text variant="caption" ink="secondary">From bill · View</Text>
-              </Pressable>
+                <Text variant="caption" ink="secondary">From a bill</Text>
+              </View>
             )}
           </View>
         )}
         {below}
         {!!error && <Text variant="footnote" ink="bad">{error}</Text>}
-      </View>
+      </Pressable>
       <Pressable
         onPress={onAmountPress}
         disabled={!onAmountPress}
@@ -336,6 +345,11 @@ function Shell({ line, context, checked, disabled, onToggle, checkLabel, detail,
       >
         <Text variant="callout" weight="semibold" ink={amountInk ?? (estimated || struck ? 'muted' : 'primary')} tabular>{amount}</Text>
       </Pressable>
-    </Pressable>
+    </View>
   );
 }
+
+/** The bill a line's amount was read from, if any: opened from the line's menu. */
+const viewBill = (line: Line) => (line.billDocumentId
+  ? [{ label: 'View the bill', run: () => void openPrivateFile(`/api/bills/documents/${line.billDocumentId}/file`, `${line.label} bill`) }]
+  : []);

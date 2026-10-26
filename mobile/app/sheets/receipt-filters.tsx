@@ -34,7 +34,7 @@ export default function ReceiptFiltersSheet() {
     <SheetScreen title="Filters" action={{ label: 'Show', onPress: apply }}>
       {(households.data?.length ?? 0) > 0 && (
         <PickerField
-          label="Show"
+          label="Receipts from"
           value={draft.householdId ?? ALL}
           options={[{ value: ALL, label: 'My receipts' }, ...(households.data ?? []).map((household) => ({ value: household.id, label: household.name }))]}
           onChange={(value) => set({ householdId: value === ALL ? undefined : value })}

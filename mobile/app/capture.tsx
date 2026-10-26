@@ -87,9 +87,14 @@ export default function Capture() {
   const choosePdf = async () => {
     setError(null);
     const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true, multiple: false });
-    if (result.canceled || !result.assets[0]) return;
-    const pdf = result.assets[0];
+    const pdf = result.canceled ? undefined : result.assets[0];
+    if (!pdf) return;
     void done(() => enqueueBill({ pdf: { uri: pdf.uri, name: pdf.name, size: pdf.size } }, householdId ?? null));
+  };
+
+  /** A picker or the scanner failing (no permission, the system's own error) says so, rather than nothing. */
+  const attempt = (action: () => Promise<unknown>) => () => {
+    action().catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't open that"));
   };
 
   const entitlements = me.data?.entitlements;
@@ -137,15 +142,15 @@ export default function Capture() {
             label={mode === 'bill' ? 'Scan a bill' : 'Scan receipts'}
             detail={mode === 'bill' ? 'Every page, then Save: they make one bill' : 'One after another: each page is a receipt'}
             disabled={busy}
-            onPress={() => void scan()}
+            onPress={attempt(scan)}
           />
-          {mode === 'bill' && <BigButton icon={FileText} label="Choose a PDF" detail="From Files, Mail or a download, up to 4 MB" disabled={busy} onPress={() => void choosePdf()} />}
+          {mode === 'bill' && <BigButton icon={FileText} label="Choose a PDF" detail="From Files, Mail or a download, up to 4 MB" disabled={busy} onPress={attempt(choosePdf)} />}
           <BigButton
             icon={Images}
             label="Choose photos"
             detail={mode === 'bill' ? `The pages of one bill, in order, up to ${MAX_PHOTOS}` : `Up to ${MAX_PHOTOS} at a time`}
             disabled={busy}
-            onPress={() => void choosePhotos()}
+            onPress={attempt(choosePhotos)}
           />
           {mode === 'bill' && <Text variant="footnote" ink="muted">A bigger PDF, or bills that arrive by email: forward them to your ReceiptWise address, in Settings.</Text>}
         </View>

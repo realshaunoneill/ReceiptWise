@@ -60,7 +60,7 @@ export default function SpendingSummary({ householdId, currency }: { householdId
                 {trends.change !== 0 && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} accessible accessibilityLabel={`${up ? 'Up' : 'Down'} ${Math.abs(trends.change)}% on the period before`}>
                     <Trend size={15} color={up ? colors.bad : colors.good} />
-                    <Text variant="footnote" weight="semibold" ink={up ? 'bad' : 'good'} tabular>{`${Math.abs(trends.change)}%`}</Text>
+                    <Text variant="footnote" weight="semibold" ink={up ? 'bad' : 'good'} tabular>{`${Math.abs(trends.change).toLocaleString('en-IE')}%`}</Text>
                   </View>
                 )}
               </View>
