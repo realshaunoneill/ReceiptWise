@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- ReceiptWise's mark: a receipt, torn off at the bottom, read and ticked. Redrawn as a vector
+       (2026-10-26) from public/logo.png; every icon and splash is drawn from this file by
+       scripts/brand-assets.py. Teal is the paper's print, green the tick. -->
+  <path d="M104 28H408A48 48 0 0 1 456 76V458L389 414L323 458L256 414L189 458L122 414L56 458V76A48 48 0 0 1 104 28Z"
+        fill="#F2EFEA" stroke="#04756F" stroke-width="32" stroke-linejoin="round"/>
+  <path d="M126 120H380M126 196H300M126 272H230" fill="none" stroke="#04756F" stroke-width="30" stroke-linecap="round"/>
+  <path d="M218 330L270 382L394 232" fill="none" stroke="#2C9A6E" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

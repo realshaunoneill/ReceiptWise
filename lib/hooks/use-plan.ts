@@ -1,9 +1,9 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FinancialAccount, type IncomeSource, type PlanEntry, type SavingsGoal } from '@/lib/db/schema';
 import { localToday } from '@/lib/dates/local-date';
-import { refreshQueries } from '@/lib/query-refresh';
+import { invalidateFinanceQueries } from '@/shared/query/refresh';
 import { type PlanResponse } from '@/lib/services/plan-service';
 
 /**
@@ -13,15 +13,8 @@ import { type PlanResponse } from '@/lib/services/plan-service';
 
 export type AccountWithBalance = FinancialAccount & { latestBalance: { balance: string; asOfDate: string } | null };
 
-export const FINANCE_QUERY_KEYS = ['plan', 'subscriptions', 'subscription', 'income', 'goals', 'accounts'] as const;
-
-/**
- * Refresh everything the plan is computed from, after any change to one of them, and resolve once
- * the page shows it (see refreshQueries). `except`: the query of something just removed.
- */
-export function invalidateFinanceQueries(queryClient: QueryClient, except?: QueryKey): Promise<void> {
-  return refreshQueries(queryClient, FINANCE_QUERY_KEYS, except);
-}
+export { FINANCE_QUERY_KEYS } from '@/shared/query/keys';
+export { invalidateFinanceQueries } from '@/shared/query/refresh';
 
 /** Throw the server's `{ error }` message so toasts say what went wrong. */
 async function fetchJson<T>(url: string, init?: RequestInit, fallback = 'Something went wrong'): Promise<T> {

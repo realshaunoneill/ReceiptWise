@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { receiptMismatches } from './receipt-match';
-import { categoryOptions, frequencyName, itemNoun, paymentMethodLabel, paymentStatusLabel, statusLabel } from './labels';
+import { categoryOptions, frequencyName, itemNoun, paymentMethodLabel, paymentStatusLabel, statusLabel } from '../labels/subscriptions';
 
 const netflix = { name: 'Netflix', providerKey: null, amount: '17.99', currency: 'EUR' };
 

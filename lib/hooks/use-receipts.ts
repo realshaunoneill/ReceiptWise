@@ -1,18 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
-import { refreshQueries } from '@/lib/query-refresh';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { invalidateReceiptQueries } from '@/shared/query/refresh';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 
-export const RECEIPT_QUERY_KEYS = ['receipts', 'receipt', 'topItems', 'spendingSummary', 'itemAnalysis', 'plan'] as const;
-
-/**
- * Refresh everything a receipt feeds, after one is added, read, changed or removed: the lists and
- * totals (all under 'receipts'), one receipt, the insights, and the plan's spending this period.
- * Resolves once the page shows it (see refreshQueries). `except`: the query of a removed receipt.
- */
-export function invalidateReceiptQueries(queryClient: QueryClient, except?: QueryKey): Promise<void> {
-  return refreshQueries(queryClient, RECEIPT_QUERY_KEYS, except);
-}
+export { RECEIPT_QUERY_KEYS } from '@/shared/query/keys';
+export { invalidateReceiptQueries } from '@/shared/query/refresh';
 
 /** While a receipt is being read, look again this often; give up on one stuck for longer than this. */
 const PROCESSING_POLL_MS = 3000;

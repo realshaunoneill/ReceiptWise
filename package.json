@@ -15,6 +15,7 @@
     "db:push": "dotenv -e .env.local -- drizzle-kit push",
     "db:push:prod": "drizzle-kit push --force",
     "db:assert": "tsx scripts/assert-schema.ts",
+    "tokens": "tsx scripts/export-tokens.ts",
     "db:diff": "dotenv -e .env.local -- tsx scripts/schema-diff.ts",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
     "bills:daily": "dotenv -e .env.local -- tsx scripts/run-bills-daily.ts",

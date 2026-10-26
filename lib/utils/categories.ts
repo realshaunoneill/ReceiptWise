@@ -16,29 +16,19 @@ import {
   Shirt,
   type LucideIcon,
 } from 'lucide-react';
+import { CATEGORY_INFO, type CategoryIconName, type CategoryTone } from '@/shared/receipts/categories';
 
 /**
- * The one place a spending category is described.
- *
- * Previously `receipt-list.tsx` and `receipt-timeline.tsx` each carried their own
- * colour map and they had drifted apart: the timeline knew about `gas` and
- * `coffee`, the list did not, so the same receipt showed a green badge in one
- * view and a grey "other" badge in the other. The list also looked its colours
- * up with the raw category string while the timeline lower-cased first, so a
- * capitalised value from the scanner only matched in one of the two.
- *
- * The keys below are exactly the values the extraction prompt in `lib/receipt-ai.ts`
- * is allowed to return. Adding a category means adding it there and here.
+ * Spending categories on the website: the shared description (shared/receipts/categories.ts,
+ * which the app uses too) with lucide-react icons and Tailwind classes.
  */
 
-export type CategoryTone =
-  | 'food'
-  | 'transport'
-  | 'shopping'
-  | 'health'
-  | 'bills'
-  | 'leisure'
-  | 'neutral';
+export { CATEGORY_FILTER_OPTIONS, type CategoryTone } from '@/shared/receipts/categories';
+
+const ICONS: Record<CategoryIconName, LucideIcon> = {
+  Armchair, Bus, Car, Clapperboard, Coffee, CookingPot, CreditCard, Cross, Laptop, Lightbulb, Pill, Plane,
+  ShoppingBag, ShoppingCart, Shirt,
+};
 
 export interface CategoryMeta {
   /** Human label, sentence case. */
@@ -47,23 +37,9 @@ export interface CategoryMeta {
   tone: CategoryTone;
 }
 
-export const CATEGORIES: Record<string, CategoryMeta> = {
-  groceries: { label: 'Groceries', icon: ShoppingCart, tone: 'food' },
-  dining: { label: 'Dining', icon: CookingPot, tone: 'food' },
-  coffee: { label: 'Coffee', icon: Coffee, tone: 'food' },
-  transportation: { label: 'Transport', icon: Bus, tone: 'transport' },
-  gas: { label: 'Fuel', icon: Car, tone: 'transport' },
-  travel: { label: 'Travel', icon: Plane, tone: 'transport' },
-  shopping: { label: 'Shopping', icon: ShoppingBag, tone: 'shopping' },
-  clothing: { label: 'Clothing', icon: Shirt, tone: 'shopping' },
-  electronics: { label: 'Electronics', icon: Laptop, tone: 'shopping' },
-  home: { label: 'Home', icon: Armchair, tone: 'shopping' },
-  healthcare: { label: 'Healthcare', icon: Cross, tone: 'health' },
-  pharmacy: { label: 'Pharmacy', icon: Pill, tone: 'health' },
-  utilities: { label: 'Utilities', icon: Lightbulb, tone: 'bills' },
-  entertainment: { label: 'Entertainment', icon: Clapperboard, tone: 'leisure' },
-  other: { label: 'Other', icon: CreditCard, tone: 'neutral' },
-};
+export const CATEGORIES: Record<string, CategoryMeta> = Object.fromEntries(
+  Object.entries(CATEGORY_INFO).map(([key, info]) => [key, { label: info.label, icon: ICONS[info.iconName], tone: info.tone }]),
+);
 
 const FALLBACK: CategoryMeta = CATEGORIES.other;
 
@@ -106,19 +82,3 @@ export function categoryBadgeClasses(category?: string | null): string {
 export function categoryTextClasses(category?: string | null): string {
   return TONE_TEXT_CLASSES[getCategory(category).tone];
 }
-
-/**
- * Options for the receipts filter.
- *
- * The filter used to offer "Restaurant" and "Retail", which the scanner never
- * produces — picking either returned zero receipts every time — while giving no
- * way to filter the categories it does produce (dining, coffee, fuel, pharmacy,
- * travel and the rest). Deriving the list from `CATEGORIES` means the filter and
- * the extraction vocabulary cannot drift apart again.
- */
-export const CATEGORY_FILTER_OPTIONS: Array<{ value: string; label: string }> =
-  Object.entries(CATEGORIES)
-    .filter(([value]) => value !== 'other')
-    .map(([value, meta]) => ({ value, label: meta.label }))
-    .sort((a, b) => a.label.localeCompare(b.label))
-    .concat([{ value: 'other', label: CATEGORIES.other.label }]);

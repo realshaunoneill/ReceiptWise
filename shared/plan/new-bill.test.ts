@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { periodContaining } from '@/lib/schedule/pay-schedule';
+import { periodContaining } from '../schedule/pay-schedule';
 import { firstBillDate } from './new-bill';
 
 const pay25 = { frequency: 'monthly', payDay: 25, anchorDate: null, weekendRule: 'previous_business_day' };

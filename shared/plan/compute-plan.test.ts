@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computePlan, type EntryLike, type IncomeLike, type PaymentLike, type PlanInput, type RecurringLike } from './compute-plan';
-import { periodContaining } from '@/lib/schedule/pay-schedule';
+import { periodContaining } from '../schedule/pay-schedule';
 
 const at = (day: string) => new Date(`${day}T00:00:00.000Z`);
 const owner = { userId: 'megan', householdId: null };
