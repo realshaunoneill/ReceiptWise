@@ -11,7 +11,8 @@ export default defineConfig({
   },
   test: {
     include: ['**/*.test.ts'],
-    exclude: ['node_modules/**', '.next/**', '.claude/**'],
+    // mobile/ runs its own tests with its own dependencies.
+    exclude: ['node_modules/**', '.next/**', '.claude/**', 'mobile/**'],
     environment: 'node',
   },
 });

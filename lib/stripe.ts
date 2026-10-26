@@ -2,6 +2,8 @@ import Stripe from 'stripe';
 import { UserService } from './services/user-service';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { getAppUrl } from '@/lib/app-url';
+import { stripeGrantStatus } from '@/lib/entitlements';
+import { recomputeSubscribed, upsertGrant } from '@/lib/services/entitlement-service';
 
 /*
  * This module used to start with 'use server', which turns every exported async function into
@@ -34,6 +36,12 @@ const ENTITLED_STATUSES: Stripe.Subscription.Status[] = ['active', 'trialing', '
  */
 function pickSubscription(subscriptions: Stripe.Subscription[]): Stripe.Subscription | undefined {
   return subscriptions.find((sub) => ENTITLED_STATUSES.includes(sub.status)) ?? subscriptions[0];
+}
+
+/** The subscription that decides this customer's Premium (see pickSubscription), read only. */
+export async function getDecidingSubscription(customerId: string): Promise<Stripe.Subscription | null> {
+  const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 20 });
+  return pickSubscription(subscriptions.data) ?? null;
 }
 
 /**
@@ -275,23 +283,31 @@ export async function syncStripeDataToDatabase(customerId: string, correlationId
 
     const subscription = pickSubscription(subscriptions.data);
 
+    // Record what Stripe says as this customer's grant, then let every grant decide Premium: a
+    // lapsed Stripe subscription mustn't switch off Premium bought in the app or given by hand.
+    await upsertGrant({
+      userId: user.id,
+      source: 'stripe',
+      externalId: customerId,
+      status: stripeGrantStatus(subscription?.status),
+      productId: subscription?.items.data[0]?.price.id ?? null,
+      willRenew: subscription ? !subscription.cancel_at_period_end : null,
+    });
+    const premium = await recomputeSubscribed(user.id, correlationId);
+
+    submitLogEvent('subscription', `Stripe ${subscription?.status ?? 'none'} for user ${user.id}; Premium ${premium.subscribed ? 'on' : 'off'}`, correlationId, {
+      userId: user.id,
+      customerId,
+      subscriptionStatus: subscription?.status ?? 'none',
+      isSubscribed: premium.subscribed,
+      premiumSource: premium.source,
+    });
+
     // No subscriptions at all
     if (!subscription) {
-      // Update user to not subscribed
-      await UserService.updateSubscriptionStatus(user.id, false);
-
-      submitLogEvent('subscription', `Updated user ${user.id} subscription status to false (no subscriptions)`, correlationId, { userId: user.id, customerId });
-
       const subData = { status: 'none' };
       return subData;
     }
-
-    const isSubscribed = ENTITLED_STATUSES.includes(subscription.status);
-
-    // Update user subscription status in database
-    await UserService.updateSubscriptionStatus(user.id, isSubscribed);
-
-    submitLogEvent('subscription', `Updated user ${user.id} subscription status to ${isSubscribed} (${subscription.status})`, correlationId, { userId: user.id, customerId, subscriptionStatus: subscription.status, isSubscribed });
 
     // Store complete subscription state
     const subData = {

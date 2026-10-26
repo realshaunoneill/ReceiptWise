@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, requireAdmin } from '@/lib/auth-helpers';
 import { UserService } from '@/lib/services/user-service';
+import { grantComp, revokeComp } from '@/lib/services/entitlement-service';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
 
@@ -61,13 +62,18 @@ export async function PATCH(
 
     let updatedUser = targetUser;
 
-    // Update subscription status if provided
+    // Premium given or ended by hand: a comp grant. A Stripe or app store subscription still gives
+    // Premium either way (lib/services/entitlement-service.ts decides from every source).
     if (subscribed !== undefined) {
-      updatedUser = await UserService.updateSubscriptionStatus(targetUserId, subscribed);
-      submitLogEvent('admin', `Admin updated subscription for user ${targetUserId}`, correlationId, {
+      const premium = subscribed
+        ? await grantComp(targetUserId, { note: `Given by admin ${user.id}` }, correlationId)
+        : await revokeComp(targetUserId, correlationId);
+      updatedUser = { ...updatedUser, subscribed: premium.subscribed };
+      submitLogEvent('admin', `Admin ${subscribed ? 'gave' : 'ended'} comp Premium for user ${targetUserId}`, correlationId, {
         adminId: user.id,
         targetUserId,
-        subscribed,
+        subscribed: premium.subscribed,
+        source: premium.source,
       });
     }
 

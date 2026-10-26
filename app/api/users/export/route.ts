@@ -16,6 +16,7 @@ import {
   savingsGoals,
   savingsGoalContributions,
   billDocuments,
+  premiumGrants,
 } from '@/lib/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
@@ -234,6 +235,12 @@ export async function GET(req: NextRequest) {
       }
 
       if (type === 'all') {
+        // Where Premium comes from (the website, an app store, or given by hand), not the
+        // provider's ids or internal notes.
+        exportData.premium = (await db.select().from(premiumGrants).where(eq(premiumGrants.userId, user.id)))
+          .map(({ source, status, productId, expiresAt, willRenew, createdAt, updatedAt }) => ({
+            source, status, productId, expiresAt, willRenew, createdAt, updatedAt,
+          }));
         exportData.households = userHouseholds;
         exportData.plan = {
           income: userIncome.map(({ userId: _userId, ...income }) => income),

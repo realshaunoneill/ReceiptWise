@@ -53,18 +53,6 @@ export class UserService {
   }
 
   /**
-   * Update user subscription status
-   */
-  static async updateSubscriptionStatus(userId: string, subscribed: boolean): Promise<User> {
-    const [user] = await db
-      .update(users)
-      .set({ subscribed, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning();
-    return user;
-  }
-
-  /**
    * Get user profile by user ID
    */
   static async getUserProfile(userId: string): Promise<User | null> {

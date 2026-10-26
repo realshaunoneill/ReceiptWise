@@ -15,6 +15,8 @@ export default tseslint.config(
       'workers/**',
       // Plain Node (CommonJS) build script for the extension's icons, not app code.
       'chrome-extension/scripts/**',
+      // The Expo app: its own tsconfig, lint and dependencies (mobile/package.json).
+      'mobile/**',
     ],
   },
   ...tseslint.configs.recommended,

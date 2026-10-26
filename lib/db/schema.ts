@@ -196,6 +196,35 @@ export const apiKeys = pgTable('api_keys', {
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 
+// Premium, by where it came from: a Stripe subscription on the website, an App Store or Google Play
+// subscription bought in the app (through RevenueCat), or Premium given by hand (testers, App
+// Review, family). users.subscribed is derived from these rows by lib/entitlements.ts and written
+// nowhere else, so one source lapsing never switches off Premium that another still gives.
+export const premiumGrants = pgTable('premium_grants', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').notNull(), // 'stripe' | 'app_store' | 'play_store' | 'comp'
+  // Stripe: the customer id. The stores: the original transaction id. Comp: the user's id.
+  externalId: text('external_id').notNull(),
+  productId: text('product_id'), // Stripe price id, or the store's product id
+  // 'active' | 'trialing' | 'grace' | 'billing_issue' | 'cancelled' | 'expired' | 'refunded' | 'none'
+  status: text('status').notNull(),
+  // When it stops, if it does. Null for Stripe, whose subscription status decides, and for comp
+  // Premium with no end date.
+  expiresAt: timestamp('expires_at'),
+  willRenew: boolean('will_renew'),
+  environment: text('environment'), // the stores: 'production' | 'sandbox'
+  note: text('note'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  sourceExternalUnique: uniqueIndex('premium_grants_source_external_uidx').on(table.source, table.externalId),
+  userIdIdx: index('premium_grants_user_id_idx').on(table.userId),
+}));
+
+export type PremiumGrant = typeof premiumGrants.$inferSelect;
+export type NewPremiumGrant = typeof premiumGrants.$inferInsert;
+
 // TypeScript Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
