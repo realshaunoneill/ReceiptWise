@@ -23,7 +23,9 @@ export class ApiError extends Error {
 
 export function toApiError(status: number, body: unknown, retryAfter: string | null = null): ApiError {
   const record = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  const message = typeof record.error === 'string' ? record.error : typeof record.message === 'string' ? record.message : '';
+  // Some older routes (households) answer `{ error: { code, message } }` (lib/errors.ts).
+  const nested = record.error && typeof record.error === 'object' ? (record.error as Record<string, unknown>).message : undefined;
+  const message = typeof record.error === 'string' ? record.error : typeof nested === 'string' ? nested : typeof record.message === 'string' ? record.message : '';
   const fallback = (text: string) => message || text;
 
   if (status === 401) return new ApiError(fallback('Sign in again to carry on.'), 'signed-out', status);

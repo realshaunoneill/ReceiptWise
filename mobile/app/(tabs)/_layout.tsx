@@ -1,6 +1,7 @@
 import React from 'react';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useReceivedInvitations } from '../../src/hooks/useInvitations';
 
 /**
  * The system tab bar: Liquid Glass on iOS 26, Material on Android, with SF Symbols and Material
@@ -12,6 +13,8 @@ import { useTheme } from '../../src/contexts/ThemeContext';
  */
 export default function TabLayout() {
   const { colors } = useTheme();
+  // Invitations waiting for an answer, as a badge on Settings (where Households is).
+  const invitations = useReceivedInvitations().data?.length ?? 0;
   return (
     <NativeTabs tintColor={colors.accent}>
       <NativeTabs.Trigger name="(home)">
@@ -33,6 +36,7 @@ export default function TabLayout() {
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} md="settings" />
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Badge hidden={invitations === 0}>{String(invitations)}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

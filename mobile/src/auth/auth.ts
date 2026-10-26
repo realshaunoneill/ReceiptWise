@@ -27,6 +27,7 @@ import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
+import { CONSENT_COOKIE, getConsent } from '../analytics';
 import { SITE_URL } from '../config';
 import { cookieHeader, mergeSetCookie, parseJar, type CookieJar } from './cookies';
 
@@ -68,9 +69,13 @@ async function saveJar(jar: CookieJar): Promise<void> {
 /** How requests carry the session: a Cookie header the app sets, or the browser's own on the web. */
 export const credentials: RequestCredentials = IS_WEB ? 'include' : 'omit';
 
-/** Headers that identify this app and carry the session, for any call to the server. */
+/**
+ * Headers that identify this app and carry the session, for any call to the server, with the
+ * analytics choice as the website's consent cookie once one is made (src/analytics.ts).
+ */
 export async function authHeaders(): Promise<Record<string, string>> {
-  const cookie = cookieHeader(await loadJar());
+  const consent = getConsent();
+  const cookie = [cookieHeader(await loadJar()), consent && !IS_WEB ? `${CONSENT_COOKIE}=${consent}` : ''].filter(Boolean).join('; ');
   return {
     'expo-origin': Linking.createURL(''),
     ...(cookie ? { cookie } : {}),
@@ -199,6 +204,73 @@ export async function signOut(): Promise<void> {
     // Signed out here whatever the server said.
     await saveJar({});
   }
+}
+
+// ----- Sign-in methods: more than one way into the same account -----
+
+/** A way of signing in to this account: 'google', 'apple', or 'credential' (a test account's password). */
+export type LinkedAccount = { id: string; providerId: string; accountId: string; createdAt: string };
+
+async function authCall<T>(path: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<T> {
+  const res = await fetch(`${AUTH_URL}${path}`, {
+    method: init.method ?? 'GET',
+    credentials,
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
+  await absorbSetCookie(res);
+  const body = (await res.json().catch(() => null)) as (T & { message?: string }) | null;
+  if (!res.ok) throw new Error(body?.message || `That didn't work (${res.status})`);
+  return body as T;
+}
+
+export function listLinkedAccounts(): Promise<LinkedAccount[]> {
+  return authCall<LinkedAccount[]>('/list-accounts');
+}
+
+/**
+ * Add Google to the signed-in account: the same browser flow as signing in, through
+ * /link-social. Better Auth keeps who is linking in the OAuth state, so the browser needs no
+ * session; afterwards it returns to the deep link, with ?error= if Google's account couldn't be
+ * added (already another account's, say). Resolves false if the person backed out.
+ */
+export async function linkGoogle(): Promise<boolean> {
+  const callbackURL = Linking.createURL('/settings/sign-in-methods');
+  const { url } = await authCall<{ url?: string }>('/link-social', {
+    method: 'POST',
+    body: { provider: 'google', callbackURL, errorCallbackURL: callbackURL, disableRedirect: true },
+  });
+  if (!url) throw new Error("Couldn't start adding Google");
+  const proxy = `${AUTH_URL}/expo-authorization-proxy?authorizationURL=${encodeURIComponent(url)}`;
+  const result = await WebBrowser.openAuthSessionAsync(proxy, callbackURL);
+  if (result.type !== 'success') return false;
+  const error = Linking.parse(result.url).queryParams?.error;
+  if (typeof error === 'string' && error) {
+    throw new Error(/already_linked|linked_to_different_user/i.test(error)
+      ? 'That Google account is already used by another ReceiptWise account.'
+      : "Google couldn't be added. Try again.");
+  }
+  return true;
+}
+
+/** Add Sign in with Apple to the signed-in account (iOS): the system sheet's token, checked by the server. */
+export async function linkApple(): Promise<boolean> {
+  const nonce = Crypto.randomUUID();
+  let credential: AppleAuthentication.AppleAuthenticationCredential;
+  try {
+    credential = await AppleAuthentication.signInAsync({ requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL], nonce });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ERR_REQUEST_CANCELED') return false;
+    throw err;
+  }
+  if (!credential.identityToken) throw new Error("Apple didn't return a sign-in token");
+  await authCall('/link-social', { method: 'POST', body: { provider: 'apple', idToken: { token: credential.identityToken, nonce } } });
+  return true;
+}
+
+/** Remove a way of signing in. The server refuses to remove the last one. */
+export async function unlinkAccount(account: Pick<LinkedAccount, 'providerId' | 'accountId'>): Promise<void> {
+  await authCall('/unlink-account', { method: 'POST', body: { providerId: account.providerId, accountId: account.accountId } });
 }
 
 /** Forget the session on this phone, without telling the server (after an account is discarded). */

@@ -12,6 +12,7 @@ import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono/400Regu
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { onApiError } from '../src/api/client';
 import ErrorScreen from '../src/components/ErrorScreen';
+import SignedInEffects from '../src/components/SignedInEffects';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { useSession } from '../src/hooks/useSession';
 import { persistOptions, queryClient } from '../src/query/client';
@@ -71,6 +72,7 @@ function Navigator() {
   return (
     <NavigationTheme value={navigationTheme}>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      {signedIn && <SignedInEffects />}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
@@ -90,10 +92,16 @@ function Navigator() {
           {/* Bills */}
 
           {/* Settings and households */}
+          <Stack.Screen name="sheets/household-new" options={sheet} />
+          <Stack.Screen name="sheets/household-rename" options={sheet} />
+          <Stack.Screen name="sheets/household-invite" options={sheet} />
+          <Stack.Screen name="onboarding" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
         </Stack.Protected>
+        {/* An invitation link opens signed in or out (signed out, it keeps the link through sign-in). */}
+        <Stack.Screen name="invite/[token]" options={{ presentation: 'modal' }} />
       </Stack>
     </NavigationTheme>
   );
