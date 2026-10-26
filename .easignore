@@ -1,0 +1,34 @@
+# What EAS Build uploads from this repository to build the app: mobile/ and the shared/ code it
+# imports. EAS reads this instead of .gitignore, so the usual rules are repeated here.
+node_modules/
+.next/
+out/
+build/
+coverage/
+.vercel/
+.env*
+!.env.example
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+.claude/
+.DS_Store
+receiptwise-clipper-*.zip
+
+# The website and everything around it: the app needs none of it.
+/app/
+/components/
+/lib/
+/hooks/
+/public/
+/scripts/
+/workers/
+/chrome-extension/
+/brand/
+
+# The app's own generated and local files.
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/ios/
+/mobile/android/
+/mobile/dist/

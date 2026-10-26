@@ -53,6 +53,8 @@ function createAuth() {
       APP_SCHEME,
       // Apple's web flow posts its callback from here.
       'https://appleid.apple.com',
+      // The app's web preview (`expo start --web`), for checking screens in a browser; development only.
+      ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:8081'] : []),
     ],
     socialProviders: {
       google: {
