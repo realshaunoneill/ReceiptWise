@@ -37,6 +37,8 @@ interface ReceiptFilters {
   sortBy?: string
   sortOrder?: string
   searchAllHouseholds?: boolean
+  /** 'true' for business expenses only, 'false' for personal only. */
+  isBusinessExpense?: string
 }
 
 export function useReceipts(
@@ -95,6 +97,11 @@ export function useReceipts(
 
       if (filters?.searchAllHouseholds) {
         params.append('searchAllHouseholds', 'true');
+      }
+
+      // The filter's "Business expenses only" was set in the UI but never sent, so it did nothing.
+      if (filters?.isBusinessExpense) {
+        params.append('isBusinessExpense', filters.isBusinessExpense);
       }
 
       const response = await fetch(`/api/receipts?${params}`);

@@ -512,7 +512,7 @@ export const billDocuments = pgTable('bill_documents', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
-  source: text('source').notNull().default('upload'), // 'upload' | 'email' | 'receipt_move'
+  source: text('source').notNull().default('upload'), // 'upload' | 'app' | 'email' | 'receipt_move'
 
   // The file
   blobPathname: text('blob_pathname').notNull(),
@@ -522,6 +522,7 @@ export const billDocuments = pgTable('bill_documents', {
   contentHash: text('content_hash'), // sha256 of the bytes: the same file uploaded twice
   inboundEmailId: uuid('inbound_email_id').references((): AnyPgColumn => inboundEmails.id, { onDelete: 'set null' }),
   partIndex: integer('part_index'),
+  clientUploadId: text('client_upload_id'), // the app's Idempotency-Key: a retried upload is the same bill
 
   // Reading it (the claim/fail lifecycle of receipts.processing_status)
   processingStatus: text('processing_status').notNull().default('pending'), // 'pending' | 'processing' | 'completed' | 'failed'
@@ -568,6 +569,7 @@ export const billDocuments = pgTable('bill_documents', {
   userFingerprintIdx: index('bill_documents_user_fingerprint_idx').on(table.userId, table.fingerprint),
   // One document per attachment of a forwarded email; uploads have no email (NULLs don't clash).
   emailPartUnique: uniqueIndex('bill_documents_email_part_uidx').on(table.inboundEmailId, table.partIndex),
+  clientUploadUnique: uniqueIndex('bill_documents_user_client_upload_uidx').on(table.userId, table.clientUploadId),
 }));
 
 export type BillDocument = typeof billDocuments.$inferSelect;

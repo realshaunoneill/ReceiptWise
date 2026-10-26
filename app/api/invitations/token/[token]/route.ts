@@ -10,6 +10,26 @@ import { randomUUID } from 'crypto';
 export const runtime = 'nodejs';
 
 /**
+ * GET /api/invitations/token/:token: what the invitation link's page shows, for the app: the
+ * household, who invited, and whether it's still open. Holding the link is what lets you see it,
+ * as on the website's /invite page, so no sign-in is needed. The invited address isn't shared.
+ */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const invitation = await HouseholdService.getInvitationByToken(token);
+  if (!invitation) return NextResponse.json({ error: "This link isn't valid" }, { status: 404 });
+  return NextResponse.json(
+    {
+      householdName: invitation.householdName,
+      invitedByEmail: invitation.invitedByEmail,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  );
+}
+
+/**
  * POST /api/invitations/token/:token — accept or decline an invitation from its link.
  *
  * Holding the link is the authorisation: the owner chose who to send it to, and the invited
