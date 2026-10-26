@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { type WireReceipt, type WireReceiptsPage } from '@shared/api/receipts';
 import { invalidateReceiptQueries } from '@shared/query/refresh';
 import { api } from '../api/client';
+import { type ReceiptFilterState } from '../receipts/filters';
 
 const PAGE_SIZE = 20;
 /** While a receipt is being read, look again this often; give up on one stuck longer than this. */
@@ -14,7 +15,8 @@ export const isBeingRead = (receipt: Pick<WireReceipt, 'processingStatus'>) =>
 const pollWhileReading = (receipts: WireReceipt[]) =>
   receipts.some((r) => isBeingRead(r) && Date.now() - Date.parse(r.createdAt) < POLL_FOR_MS) ? POLL_MS : false;
 
-export type ReceiptFilters = { search?: string; householdId?: string; sortBy?: 'date' | 'created' };
+/** The list's filters; Home's recent receipts sort by when they were added. */
+export type ReceiptFilters = Omit<ReceiptFilterState, 'sortBy'> & { search?: string; sortBy?: ReceiptFilterState['sortBy'] | 'created' };
 
 /**
  * Receipts, newest first, a page at a time as the list scrolls. Under the 'receipts' key like the
@@ -25,9 +27,12 @@ export function useReceipts(filters: ReceiptFilters = {}) {
     queryKey: ['receipts', 'infinite', filters],
     initialPageParam: 1,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ page: String(pageParam), limit: String(PAGE_SIZE), sortOrder: 'desc', sortBy: filters.sortBy ?? 'date' });
-      if (filters.search) params.set('search', filters.search);
-      if (filters.householdId) params.set('householdId', filters.householdId);
+      const sortBy = filters.sortBy ?? 'date';
+      const params = new URLSearchParams({ page: String(pageParam), limit: String(PAGE_SIZE), sortBy, sortOrder: filters.sortOrder ?? (sortBy === 'merchant' ? 'asc' : 'desc') });
+      for (const key of ['search', 'householdId', 'category', 'merchant', 'minAmount', 'maxAmount', 'startDate', 'endDate', 'isBusinessExpense'] as const) {
+        const value = filters[key];
+        if (value) params.set(key, value);
+      }
       return api<WireReceiptsPage>(`/api/receipts?${params}`);
     },
     getNextPageParam: (last) => (last.pagination.hasNext ? last.pagination.page + 1 : undefined),

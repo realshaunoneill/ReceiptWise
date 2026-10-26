@@ -15,9 +15,9 @@ import Text, { FONT } from './Text';
  * one column: amounts, dates, a choice from a short list, and on/off.
  */
 
-type MoneyProps = Omit<React.ComponentProps<typeof Field>, 'keyboardType' | 'inputMode'>;
+type MoneyProps = Omit<React.ComponentProps<typeof Field>, 'inputMode'>;
 
-/** An amount: the decimal keypad, figures in columns. */
+/** An amount: the decimal keypad (numbers-and-punctuation where it can be negative), figures in columns. */
 export const MoneyField = forwardRef<TextInputInstance, MoneyProps>((props, ref) => (
   <Field ref={ref} keyboardType="decimal-pad" inputMode="decimal" placeholder="0.00" {...props} style={[{ fontFamily: FONT.medium, fontVariant: ['tabular-nums'] }, props.style]} />
 ));
