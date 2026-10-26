@@ -7,6 +7,8 @@ export default function HomeStack() {
   return (
     <Stack screenOptions={options}>
       <Stack.Screen name="index" options={{ title: 'Home' }} />
+      <Stack.Screen name="insights" options={{ title: 'Insights' }} />
+      <Stack.Screen name="items/[name]" options={{ title: '', headerLargeTitle: false }} />
     </Stack>
   );
 }
