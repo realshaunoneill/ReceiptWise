@@ -1,16 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Switch } from 'react-native';
 import * as Application from 'expo-application';
+import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { CircleHelp, Coins, FileText, LogOut, Shield, Trash2, Crown } from 'lucide-react-native';
+import { BarChart3, CircleHelp, Coins, Download, FileText, Home, KeyRound, LogOut, Mail, Shield, Trash2, Crown, Users } from 'lucide-react-native';
 import { getCurrencyDetails, SUPPORTED_CURRENCIES } from '@shared/currency';
 import { formatDisplayDate } from '@shared/receipts/format';
+import { setConsent, useConsent } from '../../../src/analytics';
 import { SITE_URL } from '../../../src/config';
 import { choose, confirm } from '../../../src/confirm';
 import { useTheme, type ThemeMode } from '../../../src/contexts/ThemeContext';
+import { openPrivateFile } from '../../../src/files';
+import { useSetDefaultHousehold } from '../../../src/hooks/useAccount';
+import { useHouseholds } from '../../../src/hooks/useHouseholds';
+import { useReceivedInvitations } from '../../../src/hooks/useInvitations';
 import { useCancelDeletion, useMe, useScheduleDeletion, useUpdateCurrency } from '../../../src/hooks/useMe';
 import { useSession, useSignOut } from '../../../src/hooks/useSession';
 import { useUploadQueue } from '../../../src/upload/useUploadQueue';
-import Button from '../../../src/ui/Button';
+import Button, { selectionTick, success } from '../../../src/ui/Button';
 import { Segmented } from '../../../src/ui/Controls';
 import { Notice } from '../../../src/ui/Feedback';
 import Row from '../../../src/ui/Row';
@@ -18,20 +25,60 @@ import { Card, List, Section } from '../../../src/ui/Section';
 import TabScreen from '../../../src/ui/TabScreen';
 import Text from '../../../src/ui/Text';
 
+/** The exports the website offers (Settings › Data), less the HTML one with images. */
+const EXPORTS = [
+  { label: 'Everything (CSV)', format: 'csv', type: 'all' },
+  { label: 'Everything (JSON)', format: 'json', type: 'all' },
+  { label: 'Receipts only (CSV)', format: 'csv', type: 'receipts' },
+  { label: 'Bills and subscriptions only (CSV)', format: 'csv', type: 'subscriptions' },
+] as const;
+
 export default function Settings() {
-  const { themeMode, setThemeMode } = useTheme();
+  const router = useRouter();
+  const { themeMode, setThemeMode, colors } = useTheme();
   const session = useSession();
   const me = useMe();
+  const households = useHouseholds();
+  const invitations = useReceivedInvitations();
+  const consent = useConsent();
   const signOut = useSignOut();
   const currency = useUpdateCurrency();
+  const defaultHousehold = useSetDefaultHousehold();
   const schedule = useScheduleDeletion();
   const cancel = useCancelDeletion();
   const { items } = useUploadQueue();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const open = (path: string) => void WebBrowser.openBrowserAsync(`${SITE_URL}${path}`);
 
   const pickCurrency = async () => {
     const index = await choose('Show totals in', SUPPORTED_CURRENCIES.map((c) => ({ label: `${c.name} (${c.symbol})` })));
     if (index !== null) currency.mutate(SUPPORTED_CURRENCIES[index].code);
+  };
+
+  const yourHouseholds = households.data ?? [];
+  const defaultName = yourHouseholds.find((h) => h.id === me.data?.defaultHouseholdId)?.name ?? 'Just me';
+  const pickDefaultHousehold = async () => {
+    const options = [{ id: null as string | null, label: 'Just me' }, ...yourHouseholds.map((h) => ({ id: h.id, label: h.name }))];
+    const index = await choose('New receipts go to', options.map((o) => ({ label: o.id === (me.data?.defaultHouseholdId ?? null) ? `${o.label} ✓` : o.label })));
+    if (index !== null && options[index].id !== (me.data?.defaultHouseholdId ?? null)) defaultHousehold.mutate(options[index].id);
+  };
+
+  const exportData = async () => {
+    const index = await choose('Export your data', EXPORTS.map((e) => ({ label: e.label })));
+    if (index === null) return;
+    const { format, type } = EXPORTS[index];
+    setExporting(true);
+    setExportError(null);
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      await openPrivateFile(`/api/users/export?format=${format}&type=${type}`, `receiptwise-export-${day}.${format}`, format === 'json' ? 'application/json' : 'text/csv');
+      success();
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Couldn't export your data");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const leave = async () => {
@@ -52,10 +99,16 @@ export default function Settings() {
   };
 
   const premiumLabel = me.data?.subscribed ? 'Premium' : me.data?.entitlements.householdIds.length ? "Covered by your household's Premium" : 'Not on Premium';
+  // Email forwarding is part of bills, which need Premium of your own or a household's.
+  const canForward = !!me.data?.features.bills && (!!me.data.entitlements.personal || me.data.entitlements.householdIds.length > 0);
+  const pending = invitations.data?.length ?? 0;
+  const householdsValue = pending > 0
+    ? (pending === 1 ? '1 invitation' : `${pending} invitations`)
+    : yourHouseholds.length === 0 ? 'None' : yourHouseholds.length === 1 ? yourHouseholds[0].name : `${yourHouseholds.length}`;
 
   return (
-    <TabScreen onRefresh={() => void me.refetch()} refreshing={me.isRefetching}>
-      {me.data?.deletionScheduledAt && (
+    <TabScreen onRefresh={() => void Promise.all([me.refetch(), households.refetch(), invitations.refetch()])} refreshing={me.isRefetching}>
+      {!!me.data?.deletionScheduledAt && (
         <Section>
           <Notice tone="bad" title={`Your account is deleted on ${formatDisplayDate(me.data.deletionScheduledAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}>
             Everything in it goes then. Changed your mind?
@@ -68,6 +121,22 @@ export default function Settings() {
         <List>
           <Row label={session.data?.name || 'Signed in'} detail={me.data?.email ?? session.data?.email} />
           <Row icon={Crown} label="Plan" value={premiumLabel} />
+          <Row icon={KeyRound} label="Sign-in methods" onPress={() => router.push('/settings/sign-in-methods')} />
+        </List>
+      </Section>
+
+      <Section title="Sharing" footer={yourHouseholds.length > 0 ? 'Where a receipt goes when you add it without choosing.' : undefined}>
+        <List>
+          <Row
+            icon={Users}
+            label="Households"
+            value={householdsValue}
+            tone={pending > 0 ? 'good' : undefined}
+            onPress={() => router.push('/settings/households')}
+          />
+          {yourHouseholds.length > 0 && (
+            <Row icon={Home} label="New receipts go to" value={defaultName} onPress={() => void pickDefaultHousehold()} />
+          )}
         </List>
       </Section>
 
@@ -79,6 +148,7 @@ export default function Settings() {
             value={me.data ? getCurrencyDetails(me.data.currency).name : ''}
             onPress={() => void pickCurrency()}
           />
+          {canForward && <Row icon={Mail} label="Email forwarding" detail="Forward bills and receipts to ReceiptWise" onPress={() => router.push('/settings/forwarding')} />}
         </List>
       </Section>
 
@@ -91,6 +161,28 @@ export default function Settings() {
             options={[{ value: 'system', label: 'Automatic' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
           />
         </Card>
+      </Section>
+
+      <Section title="Privacy and data" footer="Usage analytics show which features are used, so we know what to improve. They're off unless you turn them on, and never include what's on your receipts.">
+        <List>
+          <Row
+            icon={BarChart3}
+            label="Share usage analytics"
+            value={(
+              <Switch
+                value={consent === 'granted'}
+                onValueChange={(on) => {
+                  selectionTick();
+                  setConsent(on ? 'granted' : 'denied');
+                }}
+                trackColor={{ true: colors.accent, false: colors.border }}
+                accessibilityLabel="Share usage analytics"
+              />
+            )}
+          />
+          <Row icon={Download} label={exporting ? 'Exporting…' : 'Export your data'} accent onPress={exporting ? undefined : () => void exportData()} />
+        </List>
+        {!!exportError && <Text variant="footnote" ink="bad" style={{ marginTop: 8, paddingHorizontal: 4 }}>{exportError}</Text>}
       </Section>
 
       <Section title="Help and legal">

@@ -7,6 +7,10 @@ export default function SettingsStack() {
   return (
     <Stack screenOptions={options}>
       <Stack.Screen name="index" options={{ title: 'Settings' }} />
+      <Stack.Screen name="households/index" options={{ title: 'Households' }} />
+      <Stack.Screen name="households/[id]" options={{ title: '' }} />
+      <Stack.Screen name="forwarding" options={{ title: 'Email forwarding' }} />
+      <Stack.Screen name="sign-in-methods" options={{ title: 'Sign-in methods' }} />
     </Stack>
   );
 }

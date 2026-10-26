@@ -24,4 +24,9 @@ describe('toApiError', () => {
     expect(toApiError(502, null).kind).toBe('server');
     expect(toApiError(403, 'nope').kind).toBe('forbidden');
   });
+
+  it("reads the message from older routes' nested errors", () => {
+    expect(toApiError(403, { error: { code: 'INSUFFICIENT_PERMISSIONS', message: 'Only household owners can update household details' } }).message)
+      .toBe('Only household owners can update household details');
+  });
 });
