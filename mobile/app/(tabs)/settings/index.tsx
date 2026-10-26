@@ -72,7 +72,7 @@ export default function Settings() {
     setExportError(null);
     try {
       const day = new Date().toISOString().slice(0, 10);
-      await openPrivateFile(`/api/users/export?format=${format}&type=${type}`, `receiptwise-export-${day}.${format}`, format === 'json' ? 'application/json' : 'text/csv');
+      await openPrivateFile(`/api/users/export?format=${format}&type=${type}`, `receiptwise-export-${day}`);
       success();
     } catch (e) {
       setExportError(e instanceof Error ? e.message : "Couldn't export your data");
