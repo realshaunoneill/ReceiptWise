@@ -132,6 +132,12 @@ export const receipts = pgTable('receipts', {
   businessCategory: text('business_category'),
   businessNotes: text('business_notes'),
   taxDeductible: boolean('tax_deductible').default(false),
+  // Where it came in: 'web' | 'app' | 'extension' | 'email'. Null for receipts from before this
+  // was recorded (2026-10-26).
+  source: text('source'),
+  // The app's id for one capture, so a retried upload returns the same receipt instead of a
+  // second one (unique per user below; null for everything else).
+  clientUploadId: text('client_upload_id'),
   // Soft delete
   deletedAt: timestamp('deleted_at'), // Soft delete timestamp
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -143,6 +149,9 @@ export const receipts = pgTable('receipts', {
   householdIdDeletedAtIdx: index('receipts_household_id_deleted_at_idx').on(table.householdId, table.deletedAt),
   // Serves the stuck-processing sweeper.
   processingStatusUpdatedAtIdx: index('receipts_processing_status_updated_at_idx').on(table.processingStatus, table.updatedAt),
+  // A unique index, not a constraint: adding a constraint to a table with rows stops
+  // `drizzle-kit push --force` at an interactive prompt. Nulls never collide.
+  clientUploadUnique: uniqueIndex('receipts_user_client_upload_uidx').on(table.userId, table.clientUploadId),
 }));
 
 // Receipt Items Table

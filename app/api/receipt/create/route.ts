@@ -116,6 +116,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         householdId,
         imageUrl,
         processingStatus: 'pending',
+        source: 'web',
       })
       .returning();
 

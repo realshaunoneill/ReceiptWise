@@ -43,6 +43,7 @@ export type EventType =
   | 'admin'
   | 'api-key'
   | 'extension-upload'
+  | 'app-upload'
   | 'extension-process'
   | 'finance'
   | 'plan'

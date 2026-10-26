@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
+import { expo } from '@better-auth/expo';
 import { db } from '@/lib/db';
 import { authAccount, authSession, authUser, authVerification } from '@/lib/db/schema';
 import { isDevLoginEnabled, isTestEmail, TEST_EMAIL_DOMAIN } from '@/lib/dev-login';
@@ -19,6 +20,9 @@ import { isDevLoginEnabled, isTestEmail, TEST_EMAIL_DOMAIN } from '@/lib/dev-log
  */
 
 const PRODUCTION_URL = 'https://www.receiptwise.io';
+/** The app's deep-link scheme (`scheme` in mobile/app.config.ts) and its bundle id on both stores. */
+const APP_SCHEME = 'receiptwise://';
+const APP_BUNDLE_ID = 'io.receiptwise.app';
 
 /** Where OAuth comes back to: BETTER_AUTH_URL (www in production, staging on Preview), else this deployment. */
 function baseURL(): string {
@@ -44,6 +48,11 @@ function createAuth() {
       ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
       ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
       ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
+      // The app. Expo Go's exp:// is trusted by the expo() plugin only under `next dev`, so signing
+      // in needs a development or store build.
+      APP_SCHEME,
+      // Apple's web flow posts its callback from here.
+      'https://appleid.apple.com',
     ],
     socialProviders: {
       google: {
@@ -52,6 +61,24 @@ function createAuth() {
         // Always ask which Google account: a shared family computer is a common case here.
         prompt: 'select_account',
       },
+      // Sign in with Apple, which the App Store requires next to Google. The app signs in natively
+      // and posts Apple's identity token to /sign-in/social; checking it needs only the audience,
+      // the bundle id, so this works with no Apple env. APPLE_CLIENT_ID (a Services ID) and
+      // APPLE_CLIENT_SECRET (a signed JWT) are only for Apple's web redirect flow, which the
+      // website doesn't offer yet.
+      apple: {
+        clientId: process.env.APPLE_CLIENT_ID || APP_BUNDLE_ID,
+        clientSecret: process.env.APPLE_CLIENT_SECRET ?? '',
+        appBundleIdentifier: APP_BUNDLE_ID,
+        audience: process.env.APPLE_CLIENT_ID ? [APP_BUNDLE_ID, process.env.APPLE_CLIENT_ID] : APP_BUNDLE_ID,
+      },
+    },
+    account: {
+      // Google and Apple verify addresses, so signing in with Apple under the same email as a
+      // Google account is the same person: it joins that account rather than making a new one.
+      // Apple's "Hide my email" gives a different address, so the app offers to link the two from
+      // Settings, which needs allowDifferentEmails (it applies only to a signed-in user linking).
+      accountLinking: { enabled: true, trustedProviders: ['google', 'apple'], allowDifferentEmails: true },
     },
     // Off except locally and on staging (lib/dev-login.ts): Google covers everyone, and there is no
     // password to leak.
@@ -79,8 +106,15 @@ function createAuth() {
     // Sessions don't record the IP address they came from (the privacy policy says so). That also
     // turns off better-auth's per-IP rate limiting, which on serverless is per instance anyway.
     advanced: { ipAddress: { disableIpTracking: true } },
-    // Must be last: lets route handlers and server actions set cookies.
-    plugins: [nextCookies()],
+    plugins: [
+      // Lets the app sign in: it accepts the app's `expo-origin` header in place of the Origin a
+      // browser sends, and after the Google callback hands the session to the app's deep link.
+      // Browsers always send Origin and the website's callbacks are https, so the site is
+      // untouched. The origin copy itself is lib/expo-origin.ts, in the auth route.
+      expo({ disableOriginOverride: true }),
+      // Must be last: lets route handlers and server actions set cookies.
+      nextCookies(),
+    ],
   });
 }
 

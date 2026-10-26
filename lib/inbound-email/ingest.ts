@@ -137,7 +137,7 @@ async function routeToReceipts(document: BillDocument, user: User, bytes: Buffer
   });
   const [receipt] = await db
     .insert(receipts)
-    .values({ userId: user.id, householdId: user.defaultHouseholdId ?? null, imageUrl: blob.url, processingStatus: 'pending' })
+    .values({ userId: user.id, householdId: user.defaultHouseholdId ?? null, imageUrl: blob.url, processingStatus: 'pending', source: 'email' })
     .returning();
   await db
     .update(billDocuments)
