@@ -32,12 +32,8 @@ const shortDay = (day: string) => formatLocalDate(day, { day: 'numeric', month: 
 const PAID_VIA_LABEL: Record<string, string> = { assumed: 'Assumed paid', manual: 'Marked paid', receipt: 'Paid · receipt' };
 
 /** A filed bill's type, from its name: the file route serves it as what it is, but the share sheet needs telling. */
-function fileType(bill: WireFiledBill): { mimeType: string; name: string } {
-  const name = bill.fileName ?? `${bill.provider ?? 'Bill'}.pdf`;
-  const extension = name.split('.').pop()?.toLowerCase();
-  const mimeType = extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'application/pdf';
-  return { mimeType, name };
-}
+/** What a filed bill is called when it's opened (openPrivateFile takes its type from the response). */
+const fileName = (bill: WireFiledBill) => bill.fileName ?? `${bill.provider ?? 'Bill'} bill`;
 
 /**
  * One bill or subscription, everything the website's detail shows: what it is and how it's paid,
@@ -244,8 +240,7 @@ function Payments({ bill }: { bill: WireBillDetail }) {
       actions.push({ label: 'Unlink the receipt', destructive: true, run: () => { setOpen(null); unlink.mutate(payment.id); } });
     }
     if (filed) {
-      const { name, mimeType } = fileType(filed);
-      actions.push({ label: 'View the bill', run: () => void openPrivateFile(`/api/bills/documents/${filed.id}/file`, name, mimeType) });
+      actions.push({ label: 'View the bill', run: () => void openPrivateFile(`/api/bills/documents/${filed.id}/file`, fileName(filed)) });
     }
     return actions;
   };
@@ -440,11 +435,10 @@ function FiledBillRow({ filed, currency }: { filed: WireFiledBill; currency: str
     ? `For ${shortDay(filed.periodStart)} – ${shortDay(filed.periodEnd)}`
     : filed.issueDate ? `Issued ${showDay(filed.issueDate)}` : 'Bill';
   const open = async () => {
-    const { name, mimeType } = fileType(filed);
     setOpening(true);
     setFailed(false);
     try {
-      await openPrivateFile(`/api/bills/documents/${filed.id}/file`, name, mimeType);
+      await openPrivateFile(`/api/bills/documents/${filed.id}/file`, fileName(filed));
     } catch {
       setFailed(true);
     } finally {

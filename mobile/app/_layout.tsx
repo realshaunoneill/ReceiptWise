@@ -15,6 +15,7 @@ import ErrorScreen from '../src/components/ErrorScreen';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { useSession } from '../src/hooks/useSession';
 import { persistOptions, queryClient } from '../src/query/client';
+import ChooseHost from '../src/ui/ChooseHost';
 import { usePresentations } from '../src/ui/stack';
 import { setScope } from '../src/scope';
 import { clearQueue, startUploads } from '../src/upload/runner';
@@ -97,6 +98,7 @@ function Navigator() {
           <Stack.Screen name="sign-in" />
         </Stack.Protected>
       </Stack>
+      <ChooseHost />
     </NavigationTheme>
   );
 }

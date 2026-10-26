@@ -1,4 +1,5 @@
 import { ActionSheetIOS, Alert, Platform } from 'react-native';
+import { requestChoice } from './ui/ChooseHost';
 
 /**
  * Asks before something that can't be undone. Alert does nothing on the web
@@ -24,18 +25,11 @@ export interface Choice {
 }
 
 /**
- * A short menu of actions: the native action sheet on iOS, an alert's buttons
- * on Android (which fit two and Cancel), a numbered prompt on the web build.
+ * A menu of actions or choices: the native action sheet on iOS, and on Android and the web build a
+ * sheet from the bottom (src/ui/ChooseHost.tsx: an Android alert holds only three buttons).
  * Resolves the chosen index, or null for Cancel.
  */
 export function choose(title: string, choices: Choice[]): Promise<number | null> {
-  if (Platform.OS === 'web') {
-    const answer = window.prompt(`${title}\n\n${choices.map((c, i) => `${i + 1}. ${c.label}`).join('\n')}`);
-    const index = Number(answer) - 1;
-
-    return Promise.resolve(Number.isInteger(index) && index >= 0 && index < choices.length ? index : null);
-  }
-
   if (Platform.OS === 'ios') {
     return new Promise((resolve) => {
       ActionSheetIOS.showActionSheetWithOptions({
@@ -47,10 +41,5 @@ export function choose(title: string, choices: Choice[]): Promise<number | null>
     });
   }
 
-  return new Promise((resolve) => {
-    Alert.alert(title, undefined, [
-      ...choices.map((c, i) => ({ text: c.label, style: c.destructive ? 'destructive' as const : 'default' as const, onPress: () => resolve(i) })),
-      { text: 'Cancel', style: 'cancel' as const, onPress: () => resolve(null) },
-    ], { cancelable: true, onDismiss: () => resolve(null) });
-  });
+  return requestChoice(title, choices);
 }
