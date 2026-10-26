@@ -8,15 +8,21 @@ repository root.
 ## Layout
 
 - `app/`: the screens (Expo Router):
-  - `sign-in` and `capture`
-  - five tabs, Home, Receipts, Plan, Bills and Settings, each with its own stack
+  - `sign-in`, `capture` (receipts and bills), `onboarding` and `invite/[token]`
+  - five tabs, Home, Receipts, Plan, Bills and Settings, each with its own stack (Insights is
+    pushed from Home; households, forwarding and sign-in methods from Settings)
+  - `sheets/`: the sheets and modals, registered in `app/_layout.tsx` with their presentation
+    (`src/ui/stack.ts`), each drawn in `src/ui/Sheet.tsx`
 - `src/`:
   - `auth/` signs in with Google, Apple, or a password for test accounts, and keeps the session
     token in SecureStore
   - `api/` holds the fetch client and its errors
   - `hooks/` holds the queries and mutations
-  - `upload/` is the capture queue
-  - `ui/` holds the primitives; `theme/` holds the colours, from the website's tokens
+  - `upload/` is the capture queue (receipts and bills) and the document scanner
+  - `plan/`, `bills/`, `insights/`, `receipts/`: each screen's parts and pure logic
+  - `scope.ts` is whose plan is on screen; `links.ts` maps website links to screens
+  - `ui/` holds the primitives (`Form.tsx` for sheets' controls); `theme/` holds the colours,
+    from the website's tokens
 - `../shared/`: framework-free code the website uses too: money, dates, the plan's maths, query
   keys, and the wire types of what the API returns (`shared/api/`).
   - Nothing there imports a package (`shared/imports.test.ts`).
@@ -49,8 +55,8 @@ repository root.
 
 ## Checks
 
-`npm run verify` runs `tsc` and the unit tests: the cookie jar, API errors, the upload queue and
-receipt grouping. Screens aren't unit-tested; check them in the web preview and on a device.
+`npm run verify` runs `tsc` and the unit tests: the cookie jar, API errors, the upload queue,
+receipt grouping, links, and the bills and insights maths. Screens aren't unit-tested; check them in the web preview and on a device.
 `npx expo-doctor` checks the dependencies against the SDK. To upgrade the SDK, run
 `npx expo install expo@^59.0.0 --fix`; if npm can't resolve it, delete `node_modules` and
 `package-lock.json` and install again.
@@ -66,3 +72,7 @@ receipt grouping. Screens aren't unit-tested; check them in the web preview and 
   Native.
 - **Validate anything read from the phone's storage,** because it outlives app versions.
 - **Keep only the session token in SecureStore.** Some Android versions refuse values over 2 KB.
+- **Never put a button inside a button.** VoiceOver then can't reach the inner one, and the web
+  preview warns. A row with a tick and an amount has three controls side by side.
+- **Menus go through `choose()` (src/confirm.ts).** On Android it's a bottom sheet
+  (`src/ui/ChooseHost.tsx`): an Android alert holds three buttons and drops the rest silently.
