@@ -88,6 +88,8 @@ function Navigator() {
           <Stack.Screen name="sheets/receipt-filters" options={sheet} />
 
           {/* Bills */}
+          <Stack.Screen name="sheets/bill-edit" options={modal} />
+          <Stack.Screen name="sheets/bill-link-receipt" options={tallSheet} />
 
           {/* Settings and households */}
         </Stack.Protected>

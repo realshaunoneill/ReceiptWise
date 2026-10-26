@@ -29,6 +29,7 @@ export type WireBill = {
   lastPaymentDate: string | null;
   website: string | null;
   notes: string | null;
+  isBusinessExpense: boolean | null;
 };
 
 /** One occurrence of a bill (a row of subscription_payments). Dates are ISO instants, dueDate a day. */

@@ -7,6 +7,7 @@ export default function BillsStack() {
   return (
     <Stack screenOptions={options}>
       <Stack.Screen name="index" options={{ title: 'Bills' }} />
+      <Stack.Screen name="[id]" options={{ title: '', headerLargeTitle: false }} />
     </Stack>
   );
 }

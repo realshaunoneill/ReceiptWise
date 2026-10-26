@@ -1,19 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type WireBill, type WireBillDetail, type WireInboxDocument } from '@shared/api/bills';
+import { type WireBill, type WireBillDetail, type WireInboxDocument, type WirePayment } from '@shared/api/bills';
+import { type WireReceiptsPage } from '@shared/api/receipts';
+import { addDays } from '@shared/dates/local-date';
 import { FINANCE_QUERY_KEYS } from '@shared/query/keys';
 import { invalidateFinanceQueries, refreshQueries } from '@shared/query/refresh';
 import { api } from '../api/client';
 
 export type BillStatus = 'active' | 'paused' | 'cancelled';
 
-/** Bills and subscriptions, soonest due first, with how many recent payments are missing. Same key shape as the website's. */
-export function useBills(status: BillStatus = 'active', householdId?: string) {
+/**
+ * Bills and subscriptions, soonest due first. With `includePayments`, each also says how many
+ * payments are past due and not marked paid, and lists its unsettled ones. Same key shape as the
+ * website's.
+ */
+export function useBills(status: BillStatus = 'active', householdId?: string, includePayments = false) {
   return useQuery({
-    queryKey: ['subscriptions', householdId, status, false],
+    queryKey: ['subscriptions', householdId, status, includePayments],
     queryFn: () => {
       const params = new URLSearchParams({ status });
       if (householdId) params.set('householdId', householdId);
-      return api<Array<WireBill & { missingPayments?: number }>>(`/api/subscriptions?${params}`);
+      if (includePayments) params.set('includePayments', 'true');
+      return api<Array<WireBill & { missingPayments?: number; recentPayments?: WirePayment[] }>>(`/api/subscriptions?${params}`);
     },
   });
 }
@@ -101,6 +108,29 @@ export function useUnlinkPayment() {
   return useMutation({
     mutationFn: (paymentId: string) => api(`/api/subscriptions/payments/${paymentId}`, { method: 'DELETE' }),
     onSuccess: () => refreshQueries(queryClient, [...FINANCE_QUERY_KEYS, 'receipts', 'receipt']),
+  });
+}
+
+/** Receipts this many days either side of an occurrence are offered for linking. */
+const MATCH_WINDOW_DAYS = 10;
+
+/**
+ * Receipts that could have paid an occurrence: those within ten days of it, or with `search`,
+ * any matching it (searched on the server, so older ones can be found too).
+ */
+export function useLinkCandidates(around: string | null, search: string) {
+  return useQuery({
+    queryKey: ['receipts', 'link-candidates', around, search],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: '50' });
+      if (search) params.set('search', search);
+      else if (around) {
+        params.set('startDate', addDays(around, -MATCH_WINDOW_DAYS));
+        params.set('endDate', addDays(around, MATCH_WINDOW_DAYS));
+      }
+      return api<WireReceiptsPage>(`/api/receipts?${params}`).then((page) => page.receipts);
+    },
+    placeholderData: (previous) => previous,
   });
 }
 
