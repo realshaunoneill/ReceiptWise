@@ -10,6 +10,7 @@ import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-b
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { HouseholdService } from '@/lib/services/household-service';
+import { deleteSubscriber, isRevenueCatConfigured } from '@/lib/revenuecat';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -145,6 +146,19 @@ export async function GET(req: NextRequest) {
 
         await deleteReceiptBlobs(user.id, correlationId);
         await deleteBillFiles(user.id, correlationId);
+
+        // RevenueCat's record of the person (their purchase history under our id). Best effort: a
+        // store subscription is cancelled by the person in the store, not here, and RevenueCat
+        // being down mustn't hold up a deletion that is due.
+        if (isRevenueCatConfigured()) {
+          await deleteSubscriber(user.id).catch((error) => submitLogEvent(
+            'user',
+            `Couldn't delete the RevenueCat subscriber: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            correlationId,
+            { userId: user.id },
+            true,
+          ));
+        }
 
         // Before the row goes: a household this person owns passes to its longest-standing
         // other member, or is deleted (keeping everyone else's receipts) if they were alone in

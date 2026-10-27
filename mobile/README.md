@@ -69,6 +69,12 @@ repository root.
   The runtime is the native fingerprint, so a change to native code (a new module, a permission,
   the config plugins) needs a new build instead; an update made after one simply won't reach
   older builds.
+- **In-app purchase** (Premium through the App Store and Google Play, by way of RevenueCat):
+  `src/purchases/` and `app/paywall.tsx`, with the server side in `lib/revenuecat.ts`. It is off
+  until `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` are set on EAS and a
+  build has `react-native-purchases`; until then screens show the "Premium isn't on this account"
+  notice. Prices only ever come from the store. Premium paid on the website is named in the app,
+  never linked (App Store guideline 3.1.1).
 - **Build profiles** (`eas.json`):
   - `preview` talks to production.
   - `e2e` talks to staging, with the password sign-in for test accounts.

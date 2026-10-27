@@ -120,7 +120,7 @@ export default function Settings() {
       <Section title="Account">
         <List>
           <Row label={session.data?.name || 'Signed in'} detail={me.data?.email ?? session.data?.email} />
-          <Row icon={Crown} label="Plan" value={premiumLabel} />
+          <Row icon={Crown} label="Plan" value={premiumLabel} onPress={() => router.push('/settings/subscription')} />
           <Row icon={KeyRound} label="Sign-in methods" onPress={() => router.push('/settings/sign-in-methods')} />
         </List>
       </Section>

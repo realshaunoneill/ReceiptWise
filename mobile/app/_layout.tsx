@@ -23,6 +23,7 @@ import ChooseHost from '../src/ui/ChooseHost';
 import { usePresentations } from '../src/ui/stack';
 import { usePrivacyLoaded } from '../src/privacy';
 import { clearQuickActions } from '../src/quickActions';
+import { resetPurchases } from '../src/purchases';
 import { setScope } from '../src/scope';
 import { clearQueue, startUploads } from '../src/upload/runner';
 
@@ -61,6 +62,7 @@ function Navigator() {
       clearQueue();
       setScope(null);
       clearQuickActions();
+      void resetPurchases();
     }
   }, [session.isSuccess, signedIn]);
 
@@ -102,6 +104,9 @@ function Navigator() {
           {/* Bills */}
           <Stack.Screen name="sheets/bill-edit" options={modal} />
           <Stack.Screen name="sheets/bill-link-receipt" options={tallSheet} />
+
+          {/* Premium */}
+          <Stack.Screen name="paywall" options={modal} />
 
           {/* Settings and households */}
           <Stack.Screen name="sheets/household-new" options={sheet} />
