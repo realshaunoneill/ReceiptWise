@@ -12,6 +12,7 @@ import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono/400Regu
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { onApiError } from '../src/api/client';
 import ErrorScreen from '../src/components/ErrorScreen';
+import UpdatePrompt from '../src/components/UpdatePrompt';
 import SignedInEffects from '../src/components/SignedInEffects';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { useSession } from '../src/hooks/useSession';
@@ -106,6 +107,7 @@ function Navigator() {
         {/* An invitation link opens signed in or out (signed out, it keeps the link through sign-in). */}
         <Stack.Screen name="invite/[token]" options={{ presentation: 'modal' }} />
       </Stack>
+      <UpdatePrompt />
       <ChooseHost />
     </NavigationTheme>
   );

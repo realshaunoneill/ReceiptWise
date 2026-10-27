@@ -20,6 +20,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: 'receiptwise',
   userInterfaceStyle: 'automatic',
   runtimeVersion: { policy: 'fingerprint' },
+  // EAS Update: JS-only changes reach installed builds with `eas update --channel <profile's channel>`.
+  // The fingerprint runtime means an update only goes to builds with the same native code.
+  updates: { url: 'https://u.expo.dev/db151b22-b7bd-4259-9a69-a4e2767741f3' },
   ios: {
     bundleIdentifier: 'io.receiptwise.app',
     supportsTablet: false,

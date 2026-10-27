@@ -55,6 +55,12 @@ repository root.
   - Expo Go can't be used: signing in returns to the app's `receiptwise://` scheme, which Expo Go
     doesn't have.
   - iOS builds need the Apple Developer membership.
+- **Updates without a new build:** `eas update --channel preview --message "…" --non-interactive`
+  (or `production`) sends a JS-only change to installed builds on that channel. The app downloads
+  it in the background and offers "Update ready · Restart" (`src/components/UpdatePrompt.tsx`).
+  The runtime is the native fingerprint, so a change to native code (a new module, a permission,
+  the config plugins) needs a new build instead; an update made after one simply won't reach
+  older builds.
 - **Build profiles** (`eas.json`):
   - `preview` talks to production.
   - `e2e` talks to staging, with the password sign-in for test accounts.
