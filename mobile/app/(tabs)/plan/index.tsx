@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, ClipboardPaste, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
+import { CalendarClock, ChevronLeft, ChevronRight, ClipboardPaste, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
 import { formatCents } from '@shared/currency';
 import { type WirePlan } from '@shared/api/plan';
+import { planBreakdown } from '@shared/plan/breakdown';
 import { scopePickerPlacement } from '../../../src/components/ScopePicker';
 import { choose } from '../../../src/confirm';
 import { useTheme } from '../../../src/contexts/ThemeContext';
@@ -25,6 +27,8 @@ import Stale from '../../../src/ui/Stale';
 import TabScreen from '../../../src/ui/TabScreen';
 import Text from '../../../src/ui/Text';
 
+const INTRO_KEY = 'receiptwise_plan_intro_seen';
+
 /** The month, payday to payday: what comes in, what goes out, and what's left. */
 export default function Plan() {
   const router = useRouter();
@@ -32,6 +36,8 @@ export default function Plan() {
   const me = useMe();
   const { householdId } = useScope();
   const plan = usePlan(offset, householdId);
+  // The month after, for the "Plan December" row (and so stepping forward is instant).
+  const next = usePlan(offset + 1, householdId);
   const households = useHouseholds();
   const householdNames = Object.fromEntries((households.data ?? []).map((household) => [household.id, household.name]));
 
@@ -82,7 +88,9 @@ export default function Plan() {
         ) : (
           <Stale stale={switching}>
             <StartHere plan={data} householdNames={householdNames} />
+            <HowItWorks />
             <Summary plan={data} />
+            <NextMonth plan={next.isPlaceholderData ? undefined : next.data} onOpen={() => setOffset(offset + 1)} />
             <BankCheck plan={data} />
             <Section>
               <List>
@@ -173,6 +181,7 @@ function PeriodSwitcher({ plan, offset, onChange, loading }: { plan: WirePlan | 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         {arrow(-1)}
         <View style={{ flex: 1, alignItems: 'center' }} accessibilityLiveRegion="polite" aria-busy={loading}>
+          {Math.abs(offset) <= 1 && <Text variant="caption" ink="accent">{offset === 0 ? 'This month' : offset === 1 ? 'Next month' : 'Last month'}</Text>}
           <Text variant="heading" ink={loading ? 'muted' : 'primary'}>{plan?.period.label ?? ' '}</Text>
           {loading ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18 }}>
@@ -190,38 +199,139 @@ function PeriodSwitcher({ plan, offset, onChange, loading }: { plan: WirePlan | 
   );
 }
 
+/**
+ * What's left, and how it gets there, in the order people work it out: the pay, the bills, what's
+ * left after the bills, then subscriptions, savings and this month's one-offs.
+ */
 function Summary({ plan }: { plan: WirePlan }) {
   const { colors } = useTheme();
-  const { incomeCents, outgoingCents, remainingCents, weeklyCents, paidOutCents, toGoCents } = plan.totals;
-  const over = remainingCents < 0;
-  const paidShare = outgoingCents > 0 ? Math.min(1, paidOutCents / outgoingCents) : 0;
+  const { outgoingCents, weeklyCents, paidOutCents, toGoCents } = plan.totals;
   if (plan.flags.includes('no_income')) return null;
+  const breakdown = planBreakdown(plan.lines);
+  const over = breakdown.leftCents < 0;
+  const paidShare = outgoingCents > 0 ? Math.min(1, paidOutCents / outgoingCents) : 0;
+  const money = (cents: number) => formatCents(Math.abs(cents), plan.currency);
+  const current = plan.daysLeft !== null;
+  const month = monthOf(plan);
+  const rows: Array<{ label: string; cents: number; minus?: boolean; estimate?: boolean; total?: boolean; hint?: string }> = [
+    { label: 'Coming in', cents: breakdown.incomeCents },
+    { label: 'Bills', cents: breakdown.billsCents, minus: true, estimate: breakdown.estimated, hint: breakdown.estimated ? 'Includes estimates (~ below)' : undefined },
+    { label: 'After bills', cents: breakdown.afterBillsCents, total: true, hint: 'What you have once the bills are paid' },
+    ...(breakdown.subscriptionsCents ? [{ label: 'Subscriptions', cents: breakdown.subscriptionsCents, minus: true }] : []),
+    ...(breakdown.savingsCents ? [{ label: 'Savings', cents: breakdown.savingsCents, minus: true }] : []),
+    ...(breakdown.oneOffsCents ? [{ label: `Just for ${month}`, cents: breakdown.oneOffsCents, minus: true }] : []),
+  ];
+
   return (
-    <Section>
+    <Section footer={breakdown.estimated ? `An estimate (~) is a bill on its usual amount until the bill comes in. Tap its amount below to set ${month}'s.` : undefined}>
       <Card padded>
         <View style={{ gap: space.xs }}>
-          <Text variant="footnote" ink="muted">{over ? 'Over by' : 'Left this month'}</Text>
-          <Text variant="largeTitle" ink={over ? 'bad' : 'primary'} tabular accessibilityLabel={`${over ? 'Over by' : 'Left'} ${formatCents(Math.abs(remainingCents), plan.currency)}`}>
-            {formatCents(Math.abs(remainingCents), plan.currency)}
+          <Text variant="footnote" ink="muted">{over ? `Over in ${month} by` : current ? 'Left this month' : `Left in ${month}`}</Text>
+          <Text variant="largeTitle" ink={over ? 'bad' : 'primary'} tabular accessibilityLabel={`${over ? 'Over by' : 'Left'} ${money(breakdown.leftCents)}`}>
+            {money(breakdown.leftCents)}
           </Text>
           {!over && <Text variant="callout" ink="secondary" tabular>{`${formatCents(weeklyCents, plan.currency)} a week`}</Text>}
         </View>
-        <View style={{ flexDirection: 'row', marginTop: space.lg, gap: space.lg }}>
-          <View style={{ flex: 1 }}>
-            <Text variant="footnote" ink="muted">Coming in</Text>
-            <Text variant="callout" weight="semibold" ink="good" tabular>{formatCents(incomeCents, plan.currency)}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text variant="footnote" ink="muted">Going out</Text>
-            <Text variant="callout" weight="semibold" tabular>{formatCents(outgoingCents, plan.currency)}</Text>
-          </View>
+
+        <View style={{ marginTop: space.lg, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.separator }}>
+          {rows.map((row) => (
+            <View
+              key={row.label}
+              accessible
+              accessibilityLabel={`${row.label}${row.minus ? ', minus' : ''} ${row.estimate ? 'about ' : ''}${money(row.cents)}`}
+              style={[
+                { flexDirection: 'row', alignItems: 'baseline', paddingVertical: space.sm, gap: space.md },
+                row.total && { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.separator, marginVertical: space.xs },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text variant="callout" weight={row.total ? 'semibold' : 'regular'} ink={row.total ? 'primary' : 'secondary'}>{row.label}</Text>
+                {!!row.hint && <Text variant="caption" ink="muted">{row.hint}</Text>}
+              </View>
+              <Text
+                variant={row.total ? 'heading' : 'callout'}
+                weight="semibold"
+                ink={row.label === 'Coming in' ? 'good' : row.total && row.cents < 0 ? 'bad' : 'primary'}
+                tabular
+              >
+                {`${row.minus ? '− ' : ''}${row.total && row.cents < 0 ? `${money(row.cents)} over` : money(row.cents)}`}
+              </Text>
+            </View>
+          ))}
         </View>
-        <View style={{ marginTop: space.lg, gap: space.xs }} accessible accessibilityLabel={`${formatCents(paidOutCents, plan.currency)} paid, ${formatCents(toGoCents, plan.currency)} still to go`}>
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.field, overflow: 'hidden' }}>
-            <View style={{ width: `${paidShare * 100}%`, height: 6, backgroundColor: colors.accent }} />
+
+        {current && (
+          <View style={{ marginTop: space.md, gap: space.xs }} accessible accessibilityLabel={`${formatCents(paidOutCents, plan.currency)} paid, ${formatCents(toGoCents, plan.currency)} still to go`}>
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.field, overflow: 'hidden' }}>
+              <View style={{ width: `${paidShare * 100}%`, height: 6, backgroundColor: colors.accent }} />
+            </View>
+            <Text variant="footnote" ink="muted" tabular>{`${formatCents(paidOutCents, plan.currency)} paid · ${formatCents(toGoCents, plan.currency)} still to go`}</Text>
           </View>
-          <Text variant="footnote" ink="muted" tabular>{`${formatCents(paidOutCents, plan.currency)} paid · ${formatCents(toGoCents, plan.currency)} still to go`}</Text>
+        )}
+      </Card>
+    </Section>
+  );
+}
+
+/** The month after this one, at a glance: planning ahead (a big card bill now) starts from here. */
+function NextMonth({ plan, onOpen }: { plan: WirePlan | undefined; onOpen: () => void }) {
+  if (!plan || plan.flags.includes('no_income')) return null;
+  const breakdown = planBreakdown(plan.lines);
+  const money = (cents: number) => formatCents(Math.abs(cents), plan.currency);
+  const left = breakdown.leftCents < 0 ? `${money(breakdown.leftCents)} over` : `${money(breakdown.leftCents)} left`;
+  return (
+    <Section>
+      <List>
+        <Row
+          icon={CalendarClock}
+          label={`Plan ${monthOf(plan)}`}
+          detail={`${left} · ${money(breakdown.afterBillsCents)} after bills`}
+          onPress={onOpen}
+          accessibilityHint={`Shows ${plan.period.label}, to set its amounts ahead`}
+        />
+      </List>
+    </Section>
+  );
+}
+
+/**
+ * How the plan works, until it's been read once: the three things that aren't obvious from the
+ * screen (bills first, an amount can change for one month, and next month can be planned now).
+ */
+function HowItWorks() {
+  const [seen, setSeen] = useState<boolean | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem(INTRO_KEY).then((value) => setSeen(value === '1')).catch(() => setSeen(true));
+  }, []);
+  if (seen !== false) return null;
+  const points = [
+    'Each month runs from one payday to the next: your pay comes in, then the bills go out.',
+    'After bills is what you have once the essentials are paid. Subscriptions, savings and one-offs come out of that.',
+    'A bill different this month, like a bigger credit card bill? Tap its amount. Only that month changes.',
+    'Use the arrows to plan next month before it starts.',
+  ];
+  return (
+    <Section>
+      <Card padded>
+        <Text variant="label" accessibilityRole="header">How your plan works</Text>
+        <View style={{ gap: space.sm, marginTop: space.sm }}>
+          {points.map((point) => (
+            <View key={point} style={{ flexDirection: 'row', gap: space.sm }}>
+              <Text variant="callout" ink="muted">·</Text>
+              <Text variant="callout" ink="secondary" style={{ flex: 1 }}>{point}</Text>
+            </View>
+          ))}
         </View>
+        <Button
+          label="Got it"
+          variant="secondary"
+          size="sm"
+          onPress={() => {
+            setSeen(true);
+            void AsyncStorage.setItem(INTRO_KEY, '1').catch(() => undefined);
+          }}
+          style={{ alignSelf: 'flex-start', marginTop: space.md }}
+        />
       </Card>
     </Section>
   );

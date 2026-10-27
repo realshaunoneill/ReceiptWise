@@ -55,7 +55,7 @@ export default function PlanLines({ plan, offset, viewerId, householdNames }: Co
         </Section>
       )}
       {recurring.length > 0 && (
-        <Section title="Bills & subscriptions" accessory={total(recurring)}>
+        <Section title="Bills & subscriptions" accessory={total(recurring)} footer={`Tap an amount to change it for ${monthOf(plan)} only: a bigger credit card bill, an electricity bill that came in.`}>
           <List inset={60}>{recurring.map((line) => <RecurringRow key={line.key} line={line} context={context} />)}</List>
         </Section>
       )}
