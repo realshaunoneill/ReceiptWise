@@ -109,6 +109,7 @@ function Navigator() {
           <Stack.Screen name="paywall" options={modal} />
 
           {/* Settings and households */}
+          <Stack.Screen name="sheets/notifications-priming" options={sheet} />
           <Stack.Screen name="sheets/household-new" options={sheet} />
           <Stack.Screen name="sheets/household-rename" options={sheet} />
           <Stack.Screen name="sheets/household-invite" options={sheet} />

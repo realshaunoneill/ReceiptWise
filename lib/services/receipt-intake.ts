@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { receipts, type Receipt, type User } from '@/lib/db/schema';
 import { isFeatureEnabled } from '@/lib/features';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import * as push from '@/lib/push/events';
 import { processReceipt } from '@/lib/receipt-processing';
 import { moveReceiptToBillsAndRead } from '@/lib/services/receipt-to-bill';
 import { isPrivateStoreConfigured } from '@/lib/storage/private-blob';
@@ -89,7 +90,13 @@ export async function intakeReceiptFile(options: IntakeOptions): Promise<{ recei
   // function was stopped before finishing.
   waitUntil(
     processReceipt(inserted.id, user.id, correlationId)
-      .then((result) => (result.ok && options.fileBills ? fileBillsAsBills(result.receipt, result.ocrData.documentKind, user, source, correlationId) : undefined))
+      .then(async (result) => {
+        const filedAsBill = result.ok && options.fileBills ? await fileBillsAsBills(result.receipt, result.ocrData.documentKind, user, source, correlationId) : false;
+        // A bill filed from here is told about by its own processing (lib/push/events.ts).
+        if (filedAsBill) return;
+        if (result.ok) push.receiptProcessed(result.receipt, { ok: true, itemCount: result.items.length }, source, correlationId);
+        else if (result.reason === 'failed') push.receiptProcessed(inserted, { ok: false }, source, correlationId);
+      })
       .catch((error) => {
         submitLogEvent(`${source}-upload`, `Background processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { receiptId: inserted.id }, true);
       }),
@@ -134,10 +141,11 @@ async function fileBillsAsBills(
   user: User,
   source: IntakeOptions['source'],
   correlationId: CorrelationId,
-): Promise<void> {
-  if (documentKind !== 'bill' || !isFeatureEnabled(user, 'bills') || !isPrivateStoreConfigured()) return;
+): Promise<boolean> {
+  if (documentKind !== 'bill' || !isFeatureEnabled(user, 'bills') || !isPrivateStoreConfigured()) return false;
   const limit = await checkBillDocumentLimit(user.id);
-  if (limit.limited) return;
+  if (limit.limited) return false;
   await moveReceiptToBillsAndRead(receipt, correlationId);
   submitLogEvent(`${source}-upload`, 'Captured bill filed in the bill inbox', correlationId, { receiptId: receipt.id });
+  return true;
 }

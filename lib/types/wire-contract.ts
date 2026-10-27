@@ -3,6 +3,8 @@
  * (shared/api/*). Nothing runs: if a route's shape drifts, `tsc` fails here, in the web's CI,
  * before the app ever sees it.
  */
+import { type readPrefs } from '@/shared/push/prefs';
+import { type WireNotificationSettings } from '@/shared/api/notifications';
 import { type BillDocument, type FinancialAccount, type HouseholdInvitation, type InboundAddress, type InboundEmail, type IncomeSource, type SavingsGoal, type Subscription, type SubscriptionPayment, type User } from '@/lib/db/schema';
 import { type FeatureFlags } from '@/lib/features';
 import { type getReceipts } from '@/lib/receipt-scanner';
@@ -76,3 +78,5 @@ export type InboundEmailsFit = Assert<Fits<
   Array<Pick<InboundEmail, 'id' | 'fromAddress' | 'subject' | 'status' | 'error' | 'partCount' | 'confirmationCode' | 'confirmationUrl' | 'receivedAt'>>,
   WireInboundEmail[]
 >>;
+/** app/api/users/me/notifications/route.ts: the preferences it returns are readPrefs's, defaults filled in. */
+export type NotificationPrefsFit = Assert<Fits<ReturnType<typeof readPrefs>, WireNotificationSettings['prefs']>>;

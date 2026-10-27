@@ -35,6 +35,7 @@ import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 import { EmailForwardingCard } from '@/components/settings/email-forwarding-card';
+import { NotificationsCard } from '@/components/settings/notifications-card';
 
 // 'subscription' is the Premium tab: the label changed so it isn't confused with the
 // subscriptions tracker, but the value stays so ?tab=subscription links keep working.
@@ -604,6 +605,8 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <NotificationsCard />
 
             <Card>
               <CardHeader>

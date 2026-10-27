@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRootNavigationState, useRouter } from 'expo-router';
 import { useMe } from '../hooks/useMe';
 import { takePendingInvite } from '../invites';
 import { configurePurchases } from '../purchases';
+import PushEffects from '../push/PushEffects';
 
 /**
  * What opens by itself once someone is signed in, once per sign-in: an invitation link they
@@ -35,5 +36,5 @@ export default function SignedInEffects() {
     });
   }, [ready, me.data, router]);
 
-  return null;
+  return <PushEffects />;
 }

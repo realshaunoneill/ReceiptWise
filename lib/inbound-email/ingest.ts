@@ -9,6 +9,7 @@ import { checkBillDocumentLimit } from '@/lib/bill-rate-limit';
 import { isFeatureEnabled } from '@/lib/features';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { checkReceiptCreationLimit } from '@/lib/receipt-rate-limit';
+import * as push from '@/lib/push/events';
 import { processReceipt } from '@/lib/receipt-processing';
 import { processBillDocument } from '@/lib/services/bill-document-service';
 import { getFinanceEntitlements } from '@/lib/services/finance-access';
@@ -143,7 +144,9 @@ async function routeToReceipts(document: BillDocument, user: User, bytes: Buffer
     .update(billDocuments)
     .set({ reviewStatus: 'applied', appliedAs: 'receipt', receiptId: receipt.id, reviewedAt: new Date(), autoApplied: true, updatedAt: new Date() })
     .where(eq(billDocuments.id, document.id));
-  await processReceipt(receipt.id, user.id, correlationId);
+  const result = await processReceipt(receipt.id, user.id, correlationId);
+  if (result.ok) push.receiptProcessed(result.receipt, { ok: true, itemCount: result.items.length }, 'email', correlationId);
+  else if (result.reason === 'failed') push.receiptProcessed(receipt, { ok: false }, 'email', correlationId);
 }
 
 /**

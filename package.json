@@ -70,6 +70,7 @@
     "date-fns": "4.1.0",
     "drizzle-orm": "^0.45.4",
     "embla-carousel-react": "8.5.1",
+    "expo-server-sdk": "^3.15.0",
     "framer-motion": "11.18.2",
     "immer": "latest",
     "input-otp": "1.4.1",

@@ -1,3 +1,4 @@
+import * as push from '@/lib/push/events';
 import { db } from '@/lib/db';
 import { authUser, households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, billDocuments, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
 import { eq, and, asc, inArray, count, ne, sql } from 'drizzle-orm';
@@ -276,6 +277,8 @@ export class HouseholdService {
       expiresAt,
     }).returning();
 
+    // Someone who already has an account hears about it on their phone too.
+    push.later(push.invitationSent(invitation));
     return invitation;
   }
 
@@ -449,6 +452,10 @@ export class HouseholdService {
         .returning({ id: householdUsers.id });
 
       return { householdId: invitation.householdId, alreadyMember: inserted.length === 0 };
+    }).then((result) => {
+      // The owner hears who joined (after the transaction, so they never hear of one that failed).
+      if (!result.alreadyMember) push.later(push.memberAdded(result.householdId, userId));
+      return result;
     });
   }
 

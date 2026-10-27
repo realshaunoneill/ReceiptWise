@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { type NextRequest, NextResponse } from 'next/server';
+import * as push from '@/lib/push/events';
 import { syncStripeDataToDatabase } from '@/lib/stripe';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
@@ -140,6 +141,12 @@ async function processEvent(event: Stripe.Event, correlationId: CorrelationId) {
     }
 
     const kvData = await syncStripeDataToDatabase(customerId, correlationId);
+
+    // A trial about to end, or a renewal that failed: the person hears on their phone too.
+    if (user && (event.type === 'customer.subscription.trial_will_end' || event.type === 'invoice.payment_failed')) {
+      const object = event.data.object as { id?: string; trial_end?: number | null };
+      push.stripeBillingEvent(user.id, { id: event.id, type: event.type, trialEnd: object.trial_end ?? null, invoiceId: event.type === 'invoice.payment_failed' ? object.id ?? null : null }, correlationId);
+    }
 
     return kvData;
   }

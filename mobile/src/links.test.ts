@@ -24,6 +24,15 @@ describe('links into the app', () => {
     expect(routeForLink('https://www.receiptwise.io/subscriptions')).toBe('/bills');
   });
 
+  it("opens what a notification is about (lib/push/messages.ts's urls are bare paths)", () => {
+    expect(routeForLink('/subscriptions?selected=24387178-f242-46c4-a045-ed043c499157')).toBe('/bills/24387178-f242-46c4-a045-ed043c499157');
+    expect(routeForLink('/subscriptions?selected=nonsense')).toBe('/bills');
+    expect(routeForLink('/receipts?selected=24387178-f242-46c4-a045-ed043c499157')).toBe('/receipts/24387178-f242-46c4-a045-ed043c499157');
+    expect(routeForLink('/sharing')).toBe('/settings/households');
+    expect(routeForLink('/settings')).toBe('/settings');
+    expect(routeForLink('/plan')).toBe('/plan');
+  });
+
   it('leaves everything else alone', () => {
     expect(routeForLink('https://www.receiptwise.io/invite/short')).toBeNull();
     expect(routeForLink('https://www.receiptwise.io/upgrade')).toBeNull();

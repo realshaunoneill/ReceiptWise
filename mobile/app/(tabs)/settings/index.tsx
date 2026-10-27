@@ -3,7 +3,7 @@ import { Switch } from 'react-native';
 import * as Application from 'expo-application';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { BarChart3, CircleHelp, Coins, Download, FileText, Home, KeyRound, Lock, LogOut, Mail, Shield, Trash2, Crown, Users } from 'lucide-react-native';
+import { BarChart3, Bell, CircleHelp, Coins, Download, FileText, Home, KeyRound, Lock, LogOut, Mail, Shield, Trash2, Crown, Users } from 'lucide-react-native';
 import { getCurrencyDetails, SUPPORTED_CURRENCIES } from '@shared/currency';
 import { formatDisplayDate } from '@shared/receipts/format';
 import { setConsent, useConsent } from '../../../src/analytics';
@@ -148,6 +148,7 @@ export default function Settings() {
             value={me.data ? getCurrencyDetails(me.data.currency).name : ''}
             onPress={() => void pickCurrency()}
           />
+          <Row icon={Bell} label="Notifications" onPress={() => router.push('/settings/notifications')} />
           {canForward && <Row icon={Mail} label="Email forwarding" detail="Forward bills and receipts to ReceiptWise" onPress={() => router.push('/settings/forwarding')} />}
         </List>
       </Section>

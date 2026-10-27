@@ -19,6 +19,8 @@ repository root.
   - `api/` holds the fetch client and its errors
   - `hooks/` holds the queries and mutations
   - `upload/` is the capture queue (receipts and bills) and the document scanner
+  - `push/` registers for push notifications and opens what they're about (the server's half,
+    and what's sent, is `lib/push/`); its native modules load only in builds that have them
   - `plan/`, `bills/`, `insights/`, `receipts/`: each screen's parts and pure logic
   - `scope.ts` is whose plan is on screen; `links.ts` maps website links and files opened in the
     app to screens
