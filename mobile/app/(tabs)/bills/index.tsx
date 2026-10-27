@@ -16,6 +16,7 @@ import Button, { tap } from '../../../src/ui/Button';
 import { Segmented } from '../../../src/ui/Controls';
 import { EmptyState, LoadError, Notice, Pill, Skeleton } from '../../../src/ui/Feedback';
 import { Card, List, Section } from '../../../src/ui/Section';
+import Stale from '../../../src/ui/Stale';
 import TabScreen from '../../../src/ui/TabScreen';
 import Text from '../../../src/ui/Text';
 
@@ -135,9 +136,12 @@ export default function Bills() {
               </Text>
             )
           ) : (
-            <Section>
-              <List>{shown.map((bill) => <BillRow key={bill.id} bill={bill} today={today} billsOn={billsOn} />)}</List>
-            </Section>
+            // Another status on its way: the last list stays, dimmed.
+            <Stale stale={list.isPlaceholderData}>
+              <Section>
+                <List>{shown.map((bill) => <BillRow key={bill.id} bill={bill} today={today} billsOn={billsOn} />)}</List>
+              </Section>
+            </Stale>
           )}
         </>
       )}

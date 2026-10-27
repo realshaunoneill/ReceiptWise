@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, ClipboardPaste, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
 import { formatCents } from '@shared/currency';
 import { type WirePlan } from '@shared/api/plan';
-import ScopePicker from '../../../src/components/ScopePicker';
+import { scopePickerPlacement } from '../../../src/components/ScopePicker';
 import { choose } from '../../../src/confirm';
 import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useHouseholds } from '../../../src/hooks/useHouseholds';
@@ -21,6 +21,7 @@ import { LoadError, Notice, Skeleton } from '../../../src/ui/Feedback';
 import HeaderButton from '../../../src/ui/HeaderButton';
 import Row from '../../../src/ui/Row';
 import { Card, List, Section } from '../../../src/ui/Section';
+import Stale from '../../../src/ui/Stale';
 import TabScreen from '../../../src/ui/TabScreen';
 import Text from '../../../src/ui/Text';
 
@@ -47,6 +48,9 @@ export default function Plan() {
   }
 
   const data = plan.data;
+  // Another household's plan or another month on its way: the last one stays, dimmed.
+  const switching = plan.isPlaceholderData;
+  const scope = scopePickerPlacement(switching);
   const params = { offset: String(offset) };
   const add = async () => {
     if (!data) return;
@@ -64,12 +68,10 @@ export default function Plan() {
 
   return (
     <>
-      <Stack.Screen options={{ headerRight: () => <HeaderButton icon={Plus} label="Add to the plan" onPress={() => void add()} /> }} />
-      <TabScreen onRefresh={() => void plan.refetch()} refreshing={plan.isRefetching}>
-        <View style={{ marginHorizontal: GUTTER, marginBottom: space.md }}>
-          <ScopePicker />
-        </View>
-        <PeriodSwitcher plan={data} offset={offset} onChange={setOffset} />
+      <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <HeaderButton icon={Plus} label="Add to the plan" onPress={() => void add()} /> }} />
+      <TabScreen onRefresh={() => void plan.refetch()} refreshing={plan.isRefetching && !switching}>
+        {scope.inline}
+        <PeriodSwitcher plan={data} offset={offset} onChange={setOffset} loading={switching} />
         {plan.isError && !data ? (
           <LoadError message={plan.error.message} onRetry={() => void plan.refetch()} />
         ) : !data ? (
@@ -78,8 +80,8 @@ export default function Plan() {
             <Skeleton height={220} round={radius.lg} />
           </View>
         ) : (
-          <>
-            <StartHere plan={data} householdId={householdId} householdNames={householdNames} />
+          <Stale stale={switching}>
+            <StartHere plan={data} householdNames={householdNames} />
             <Summary plan={data} />
             <BankCheck plan={data} />
             <Section>
@@ -97,7 +99,7 @@ export default function Plan() {
                 <Row icon={Receipt} label="All bills & subscriptions" onPress={() => router.navigate('/bills')} />
               </List>
             </Section>
-          </>
+          </Stale>
         )}
       </TabScreen>
     </>
@@ -109,8 +111,10 @@ export default function Plan() {
  * household plan only loads what's shared with it, so judging by its list alone told someone with
  * a salary to start with their pay.
  */
-function StartHere({ plan, householdId, householdNames }: { plan: WirePlan; householdId?: string; householdNames: Record<string, string> }) {
+function StartHere({ plan, householdNames }: { plan: WirePlan; householdNames: Record<string, string> }) {
   const router = useRouter();
+  // The scope these figures are for, not the one just picked: while another loads, these stay.
+  const householdId = plan.scope.type === 'household' ? plan.scope.householdId : undefined;
   const share = useSaveIncome();
   const primary = plan.primaryIncome;
   const householdName = householdId ? householdNames[householdId] ?? 'this household' : null;
@@ -145,7 +149,7 @@ function StartHere({ plan, householdId, householdNames }: { plan: WirePlan; hous
   return null;
 }
 
-function PeriodSwitcher({ plan, offset, onChange }: { plan: WirePlan | undefined; offset: number; onChange: (offset: number) => void }) {
+function PeriodSwitcher({ plan, offset, onChange, loading }: { plan: WirePlan | undefined; offset: number; onChange: (offset: number) => void; loading: boolean }) {
   const { colors } = useTheme();
   const arrow = (direction: -1 | 1) => {
     const Icon = direction < 0 ? ChevronLeft : ChevronRight;
@@ -168,9 +172,16 @@ function PeriodSwitcher({ plan, offset, onChange }: { plan: WirePlan | undefined
     <View style={{ marginHorizontal: GUTTER, marginBottom: space.lg, gap: space.xs }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         {arrow(-1)}
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text variant="heading">{plan?.period.label ?? ' '}</Text>
-          {!!plan && <Text variant="footnote" ink="muted">{`${shortDay(plan.period.start)} – ${shortDay(plan.period.end)}`}</Text>}
+        <View style={{ flex: 1, alignItems: 'center' }} accessibilityLiveRegion="polite" aria-busy={loading}>
+          <Text variant="heading" ink={loading ? 'muted' : 'primary'}>{plan?.period.label ?? ' '}</Text>
+          {loading ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18 }}>
+              <ActivityIndicator size="small" color={colors.textMuted} style={{ transform: [{ scale: 0.7 }] }} />
+              <Text variant="footnote" ink="muted">Loading</Text>
+            </View>
+          ) : (
+            !!plan && <Text variant="footnote" ink="muted">{`${shortDay(plan.period.start)} – ${shortDay(plan.period.end)}`}</Text>
+          )}
         </View>
         {arrow(1)}
       </View>

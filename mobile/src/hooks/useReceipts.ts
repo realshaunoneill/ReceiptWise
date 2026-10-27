@@ -36,6 +36,8 @@ export function useReceipts(filters: ReceiptFilters = {}) {
       return api<WireReceiptsPage>(`/api/receipts?${params}`);
     },
     getNextPageParam: (last) => (last.pagination.hasNext ? last.pagination.page + 1 : undefined),
+    // Another search, filter or household: the last list stays (dimmed) until this one arrives.
+    placeholderData: (previous) => previous,
     // A receipt from the app, the extension or an email is read on the server after it appears.
     refetchInterval: (query) => pollWhileReading(query.state.data?.pages.flatMap((p) => p.receipts) ?? []),
   });

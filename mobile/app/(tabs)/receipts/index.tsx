@@ -101,7 +101,8 @@ export default function Receipts() {
         getItemType={(row) => row.type}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"
-        style={{ backgroundColor: colors.background }}
+        // Another search, filter or household on its way: the last list stays, dimmed.
+        style={{ backgroundColor: colors.background, opacity: query.isPlaceholderData ? 0.5 : 1 }}
         contentContainerStyle={{ paddingBottom: space.xxxl * 2 }}
         ListHeaderComponent={header}
         ListEmptyComponent={empty}

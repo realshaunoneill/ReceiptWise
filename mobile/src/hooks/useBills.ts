@@ -22,6 +22,8 @@ export function useBills(status: BillStatus = 'active', householdId?: string, in
       if (includePayments) params.set('includePayments', 'true');
       return api<Array<WireBill & { missingPayments?: number; recentPayments?: WirePayment[] }>>(`/api/subscriptions?${params}`);
     },
+    // Another status or household: the last list stays (dimmed) until this one arrives.
+    placeholderData: (previous) => previous,
   });
 }
 
