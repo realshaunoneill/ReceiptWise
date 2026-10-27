@@ -55,6 +55,9 @@ repository root.
   - Expo Go can't be used: signing in returns to the app's `receiptwise://` scheme, which Expo Go
     doesn't have.
   - iOS builds need the Apple Developer membership.
+- **Builds are scarce:** the EAS account is on the free plan, so code changes go out as updates
+  (below) and a build is only for native changes (modules, permissions, config plugins, icons),
+  batched, and only when Shaun agrees. Nothing in CI starts one.
 - **Updates without a new build:** `eas update --channel preview --message "…" --non-interactive`
   (or `production`) sends a JS-only change to installed builds on that channel. The app downloads
   it in the background and offers "Update ready · Restart" (`src/components/UpdatePrompt.tsx`).
