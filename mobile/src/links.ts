@@ -39,6 +39,12 @@ export function routeForLink(link: string): string | null {
   }
   if (path === '/plan') return '/plan';
   if (path === '/dashboard') return '/';
-  if (path === '/subscriptions') return '/bills';
+  if (path === '/subscriptions') {
+    // A notification about one bill (lib/push/messages.ts) opens that bill.
+    const selected = url.searchParams.get('selected');
+    return selected && UUID.test(selected) ? `/bills/${selected}` : '/bills';
+  }
+  if (path === '/sharing') return '/settings/households';
+  if (path === '/settings') return '/settings';
   return null;
 }

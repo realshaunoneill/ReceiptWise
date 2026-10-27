@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSessionUser, signInWithApple, signInWithGoogle, signInWithPassword, signOut, type SessionUser } from '../auth/auth';
+import { unregisterPush } from '../push/push';
 import { persistOptions } from '../query/client';
 
 /** The signed-in person (null when signed out), from the server's session. */
@@ -33,7 +34,11 @@ export const usePasswordSignIn = () => useSignIn(({ email, password }: { email: 
 export function useSignOut() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: signOut,
+    // The phone's push token goes first, while the session can still say whose it is.
+    mutationFn: async () => {
+      await unregisterPush();
+      await signOut();
+    },
     onSettled: async () => {
       queryClient.clear();
       await persistOptions.persister.removeClient();

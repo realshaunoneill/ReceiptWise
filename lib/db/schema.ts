@@ -275,7 +275,12 @@ export const notificationLog = pgTable('notification_log', {
   kind: text('kind').notNull(),
   refKey: text('ref_key').notNull(),
   sentAt: timestamp('sent_at').notNull().defaultNow(),
+  // Held for quiet hours (lib/push/messages.ts): sent by cron/notify once this has passed, then
+  // cleared. Null once sent. The message waits in `payload`.
+  pendingUntil: timestamp('pending_until'),
+  payload: jsonb('payload'),
 }, (table) => ({
+  pendingIdx: index('notification_log_pending_idx').on(table.pendingUntil),
   oncePerThing: uniqueIndex('notification_log_user_kind_ref_uidx').on(table.userId, table.kind, table.refKey),
 }));
 

@@ -15,6 +15,7 @@ import { Segmented } from '../src/ui/Controls';
 import { Notice } from '../src/ui/Feedback';
 import Text from '../src/ui/Text';
 import { CaptureTooLarge, enqueue, enqueueBill, type CaptureInput } from '../src/upload/runner';
+import { shouldOfferPush } from '../src/push/push';
 import { scanDocuments } from '../src/upload/scan';
 
 const MAX_PHOTOS = 10;
@@ -45,7 +46,9 @@ export default function Capture() {
     try {
       await work();
       success();
-      router.back();
+      // The first capture is when notifications make sense: "it's been read" is the first one.
+      if (await shouldOfferPush().catch(() => false)) router.replace('/sheets/notifications-priming');
+      else router.back();
     } catch (e) {
       setError(e instanceof CaptureTooLarge || e instanceof Error ? e.message : "Couldn't add that");
     } finally {

@@ -1,3 +1,4 @@
+import * as push from '@/lib/push/events';
 import { createHash } from 'crypto';
 import { APICallError, JSONParseError, NoObjectGeneratedError, NoOutputGeneratedError, RetryError, TypeValidationError } from 'ai';
 import { and, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
@@ -81,7 +82,17 @@ function reviewStatusFor(data: BillData): BillDocument['reviewStatus'] {
  * nothing is in doubt. Returns the document, or null if someone else is already processing it (or
  * it's gone). Never throws for an expected failure: the row records it.
  */
+/**
+ * Read a document, then tell its owner how it went (lib/push/events.ts: only for bills from the
+ * app, email or Receipts, not website uploads).
+ */
 export async function processBillDocument(documentId: string, correlationId: CorrelationId): Promise<BillDocument | null> {
+  const document = await readBillDocument(documentId, correlationId);
+  if (document) push.billDocumentProcessed(document, correlationId);
+  return document;
+}
+
+async function readBillDocument(documentId: string, correlationId: CorrelationId): Promise<BillDocument | null> {
   const [claimed] = await db
     .update(billDocuments)
     .set({ processingStatus: 'processing', processingError: null, updatedAt: new Date() })

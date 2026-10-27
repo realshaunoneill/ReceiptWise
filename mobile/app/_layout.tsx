@@ -98,6 +98,7 @@ function Navigator() {
           <Stack.Screen name="sheets/bill-link-receipt" options={tallSheet} />
 
           {/* Settings and households */}
+          <Stack.Screen name="sheets/notifications-priming" options={sheet} />
           <Stack.Screen name="sheets/household-new" options={sheet} />
           <Stack.Screen name="sheets/household-rename" options={sheet} />
           <Stack.Screen name="sheets/household-invite" options={sheet} />
