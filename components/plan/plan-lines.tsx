@@ -447,7 +447,7 @@ function LineShell({
   );
 }
 
-function Section({ title, totalCents, currency, children }: { title: string; totalCents: number; currency: string; children: React.ReactNode }) {
+function Section({ title, totalCents, currency, hint, children }: { title: string; totalCents: number; currency: string; hint?: string; children: React.ReactNode }) {
   return (
     <Card data-private>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
@@ -456,6 +456,7 @@ function Section({ title, totalCents, currency, children }: { title: string; tot
       </CardHeader>
       <CardContent className="pt-2">
         <ul className="divide-y">{children}</ul>
+        {hint && <p className="pt-2 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -484,7 +485,12 @@ export function PlanLines({ plan, viewerId, householdNames = {}, ...handlers }: 
         </Section>
       )}
       {recurring.length > 0 && (
-        <Section title="Bills & subscriptions" totalCents={sum(recurring)} currency={plan.currency}>
+        <Section
+          title="Bills & subscriptions"
+          totalCents={sum(recurring)}
+          currency={plan.currency}
+          hint={`Click an amount to change it for ${month} only: a bigger credit card bill, an electricity bill that came in.`}
+        >
           {recurring.map((line) => <RecurringRow key={line.key} line={line} context={context} handlers={handlers} />)}
         </Section>
       )}

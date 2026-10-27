@@ -13,7 +13,9 @@ import { BankCheck } from '@/components/plan/bank-check';
 import { BillInbox } from '@/components/plan/bill-inbox';
 import { EntryDialog } from '@/components/plan/entry-dialog';
 import { GoalDialog } from '@/components/plan/goal-dialog';
+import { HowItWorks } from '@/components/plan/how-it-works';
 import { IncomeDialog } from '@/components/plan/income-dialog';
+import { NextMonth } from '@/components/plan/next-month';
 import { PeriodSwitcher } from '@/components/plan/period-switcher';
 import { PlanLines } from '@/components/plan/plan-lines';
 import { PlanSummary } from '@/components/plan/plan-summary';
@@ -46,6 +48,8 @@ function PlanPageContent() {
 
   const ready = Boolean(user) && billsEnabled && hasFinanceAccess;
   const { data: plan, isLoading, error } = usePlan({ offset, householdId, enabled: ready });
+  // The month after, for the "Plan December" card (and so stepping forward is instant).
+  const { data: nextPlan, isPlaceholderData: nextIsStale } = usePlan({ offset: offset + 1, householdId, enabled: ready });
   const { data: incomes = [] } = useIncome(householdId, ready);
   const { data: goals = [] } = useGoals(householdId, ready);
   const { data: households = [] } = useHouseholds();
@@ -172,7 +176,9 @@ function PlanPageContent() {
             </Card>
           )}
 
+          <HowItWorks />
           <PlanSummary plan={plan} />
+          <NextMonth plan={nextIsStale ? undefined : nextPlan} onOpen={() => setOffset(offset + 1)} />
           <BankCheck plan={plan} householdId={householdId} />
           <QuickAdd plan={plan} householdId={householdId} />
           <BillInbox plan={plan} householdId={householdId} />

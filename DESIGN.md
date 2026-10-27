@@ -147,7 +147,8 @@ The app supports Dynamic Type up to the accessibility sizes: rows reflow rather 
 
 - `brand/mark.svg`: a receipt, torn off at the bottom, read and ticked. Teal print (`#04756F`) on paper
   (`#F2EFEA`), with a green tick (`#2C9A6E`).
-- Every icon, splash and favicon is drawn from that one file. Don't redraw it per platform.
+- Every icon, splash and favicon is drawn from that one file by `scripts/brand-assets.py` (needs
+  `rsvg-convert` and Pillow); commit what it writes. Don't redraw it per platform. Approved 2026-10-27.
 - Give it clear space of a quarter of its width.
 - On dark backgrounds, use the dark variant (lighter teal and green on a near-black paper).
 - Never recolour it to the UI primary, stretch it, outline it or put it on a busy image.

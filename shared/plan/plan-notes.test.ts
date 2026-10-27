@@ -19,6 +19,10 @@ describe('planNotes', () => {
     ])).toEqual(['Includes 2 estimates', '1 overdue', '1 USD item not counted']);
   });
 
+  it('leaves estimates out when the breakdown already says so beside the bills', () => {
+    expect(planNotes([line({ estimated: true }), line({ status: 'overdue' })], { estimates: false })).toEqual(['1 overdue']);
+  });
+
   it('says nothing when there is nothing to say', () => {
     expect(planNotes([line({})])).toEqual([]);
   });

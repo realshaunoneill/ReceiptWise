@@ -29,6 +29,9 @@ export function PeriodSwitcher({ period, offset, onOffsetChange, maxOffset = 24 
       </Button>
 
       <div className="min-w-0 text-center">
+        {Math.abs(offset) <= 1 && (
+          <p className="text-xs font-medium text-primary">{offset === 0 ? 'This month' : offset === 1 ? 'Next month' : 'Last month'}</p>
+        )}
         <h2 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{period?.label ?? ' '}</h2>
         {period && (
           <p className="text-xs text-muted-foreground sm:text-sm">

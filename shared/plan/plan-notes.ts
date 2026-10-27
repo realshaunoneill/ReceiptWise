@@ -6,10 +6,11 @@ const plural = (count: number, one: string, many = `${one}s`) => `${count} ${cou
  * The plan's caveats as one quiet line: "Includes 2 estimates · 1 USD item not counted". The plan
  * worked these out all along, but the page only ever used the missing-income one.
  */
-export function planNotes(lines: PlanLine[]): string[] {
+export function planNotes(lines: PlanLine[], options: { estimates?: boolean } = {}): string[] {
   const notes: string[] = [];
   const estimates = lines.filter((line) => line.direction === 'out' && line.counted && line.estimated && line.status !== 'paid').length;
-  if (estimates > 0) notes.push(`Includes ${plural(estimates, 'estimate')}`);
+  // The summary's breakdown says so beside the bills; it passes `estimates: false`.
+  if (estimates > 0 && options.estimates !== false) notes.push(`Includes ${plural(estimates, 'estimate')}`);
   const overdue = lines.filter((line) => line.status === 'overdue').length;
   if (overdue > 0) notes.push(`${overdue} overdue`);
   const otherCurrency = new Map<string, number>();

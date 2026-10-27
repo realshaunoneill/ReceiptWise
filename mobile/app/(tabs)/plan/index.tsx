@@ -5,7 +5,9 @@ import { Stack, useRouter } from 'expo-router';
 import { CalendarClock, ChevronLeft, ChevronRight, ClipboardPaste, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
 import { formatCents } from '@shared/currency';
 import { type WirePlan } from '@shared/api/plan';
+import { addDays } from '@shared/dates/local-date';
 import { planBreakdown } from '@shared/plan/breakdown';
+import { planNotes } from '@shared/plan/plan-notes';
 import { scopePickerPlacement } from '../../../src/components/ScopePicker';
 import { choose } from '../../../src/confirm';
 import { useTheme } from '../../../src/contexts/ThemeContext';
@@ -189,7 +191,12 @@ function PeriodSwitcher({ plan, offset, onChange, loading }: { plan: WirePlan | 
               <Text variant="footnote" ink="muted">Loading</Text>
             </View>
           ) : (
-            !!plan && <Text variant="footnote" ink="muted">{`${shortDay(plan.period.start)} – ${shortDay(plan.period.end)}`}</Text>
+            // The period's end is the next payday, so the last day in it is the day before (as the website shows).
+            !!plan && (
+              <Text variant="footnote" ink="muted">
+                {plan.period.calendarMonth ? 'Calendar month · add your pay to plan payday to payday' : `${shortDay(plan.period.start)} – ${shortDay(addDays(plan.period.end, -1))}`}
+              </Text>
+            )
           )}
         </View>
         {arrow(1)}
@@ -208,6 +215,8 @@ function Summary({ plan }: { plan: WirePlan }) {
   const { outgoingCents, weeklyCents, paidOutCents, toGoCents } = plan.totals;
   if (plan.flags.includes('no_income')) return null;
   const breakdown = planBreakdown(plan.lines);
+  // "Includes 2 estimates · 1 overdue · 1 USD item not counted", as on the website.
+  const notes = planNotes(plan.lines, { estimates: false });
   const over = breakdown.leftCents < 0;
   const paidShare = outgoingCents > 0 ? Math.min(1, paidOutCents / outgoingCents) : 0;
   const money = (cents: number) => formatCents(Math.abs(cents), plan.currency);
@@ -215,7 +224,7 @@ function Summary({ plan }: { plan: WirePlan }) {
   const month = monthOf(plan);
   const rows: Array<{ label: string; cents: number; minus?: boolean; estimate?: boolean; total?: boolean; hint?: string }> = [
     { label: 'Coming in', cents: breakdown.incomeCents },
-    { label: 'Bills', cents: breakdown.billsCents, minus: true, estimate: breakdown.estimated, hint: breakdown.estimated ? 'Includes estimates (~ below)' : undefined },
+    { label: 'Bills', cents: breakdown.billsCents, minus: true, estimate: breakdown.estimated, hint: breakdown.estimated ? 'Includes estimates' : undefined },
     { label: 'After bills', cents: breakdown.afterBillsCents, total: true, hint: 'What you have once the bills are paid' },
     ...(breakdown.subscriptionsCents ? [{ label: 'Subscriptions', cents: breakdown.subscriptionsCents, minus: true }] : []),
     ...(breakdown.savingsCents ? [{ label: 'Savings', cents: breakdown.savingsCents, minus: true }] : []),
@@ -268,6 +277,7 @@ function Summary({ plan }: { plan: WirePlan }) {
             <Text variant="footnote" ink="muted" tabular>{`${formatCents(paidOutCents, plan.currency)} paid · ${formatCents(toGoCents, plan.currency)} still to go`}</Text>
           </View>
         )}
+        {notes.length > 0 && <Text variant="footnote" ink="muted" style={{ marginTop: space.sm }}>{notes.join(' · ')}</Text>}
       </Card>
     </Section>
   );
