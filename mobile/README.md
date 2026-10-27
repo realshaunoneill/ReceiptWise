@@ -46,9 +46,12 @@ repository root.
 - **On a phone:** a development build from EAS (`eas build --profile development`). This Mac has
   no Xcode or Android SDK, so every build is on EAS. The EAS project is
   `@realshaunoneill/receiptwise` (`extra.eas.projectId` in `app.config.ts`).
-  - Anything that signs in to Apple (an iOS build that sets up credentials, `eas credentials`,
-    `eas submit` to the App Store) asks for Shaun's Apple ID and two-factor code: Shaun runs those
-    himself. Android builds and `eas` commands that only read the project don't.
+  - Run every `eas` command with `--non-interactive`: it then uses the credentials already on EAS
+    or stops, rather than signing in to Apple. On the work Mac, EAS's Apple login reads the Apple ID
+    password from the macOS keychain, which the security tools flag.
+  - Anything that does need Apple (the first iOS build creates the App ID and an ad-hoc profile;
+    `eas credentials`, `eas device:create`, `eas submit` to the App Store) runs on another machine,
+    never the work Mac. Android builds and commands that only read the project are fine.
   - Expo Go can't be used: signing in returns to the app's `receiptwise://` scheme, which Expo Go
     doesn't have.
   - iOS builds need the Apple Developer membership.
