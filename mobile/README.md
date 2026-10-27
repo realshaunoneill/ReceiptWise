@@ -20,7 +20,12 @@ repository root.
   - `hooks/` holds the queries and mutations
   - `upload/` is the capture queue (receipts and bills) and the document scanner
   - `plan/`, `bills/`, `insights/`, `receipts/`: each screen's parts and pure logic
-  - `scope.ts` is whose plan is on screen; `links.ts` maps website links to screens
+  - `scope.ts` is whose plan is on screen; `links.ts` maps website links and files opened in the
+    app to screens
+  - `privacy.ts` (hide amounts, app lock; `components/AppLock.tsx`), `quickActions.ts`, and
+    `crashes.ts`, which sends crashes to the website's logs (`POST /api/app-errors`)
+  - native modules added after a build was made are loaded only where they exist
+    (`requireOptionalNativeModule`), so an older build keeps working on newer code
   - `ui/` holds the primitives (`Form.tsx` for sheets' controls); `theme/` holds the colours,
     from the website's tokens
 - `../shared/`: framework-free code the website uses too: money, dates, the plan's maths, query
@@ -76,6 +81,11 @@ receipt grouping, links, and the bills and insights maths. Screens aren't unit-t
 `npx expo-doctor` checks the dependencies against the SDK. To upgrade the SDK, run
 `npx expo install expo@^59.0.0 --fix`; if npm can't resolve it, delete `node_modules` and
 `package-lock.json` and install again.
+
+## Store
+
+`STORE.md` is the checklist for the App Store and Google Play: guidelines, the privacy label,
+Play's forms, and what has to happen before the first store build.
 
 ## Things learned the hard way (from Behind The Badge)
 
