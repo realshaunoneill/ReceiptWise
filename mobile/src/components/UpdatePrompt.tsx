@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { AppState, Pressable, View } from 'react-native';
-import * as Updates from 'expo-updates';
+import { AppState, Platform, Pressable, View } from 'react-native';
+import { requireOptionalNativeModule } from 'expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RefreshCw } from 'lucide-react-native';
 import { useTheme } from '../contexts/ThemeContext';
@@ -14,6 +14,17 @@ import Text from '../ui/Text';
  * Development builds and Expo Go have updates turned off, so this does nothing there.
  */
 export default function UpdatePrompt() {
+  return Updates ? <Prompt updates={Updates} /> : null;
+}
+
+/**
+ * Required only where it exists: a build made before expo-updates was added hasn't got its native
+ * module, and importing it there crashed the app at launch. The web preview has its own version.
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Updates = Platform.OS === 'web' || requireOptionalNativeModule('ExpoUpdates') ? (require('expo-updates') as typeof import('expo-updates')) : null;
+
+function Prompt({ updates: Updates }: { updates: typeof import('expo-updates') }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { isUpdatePending } = Updates.useUpdates();
