@@ -11,7 +11,7 @@ export default function PrivacyPage() {
         <div>
           <h1 id="privacy-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Privacy Policy</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: October 25, 2026
+            Last updated: October 27, 2026
           </p>
         </div>
 
@@ -64,6 +64,15 @@ export default function PrivacyPage() {
               <li>It sees a page only when you start a clip on it, by clicking its icon or pressing its shortcut, and it sends us only the area you select, as an image</li>
               <li>It does not read or send your browsing history, the addresses of pages you visit, or anything else on the page</li>
               <li>It keeps its key, and the email address of the account it is connected to, in Chrome&apos;s storage for extensions. Chrome copies the key to your other browsers if you use Chrome sync. You can revoke it in Settings → Integrations</li>
+            </ul>
+
+            <p><strong>The ReceiptWise app for iPhone and Android:</strong></p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>The photos you take or choose, and the files you open in it, are uploaded like ones added on the website. It uses the camera only while you scan, and sees only the photos you pick, not your library</li>
+              <li>On your phone it keeps your sign-in session (in the phone&apos;s secure storage), uploads still waiting for a connection, and a copy of recent figures so it opens quickly. Signing out deletes them</li>
+              <li>When the app hits an error, it sends us the error&apos;s message and technical details, the screen it was on, the app&apos;s version and your account ID, never what was on the screen. These go to our application logs (section 5)</li>
+              <li>If you turn on notifications: a push token for your phone, its type, the app&apos;s version, its language and your time zone, so notifications arrive at a sensible hour</li>
+              <li>App lock&apos;s Face ID, Touch ID or fingerprint check happens on your phone. We never receive it</li>
             </ul>
 
             <p><strong>Usage information (only if you accept analytics):</strong></p>
@@ -129,6 +138,7 @@ export default function PrivacyPage() {
               <li><strong>Google</strong> (Gemini) — reading receipts and bills, and writing spending summaries (see section 4)</li>
               <li><strong>OpenAI</strong> — the same, only when Google&apos;s models are unavailable</li>
               <li><strong>Vercel</strong> — hosting, storage of receipt images and of bills (Vercel Blob; bills in a private store), the AI Gateway that passes requests to the two providers above, and cookieless page-view statistics (Vercel Analytics)</li>
+              <li><strong>Expo</strong> — delivers the app&apos;s updates, and passes its notifications (their text and your phone&apos;s push token) to Apple or Google to show on your phone</li>
               <li><strong>Migadu</strong> — the support@receiptwise.io mailbox</li>
               <li><strong>Cloudflare</strong> — receives email sent to your forwarding address and passes it to us</li>
               <li><strong>Neon</strong> — our Postgres database, hosted in the London (eu-west-2) region</li>

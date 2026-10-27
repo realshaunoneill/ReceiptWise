@@ -1,4 +1,4 @@
-import { routeForLink } from '../src/links';
+import { routeForFile, routeForLink } from '../src/links';
 
 /**
  * Filters and maps the deep links the router acts on.
@@ -11,12 +11,13 @@ import { routeForLink } from '../src/links';
  *
  * Every other link is mapped from the website's pages to the app's routes
  * (src/links.ts): /invite/<token>, /receipts?selected=<id>, /plan, /dashboard,
- * /subscriptions. One it doesn't know goes through as it is.
+ * /subscriptions; a file another app opened in ReceiptWise goes to capture. One it doesn't know
+ * goes through as it is.
  */
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }): string | null {
   if (path.includes('cookie=')) {
     return initial ? path : null;
   }
 
-  return routeForLink(path) ?? path;
+  return routeForFile(path) ?? routeForLink(path) ?? path;
 }

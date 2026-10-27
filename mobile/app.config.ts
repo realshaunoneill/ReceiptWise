@@ -32,6 +32,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     usesAppleSignIn: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      // "Open in ReceiptWise" for a PDF or a photo, from Mail, Files or Safari (phase 5). iOS copies
+      // it into the app's Inbox and opens the app with a file:// link (src/links.ts routeForFile).
+      CFBundleDocumentTypes: [
+        { CFBundleTypeName: 'PDF document', CFBundleTypeRole: 'Viewer', LSHandlerRank: 'Alternate', LSItemContentTypes: ['com.adobe.pdf'] },
+        { CFBundleTypeName: 'Image', CFBundleTypeRole: 'Viewer', LSHandlerRank: 'Alternate', LSItemContentTypes: ['public.jpeg', 'public.png', 'public.heic'] },
+      ],
+      LSSupportsOpeningDocumentsInPlace: false,
     },
   },
   android: {
@@ -44,6 +51,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Receipts and the session stay off Google's backups.
     allowBackup: false,
     predictiveBackGestureEnabled: false,
+    // "Open with ReceiptWise" for a PDF or a photo (phase 5): a content:// link, as on iOS.
+    intentFilters: [
+      {
+        action: 'VIEW',
+        category: ['DEFAULT', 'BROWSABLE'],
+        data: [{ scheme: 'content', mimeType: 'application/pdf' }, { scheme: 'content', mimeType: 'image/*' }],
+      },
+    ],
     blockedPermissions: [
       'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.WRITE_EXTERNAL_STORAGE',

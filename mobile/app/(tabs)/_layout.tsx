@@ -1,6 +1,7 @@
 import React from 'react';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useQuickActions } from '../../src/quickActions';
 import { useReceivedInvitations } from '../../src/hooks/useInvitations';
 
 /**
@@ -13,6 +14,7 @@ import { useReceivedInvitations } from '../../src/hooks/useInvitations';
  */
 export default function TabLayout() {
   const { colors } = useTheme();
+  useQuickActions();
   // Invitations waiting for an answer, as a badge on Settings (where Households is).
   const invitations = useReceivedInvitations().data?.length ?? 0;
   return (

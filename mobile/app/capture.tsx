@@ -14,7 +14,7 @@ import Button, { success } from '../src/ui/Button';
 import { Segmented } from '../src/ui/Controls';
 import { Notice } from '../src/ui/Feedback';
 import Text from '../src/ui/Text';
-import { CaptureTooLarge, enqueue, enqueueBill, type CaptureInput } from '../src/upload/runner';
+import { CaptureTooLarge, enqueue, enqueueBill, forgetInboxCopy, type CaptureInput } from '../src/upload/runner';
 import { scanDocuments } from '../src/upload/scan';
 
 const MAX_PHOTOS = 10;
@@ -28,7 +28,7 @@ type Mode = 'receipt' | 'bill';
  */
 export default function Capture() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; file?: string }>();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const me = useMe();
@@ -97,6 +97,20 @@ export default function Capture() {
     action().catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't open that"));
   };
 
+  // A file another app opened in ReceiptWise (src/links.ts routeForFile).
+  const incoming = typeof params.file === 'string' && /^(file|content):\/\//i.test(params.file) ? params.file : null;
+  const incomingName = incoming ? decodeURIComponent(incoming.split('/').pop() ?? 'file').replace(/\?.*$/, '') : '';
+  const incomingIsPdf = /\.pdf$/i.test(incomingName);
+  const addIncoming = (as: 'receipt' | 'bill') => {
+    if (!incoming) return;
+    void done(async () => {
+      if (as === 'bill' && incomingIsPdf) await enqueueBill({ pdf: { uri: incoming, name: incomingName } }, householdId ?? null);
+      else if (as === 'bill') await enqueueBill({ pages: [{ uri: incoming }] }, householdId ?? null);
+      else await enqueue([{ uri: incoming }]);
+      forgetInboxCopy(incoming);
+    });
+  };
+
   const entitlements = me.data?.entitlements;
   const canReceipts = !!me.data?.subscribed;
   // A bill goes into the plan in view; a household's needs someone in it on Premium, your own needs yours.
@@ -131,7 +145,15 @@ export default function Capture() {
         </View>
       )}
 
-      {!allowed && me.data ? (
+      {!!incoming && (
+        <View style={{ marginTop: space.xl, gap: space.md }}>
+          <Notice tone="neutral" title="From another app">{incomingName}</Notice>
+          {!incomingIsPdf && <Button label="Add as a receipt" icon={Images} disabled={busy || !canReceipts} onPress={() => addIncoming('receipt')} />}
+          <Button label="Add as a bill" icon={FileText} variant={incomingIsPdf ? 'primary' : 'secondary'} disabled={busy || !canBills} onPress={() => addIncoming('bill')} />
+        </View>
+      )}
+
+      {incoming ? null : !allowed && me.data ? (
         <Notice tone="neutral" title={mode === 'bill' ? 'Bills are part of Premium' : 'Reading receipts is part of Premium'} style={{ marginTop: space.xl }}>
           {mode === 'bill' ? "This plan isn't covered by Premium, so bills can't be read into it yet." : "This account doesn't have Premium, so new receipts can't be read yet."}
         </Notice>

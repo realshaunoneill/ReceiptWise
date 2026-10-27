@@ -11,6 +11,7 @@ import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
 import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono/400Regular';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { onApiError } from '../src/api/client';
+import AppLock from '../src/components/AppLock';
 import ErrorScreen from '../src/components/ErrorScreen';
 import { reportUncaughtErrors } from '../src/crashes';
 import UpdatePrompt from '../src/components/UpdatePrompt';
@@ -20,6 +21,8 @@ import { useSession } from '../src/hooks/useSession';
 import { persistOptions, queryClient } from '../src/query/client';
 import ChooseHost from '../src/ui/ChooseHost';
 import { usePresentations } from '../src/ui/stack';
+import { usePrivacyLoaded } from '../src/privacy';
+import { clearQuickActions } from '../src/quickActions';
 import { setScope } from '../src/scope';
 import { clearQueue, startUploads } from '../src/upload/runner';
 
@@ -57,14 +60,17 @@ function Navigator() {
     if (session.isSuccess && !signedIn) {
       clearQueue();
       setScope(null);
+      clearQuickActions();
     }
   }, [session.isSuccess, signedIn]);
 
+  // App lock must know its setting before the first frame, so the splash waits for it too.
+  const privacyReady = usePrivacyLoaded();
   useEffect(() => {
-    if (!session.isPending) void SplashScreen.hideAsync();
-  }, [session.isPending]);
+    if (!session.isPending && privacyReady) void SplashScreen.hideAsync();
+  }, [session.isPending, privacyReady]);
 
-  if (session.isPending) return null;
+  if (session.isPending || !privacyReady) return null;
 
   // React Navigation paints its own backgrounds; matching them stops a white flash behind a push.
   const base = theme === 'dark' ? DarkTheme : DefaultTheme;
@@ -111,6 +117,7 @@ function Navigator() {
       </Stack>
       <UpdatePrompt />
       <ChooseHost />
+      {signedIn && <AppLock />}
     </NavigationTheme>
   );
 }

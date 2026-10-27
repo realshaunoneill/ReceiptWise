@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text as RNText, type TextProps, type TextStyle } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { maskAmounts, usePrivacy } from '../privacy';
 import type { ThemeColors } from '../theme';
 
 /**
@@ -55,11 +56,20 @@ type Props = TextProps & {
   tabular?: boolean;
 };
 
-export default function Text({ variant = 'body', ink = 'primary', weight, align, tabular, style, ...rest }: Props) {
+/** Amounts masked while hide amounts is on (src/privacy.ts): every amount is drawn through here. */
+function masked(children: React.ReactNode): React.ReactNode {
+  if (typeof children === 'string') return maskAmounts(children);
+  if (Array.isArray(children)) return children.map((child) => (typeof child === 'string' ? maskAmounts(child) : child));
+  return children;
+}
+
+export default function Text({ variant = 'body', ink = 'primary', weight, align, tabular, style, children, accessibilityLabel, ...rest }: Props) {
   const { colors } = useTheme();
+  const { hideAmounts } = usePrivacy();
   return (
     <RNText
       {...rest}
+      accessibilityLabel={hideAmounts && accessibilityLabel ? maskAmounts(accessibilityLabel) : accessibilityLabel}
       style={[
         VARIANTS[variant],
         { color: colors[INK[ink]] as string },
@@ -68,6 +78,8 @@ export default function Text({ variant = 'body', ink = 'primary', weight, align,
         tabular && { fontVariant: ['tabular-nums'] },
         style,
       ]}
-    />
+    >
+      {hideAmounts ? masked(children) : children}
+    </RNText>
   );
 }

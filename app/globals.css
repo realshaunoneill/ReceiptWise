@@ -205,4 +205,11 @@
   .amount {
     font-variant-numeric: tabular-nums slashed-zero;
   }
+
+  /* Hide amounts (Settings › Preferences, per browser): the figures blurred, still taking their
+     space so nothing moves. components/settings/hide-amounts.tsx. */
+  html.hide-amounts .amount {
+    filter: blur(7px);
+    user-select: none;
+  }
 }

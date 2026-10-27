@@ -3,7 +3,7 @@ import { Switch } from 'react-native';
 import * as Application from 'expo-application';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { BarChart3, CircleHelp, Coins, Download, FileText, Home, KeyRound, LogOut, Mail, Shield, Trash2, Crown, Users } from 'lucide-react-native';
+import { BarChart3, CircleHelp, Coins, Download, FileText, Home, KeyRound, Lock, LogOut, Mail, Shield, Trash2, Crown, Users } from 'lucide-react-native';
 import { getCurrencyDetails, SUPPORTED_CURRENCIES } from '@shared/currency';
 import { formatDisplayDate } from '@shared/receipts/format';
 import { setConsent, useConsent } from '../../../src/analytics';
@@ -180,6 +180,7 @@ export default function Settings() {
               />
             )}
           />
+          <Row icon={Lock} label="Privacy & security" detail="Hide amounts, app lock" onPress={() => router.push('/settings/privacy')} />
           <Row icon={Download} label={exporting ? 'Exporting…' : 'Export your data'} accent onPress={exporting ? undefined : () => void exportData()} />
         </List>
         {!!exportError && <Text variant="footnote" ink="bad" style={{ marginTop: 8, paddingHorizontal: 4 }}>{exportError}</Text>}

@@ -9,6 +9,7 @@ import { StagingBanner } from '@/components/layout/staging-banner';
 import { ConsentBanner } from '@/components/layout/consent-banner';
 import { QueryProvider } from '@/lib/providers/query-provider';
 import { PostHogProvider } from '@/lib/providers/posthog-provider';
+import { HIDE_AMOUNTS_SCRIPT } from '@/lib/hide-amounts';
 import { Toaster } from '@/components/ui/sonner';
 import { getAppUrl } from '@/lib/app-url';
 import { OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from '@/lib/seo';
@@ -90,6 +91,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Hide amounts before the first paint, so the figures never flash. */}
+        <script dangerouslySetInnerHTML={{ __html: HIDE_AMOUNTS_SCRIPT }} />
+      </head>
       <body className={`${plexSans.variable} ${plexMono.variable} font-sans antialiased`}>
         <NuqsAdapter>
           <QueryProvider>

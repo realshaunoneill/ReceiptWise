@@ -170,6 +170,15 @@ export async function enqueueBill(input: { pages: CaptureInput[] } | { pdf: { ur
   void run();
 }
 
+/**
+ * iOS puts a file opened in the app ("Open in ReceiptWise") in Documents/Inbox; once the queue has
+ * its own copy, that one goes.
+ */
+export function forgetInboxCopy(uri: string) {
+  if (IS_WEB || !/\/Documents\/Inbox\//.test(uri)) return;
+  removeFile(uri);
+}
+
 export function retry(id: string) {
   emit({ type: 'retry', id });
   void run();

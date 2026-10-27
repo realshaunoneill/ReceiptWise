@@ -28,6 +28,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { PlayCircle, User, CreditCard, Home, Download, AlertTriangle, Settings2, SlidersHorizontal, Trash2, Clock, Mail, FileImage, Puzzle, Copy, Plus, Key, Lock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { HideAmountsSetting } from '@/components/settings/hide-amounts';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { useHouseholds } from '@/lib/hooks/use-households';
@@ -556,6 +557,8 @@ export default function SettingsPage() {
                   </div>
                   <ThemeToggle />
                 </div>
+
+                <HideAmountsSetting />
 
                 <div className="space-y-3">
                   <Label htmlFor="currency">Display currency</Label>

@@ -9,6 +9,16 @@ const HOSTS = new Set(['www.receiptwise.io', 'receiptwise.io']);
 const INVITE = /^\/invite\/([a-f0-9]{64})\/?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * A file another app opened in ReceiptWise ("Open in", Mail's or Files' share): iOS hands over a
+ * file:// URL to a copy in the app's Inbox, Android a content:// one. It goes to capture, which
+ * offers to add it as a receipt or a bill.
+ */
+export function routeForFile(link: string): string | null {
+  if (!/^(file|content):\/\//i.test(link)) return null;
+  return `/capture?file=${encodeURIComponent(link)}`;
+}
+
 /** The route for a link, or null to leave it alone. */
 export function routeForLink(link: string): string | null {
   let url: URL;
