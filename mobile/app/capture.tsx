@@ -16,6 +16,7 @@ import { Notice } from '../src/ui/Feedback';
 import Text from '../src/ui/Text';
 import { CaptureTooLarge, enqueue, enqueueBill, type CaptureInput } from '../src/upload/runner';
 import { scanDocuments } from '../src/upload/scan';
+import { purchasesAvailable } from '../src/purchases';
 
 const MAX_PHOTOS = 10;
 type Mode = 'receipt' | 'bill';
@@ -132,9 +133,12 @@ export default function Capture() {
       )}
 
       {!allowed && me.data ? (
-        <Notice tone="neutral" title={mode === 'bill' ? 'Bills are part of Premium' : 'Reading receipts is part of Premium'} style={{ marginTop: space.xl }}>
-          {mode === 'bill' ? "This plan isn't covered by Premium, so bills can't be read into it yet." : "This account doesn't have Premium, so new receipts can't be read yet."}
-        </Notice>
+        <View style={{ marginTop: space.xl, gap: space.md }}>
+          <Notice tone="neutral" title={mode === 'bill' ? 'Bills are part of Premium' : 'Reading receipts is part of Premium'}>
+            {mode === 'bill' ? "This plan isn't covered by Premium, so bills can't be read into it yet." : "This account doesn't have Premium, so new receipts can't be read yet."}
+          </Notice>
+          {purchasesAvailable && <Button label="See Premium" onPress={() => router.push('/paywall')} />}
+        </View>
       ) : (
         <View style={{ marginTop: space.xl, gap: space.md }}>
           <BigButton

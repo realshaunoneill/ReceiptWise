@@ -9,6 +9,7 @@ import { type getReceipts } from '@/lib/receipt-scanner';
 import { type FinanceEntitlements } from '@/lib/services/finance-access';
 import { type HouseholdService } from '@/lib/services/household-service';
 import { type PlanResponse } from '@/lib/services/plan-service';
+import { type PremiumSummary } from '@/lib/services/store-premium';
 import { type MatchSuggestion } from '@/lib/provider-matching';
 import { type WireBill, type WireBillDetail, type WireInboxDocument } from '@/shared/api/bills';
 import { type WireAccount, type WireGoal, type WireIncome } from '@/shared/api/finance';
@@ -23,7 +24,7 @@ type Assert<T extends true> = T;
 type Fits<Server, Wire> = Jsonify<Server> extends Wire ? true : false;
 
 /** app/api/users/me/route.ts */
-export type MeFits = Assert<Fits<User & { features: FeatureFlags; entitlements: FinanceEntitlements }, WireMe>>;
+export type MeFits = Assert<Fits<User & { features: FeatureFlags; entitlements: FinanceEntitlements; premium: PremiumSummary }, WireMe>>;
 /** app/api/receipts/route.ts */
 export type ReceiptsFit = Assert<Fits<Awaited<ReturnType<typeof getReceipts>>, WireReceiptsPage>>;
 /** app/api/plan/route.ts */

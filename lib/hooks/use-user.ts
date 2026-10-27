@@ -5,8 +5,9 @@ import { useSession } from '@/lib/auth-client';
 import type { User } from '@/lib/db/schema';
 import type { Feature, FeatureFlags } from '@/lib/features';
 import type { FinanceEntitlements } from '@/lib/services/finance-access';
+import type { WirePremium } from '@/shared/api/user';
 
-type UserResponse = User & { features?: FeatureFlags; entitlements?: FinanceEntitlements }
+type UserResponse = User & { features?: FeatureFlags; entitlements?: FinanceEntitlements; premium?: WirePremium }
 
 interface BlockedUserError {
   isBlocked: true;

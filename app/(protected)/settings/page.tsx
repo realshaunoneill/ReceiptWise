@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useSession } from '@/lib/auth-client';
 import { useFeature, useUser as useUserData } from '@/lib/hooks/use-user';
+import { premiumBilling } from '@/shared/labels/premium';
 import { useOnboarding } from '@/components/onboarding/onboarding-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -53,6 +54,7 @@ export default function SettingsPage() {
   const { data: session, isPending: sessionPending } = useSession();
   const authUser = session?.user;
   const { user: userData, isLoading: userDataLoading, refetch: refetchUser } = useUserData();
+  const billing = premiumBilling(userData?.premium);
   const { startOnboarding } = useOnboarding();
   const billsEnabled = useFeature('bills');
   const [selectedHousehold, setSelectedHousehold] = useState<string>('none');
@@ -96,6 +98,9 @@ export default function SettingsPage() {
 
   // Fetch user's households using the shared hook
   const { data: households = [], isLoading: householdsLoading } = useHouseholds();
+  // Covered without Premium of their own: a household another member's Premium pays for.
+  const coveringHousehold = (households as Array<{ id: string; name: string }>)
+    .find((household) => userData?.entitlements?.householdIds.includes(household.id))?.name ?? null;
 
   // Update default household mutation
   const updateDefaultHousehold = useMutation({
@@ -643,6 +648,13 @@ export default function SettingsPage() {
                               : 'Unlimited receipts, advanced analytics, and household sharing'
                             : 'View-only access to existing data'}
                         </p>
+                        {/* How it's billed, in the app's words (shared/labels/premium.ts). */}
+                        {billing && (
+                          <p className="mt-1 text-sm">
+                            <span className="font-medium">{billing.title}</span>
+                            {billing.detail && <span className="text-muted-foreground"> · {billing.detail}</span>}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -650,7 +662,11 @@ export default function SettingsPage() {
                         <Button onClick={handleUpgrade}>
                           Upgrade to Premium
                         </Button>
-                      ) : (
+                      ) : userData.premium?.source === 'play_store' ? (
+                        <Button variant="outline" asChild>
+                          <a href="https://play.google.com/store/account/subscriptions" target="_blank" rel="noopener noreferrer">Manage on Google Play</a>
+                        </Button>
+                      ) : !userData.premium || userData.premium.source === 'stripe' ? (
                         <Button
                           variant="outline"
                           onClick={handleManageSubscription}
@@ -658,9 +674,17 @@ export default function SettingsPage() {
                         >
                           {billingPortalMutation.isPending ? 'Loading...' : 'Manage billing'}
                         </Button>
-                      )}
+                      ) : null}
                     </div>
                   </div>
+
+                  {/* A store subscription is managed in the store: the website has no portal for it. */}
+                  {billing?.manage && <p className="text-sm text-muted-foreground">{billing.manage}</p>}
+                  {!userData?.subscribed && coveringHousehold && (
+                    <p className="text-sm text-muted-foreground">
+                      {coveringHousehold}&apos;s Premium covers its shared bills and plan. Reading receipts needs Premium of your own.
+                    </p>
+                  )}
 
                   {userData?.subscribed && (
                     <div className="rounded-lg bg-muted/50 p-4 space-y-2">

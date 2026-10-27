@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from '@/lib/auth-helpers';
 import Stripe from 'stripe';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
+import { hasLiveStoreGrant } from '@/lib/services/store-premium';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-12-15.clover',
@@ -57,6 +58,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'This subscription plan is not available' },
         { status: 400 },
+      );
+    }
+
+    // Premium bought in the app already: a website subscription on top would bill twice.
+    const store = await hasLiveStoreGrant(user.id);
+    if (store) {
+      return NextResponse.json(
+        {
+          error: `You already have Premium through ${store === 'app_store' ? 'the App Store' : 'Google Play'}, bought in the ReceiptWise app. Manage it on your phone.`,
+          code: 'STORE_SUBSCRIPTION',
+        },
+        { status: 409 },
       );
     }
 

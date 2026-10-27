@@ -12,15 +12,18 @@ import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { featureFlagsFor } from '@/lib/features';
 import { type User } from '@/lib/db/schema';
 import { getFinanceEntitlements } from '@/lib/services/finance-access';
+import { premiumSummary } from '@/lib/services/store-premium';
 
 /**
- * The user row plus what the client needs to decide what to show: feature flags, and where the
- * user can use the finance features (their own Premium, or a household another member pays for).
- * PATCH returns the same shape, because useUpdateUser writes its response straight into the
- * cached user.
+ * The user row plus what the client needs to decide what to show: feature flags, where the user
+ * can use the finance features (their own Premium, or a household another member pays for), and
+ * where their own Premium comes from (Stripe, the App Store, Google Play or given by hand), so
+ * Settings can say how it's billed. PATCH returns the same shape, because useUpdateUser writes its
+ * response straight into the cached user.
  */
 async function toUserResponse(user: User) {
-  return { ...user, features: featureFlagsFor(user), entitlements: await getFinanceEntitlements(user) };
+  const [entitlements, premium] = await Promise.all([getFinanceEntitlements(user), premiumSummary(user.id)]);
+  return { ...user, features: featureFlagsFor(user), entitlements, premium };
 }
 
 /**

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import * as Localization from 'expo-localization';
-import { useNavigation } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, Check, ScanLine, Users, type LucideIcon } from 'lucide-react-native';
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from '@shared/currency';
@@ -9,6 +9,7 @@ import { setConsent, useConsent } from '../src/analytics';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { useCompleteOnboarding } from '../src/hooks/useAccount';
 import { useMe, useUpdateCurrency } from '../src/hooks/useMe';
+import { purchasesAvailable } from '../src/purchases';
 import { GUTTER, radius, space } from '../src/theme';
 import Button, { selectionTick, success } from '../src/ui/Button';
 import { Notice } from '../src/ui/Feedback';
@@ -31,6 +32,7 @@ function startingCurrency(accountCurrency: string | undefined): string {
 
 export default function Onboarding() {
   const navigation = useNavigation();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const me = useMe();
@@ -52,6 +54,10 @@ export default function Onboarding() {
       await complete.mutateAsync();
       success();
       navigation.goBack();
+      // Nothing works without Premium: someone with none of their own (and no household paying)
+      // is shown it next, where it can be bought.
+      const entitled = !!me.data?.subscribed || (me.data?.entitlements.householdIds.length ?? 0) > 0;
+      if (!entitled && purchasesAvailable) router.push('/paywall');
     } catch {
       // Shown below; they can try again.
     }

@@ -16,4 +16,20 @@ export type WireMe = {
   features: { bills: boolean };
   /** Finance features: their own Premium, or households another member's Premium covers. */
   entitlements: { personal: boolean; householdIds: string[] };
+  /**
+   * Where their own Premium comes from (the grant that decides it), so Settings says how it's
+   * billed: 'stripe' (the website), 'app_store', 'play_store' or 'comp' (given by hand).
+   */
+  premium: WirePremium;
+};
+
+export type WirePremium = {
+  active: boolean;
+  source: 'stripe' | 'app_store' | 'play_store' | 'comp' | null;
+  /** The Stripe price, or the store's product id (io.receiptwise.premium.monthly). */
+  productId: string | null;
+  /** When store or comp Premium ends or renews; null for Stripe (its own dates) and open-ended comp. */
+  expiresAt: string | null;
+  willRenew: boolean | null;
+  inTrial: boolean;
 };
