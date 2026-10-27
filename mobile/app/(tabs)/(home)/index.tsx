@@ -52,18 +52,12 @@ export default function Home() {
   const switching = plan.isPlaceholderData || stats.isPlaceholderData || bills.isPlaceholderData || recent.isPlaceholderData;
   const scope = scopePickerPlacement(switching);
 
-  const refresh = () => {
-    void me.refetch();
-    void plan.refetch();
-    void stats.refetch();
-    void bills.refetch();
-    void recent.refetch();
-  };
+  const refresh = () => Promise.all([me.refetch(), plan.refetch(), stats.refetch(), bills.refetch(), recent.refetch()]);
 
   return (
     <>
       <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <CaptureButton /> }} />
-      <TabScreen onRefresh={refresh} refreshing={recent.isRefetching && !recent.isFetchingNextPage && !switching}>
+      <TabScreen onRefresh={refresh}>
         {scope.inline}
         <Stale stale={switching}>
           {me.data && !financeAccess && (

@@ -27,7 +27,7 @@ export default function ItemScreen() {
   return (
     <>
       <Stack.Screen options={{ title: data?.title ?? name }} />
-      <TabScreen onRefresh={() => void analysis.refetch()} refreshing={analysis.isRefetching}>
+      <TabScreen onRefresh={() => analysis.refetch()}>
         {analysis.isPending ? (
           <View style={{ marginHorizontal: GUTTER, gap: space.lg }}>
             <Skeleton height={80} round={radius.lg} />

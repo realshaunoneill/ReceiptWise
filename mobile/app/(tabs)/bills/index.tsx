@@ -66,8 +66,7 @@ export default function Bills() {
 
   return (
     <TabScreen
-      onRefresh={() => void Promise.all([list.refetch(), active.refetch()])}
-      refreshing={list.isRefetching || active.isRefetching}
+      onRefresh={() => Promise.all([list.refetch(), active.refetch()])}
     >
       <Stack.Screen options={{ headerRight: () => <AddButton onPress={add} label={billsOn ? 'Add a bill or subscription' : 'Add a subscription'} /> }} />
       {list.isPending ? (

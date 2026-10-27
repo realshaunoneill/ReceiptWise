@@ -12,6 +12,7 @@ import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono/400Regu
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { onApiError } from '../src/api/client';
 import ErrorScreen from '../src/components/ErrorScreen';
+import { reportUncaughtErrors } from '../src/crashes';
 import UpdatePrompt from '../src/components/UpdatePrompt';
 import SignedInEffects from '../src/components/SignedInEffects';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
@@ -32,6 +33,7 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 
 // Held until the fonts and the session are known, so the first frame is the right screen in Plex.
 void SplashScreen.preventAutoHideAsync();
+reportUncaughtErrors();
 
 function Navigator() {
   const { theme, colors } = useTheme();

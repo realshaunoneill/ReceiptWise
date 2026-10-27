@@ -61,7 +61,7 @@ export default function Forwarding() {
   const confirmation = list.find((email) => email.status === 'forwarding_confirmation');
 
   return (
-    <TabScreen onRefresh={() => void Promise.all([address.refetch(), emails.refetch()])} refreshing={address.isRefetching}>
+    <TabScreen onRefresh={() => Promise.all([address.refetch(), emails.refetch()])}>
       <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl }}>
         <Text variant="callout" ink="secondary">
           Forward a bill or receipt to this address, or set up a rule in your email to forward them for you. Attachments are read and land in your plan, or in Receipts.

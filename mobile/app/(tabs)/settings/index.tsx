@@ -107,7 +107,7 @@ export default function Settings() {
     : yourHouseholds.length === 0 ? 'None' : yourHouseholds.length === 1 ? yourHouseholds[0].name : `${yourHouseholds.length}`;
 
   return (
-    <TabScreen onRefresh={() => void Promise.all([me.refetch(), households.refetch(), invitations.refetch()])} refreshing={me.isRefetching}>
+    <TabScreen onRefresh={() => Promise.all([me.refetch(), households.refetch(), invitations.refetch()])}>
       {!!me.data?.deletionScheduledAt && (
         <Section>
           <Notice tone="bad" title={`Your account is deleted on ${formatDisplayDate(me.data.deletionScheduledAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}>

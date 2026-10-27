@@ -47,7 +47,7 @@ export default function SignInMethods() {
   const error = link.error ?? unlink.error;
 
   return (
-    <TabScreen onRefresh={() => void accounts.refetch()} refreshing={accounts.isRefetching}>
+    <TabScreen onRefresh={() => accounts.refetch()}>
       <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl }}>
         <Text variant="callout" ink="secondary">Any of these signs you in to the same account, with the same receipts.</Text>
       </View>

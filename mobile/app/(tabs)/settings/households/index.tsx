@@ -29,7 +29,7 @@ export default function Households() {
   const canCreate = !!me.data?.subscribed;
 
   return (
-    <TabScreen onRefresh={() => void Promise.all([households.refetch(), invitations.refetch()])} refreshing={households.isRefetching}>
+    <TabScreen onRefresh={() => Promise.all([households.refetch(), invitations.refetch()])}>
       {(invitations.data?.length ?? 0) > 0 && (
         <Section title="Invitations">
           <View style={{ gap: space.md }}>

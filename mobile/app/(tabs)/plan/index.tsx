@@ -77,7 +77,7 @@ export default function Plan() {
   return (
     <>
       <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <HeaderButton icon={Plus} label="Add to the plan" onPress={() => void add()} /> }} />
-      <TabScreen onRefresh={() => void plan.refetch()} refreshing={plan.isRefetching && !switching}>
+      <TabScreen onRefresh={() => plan.refetch()}>
         {scope.inline}
         <PeriodSwitcher plan={data} offset={offset} onChange={setOffset} loading={switching} />
         {plan.isError && !data ? (

@@ -16,6 +16,7 @@ import { GUTTER, radius, space } from '../../../src/theme';
 import Button from '../../../src/ui/Button';
 import { EmptyState, LoadError, Skeleton } from '../../../src/ui/Feedback';
 import HeaderButton from '../../../src/ui/HeaderButton';
+import { usePullToRefresh } from '../../../src/ui/usePullToRefresh';
 import Text from '../../../src/ui/Text';
 
 /**
@@ -36,6 +37,7 @@ export default function Receipts() {
     [receipts, me.data?.currency, byDay],
   );
   const narrowed = activeFilterCount(filters);
+  const pull = usePullToRefresh(() => query.refetch());
   const total = query.data?.pages[0]?.pagination.total;
 
   const header = (
@@ -106,7 +108,7 @@ export default function Receipts() {
         contentContainerStyle={{ paddingBottom: space.xxxl * 2 }}
         ListHeaderComponent={header}
         ListEmptyComponent={empty}
-        refreshControl={<RefreshControl refreshing={query.isRefetching && !query.isFetchingNextPage} onRefresh={() => void query.refetch()} tintColor={colors.textMuted} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.textMuted} />}
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
         }}

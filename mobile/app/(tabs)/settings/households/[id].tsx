@@ -106,7 +106,7 @@ export default function Household() {
   return (
     <>
       <Stack.Screen options={{ title: household.name }} />
-      <TabScreen onRefresh={() => void Promise.all([query.refetch(), invitations.refetch()])} refreshing={query.isRefetching}>
+      <TabScreen onRefresh={() => Promise.all([query.refetch(), invitations.refetch()])}>
         <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl, gap: space.xs }}>
           <Text variant="callout" ink="secondary">
             {covered

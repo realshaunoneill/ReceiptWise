@@ -44,6 +44,7 @@ export type EventType =
   | 'api-key'
   | 'extension-upload'
   | 'app-upload'
+  | 'app-error'
   | 'extension-process'
   | 'finance'
   | 'plan'

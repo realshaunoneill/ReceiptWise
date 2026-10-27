@@ -107,7 +107,7 @@ export default function BillScreen() {
             : undefined,
         }}
       />
-      <TabScreen onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
+      <TabScreen onRefresh={() => query.refetch()}>
         <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl, gap: space.sm }}>
           <Text variant="title" accessibilityRole="header">{bill.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.sm, flexWrap: 'wrap' }}>

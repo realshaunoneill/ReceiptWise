@@ -2,11 +2,11 @@ import React from 'react';
 import { Platform, RefreshControl, ScrollView, type ScrollViewProps } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { space } from '../theme';
+import { usePullToRefresh } from './usePullToRefresh';
 
 type Props = ScrollViewProps & {
-  /** Pull to refresh: shows the spinner while `refreshing`. */
-  onRefresh?: () => void;
-  refreshing?: boolean;
+  /** Pull to refresh: the spinner shows until what this returns has settled (src/ui/usePullToRefresh.ts). */
+  onRefresh?: () => unknown;
 };
 
 /**
@@ -15,13 +15,14 @@ type Props = ScrollViewProps & {
  * scrolls on under the glass; the stack header covers the top on Android. Don't wrap this in a
  * SafeAreaView as well, or iOS insets the top twice.
  */
-export default function TabScreen({ contentContainerStyle, children, onRefresh, refreshing = false, ...rest }: Props) {
+export default function TabScreen({ contentContainerStyle, children, onRefresh, ...rest }: Props) {
   const { colors } = useTheme();
+  const pull = usePullToRefresh(onRefresh);
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       keyboardDismissMode="on-drag"
-      refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} /> : undefined}
+      refreshControl={onRefresh ? <RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.textMuted} /> : undefined}
       {...rest}
       style={[{ flex: 1, backgroundColor: colors.background }, rest.style]}
       contentContainerStyle={[

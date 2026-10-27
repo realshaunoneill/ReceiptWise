@@ -74,7 +74,7 @@ export default function ReceiptScreen() {
   return (
     <>
       <Stack.Screen options={{ title: receipt.merchantName ?? 'Receipt' }} />
-      <TabScreen onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
+      <TabScreen onRefresh={() => query.refetch()}>
         <View style={{ marginHorizontal: GUTTER, marginBottom: space.xl, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.field }}>
           <Image source={{ uri: receipt.imageUrl }} style={{ width: '100%', aspectRatio: 3 / 4 }} contentFit="contain" transition={150} accessibilityLabel="The receipt's photo" />
         </View>
