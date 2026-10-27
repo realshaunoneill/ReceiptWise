@@ -14,6 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'ReceiptWise',
   slug: 'receiptwise',
+  owner: 'realshaunoneill',
   version: '1.0.0',
   orientation: 'portrait',
   scheme: 'receiptwise',
@@ -68,5 +69,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     router: {},
+    // The EAS project (builds, credentials and later updates), created by Shaun on 2026-10-27.
+    eas: { projectId: 'db151b22-b7bd-4259-9a69-a4e2767741f3' },
   },
 });

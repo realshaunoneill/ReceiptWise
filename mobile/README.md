@@ -44,7 +44,11 @@ repository root.
   Native tabs draw as a bar across the top in this preview only. Camera and file uploads need a
   phone.
 - **On a phone:** a development build from EAS (`eas build --profile development`). This Mac has
-  no Xcode or Android SDK, so every build is on EAS.
+  no Xcode or Android SDK, so every build is on EAS. The EAS project is
+  `@realshaunoneill/receiptwise` (`extra.eas.projectId` in `app.config.ts`).
+  - Anything that signs in to Apple (an iOS build that sets up credentials, `eas credentials`,
+    `eas submit` to the App Store) asks for Shaun's Apple ID and two-factor code: Shaun runs those
+    himself. Android builds and `eas` commands that only read the project don't.
   - Expo Go can't be used: signing in returns to the app's `receiptwise://` scheme, which Expo Go
     doesn't have.
   - iOS builds need the Apple Developer membership.
