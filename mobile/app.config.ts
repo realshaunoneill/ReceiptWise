@@ -82,6 +82,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // VisionKit on iOS, ML Kit on Android (which needs Play services; without them the camera is used).
     ['react-native-document-scanner-plugin', { cameraPermission: CAMERA_PERMISSION }],
     '@react-native-community/datetimepicker',
+    // Push (phase 4): the Android small icon and accent. On iOS this adds the push entitlement, so
+    // the next iOS build needs the App ID's Push Notifications capability (an Apple step on cevo).
+    ['expo-notifications', { icon: './assets/notification-icon.png', color: '#04756F' }],
+    // App lock (phase 5).
+    ['expo-local-authentication', { faceIDPermission: 'ReceiptWise uses Face ID to unlock the app when App lock is on.' }],
+    // The app icon's quick actions (phase 5).
+    'expo-quick-actions',
   ],
   web: { favicon: './assets/favicon.png' },
   experiments: {

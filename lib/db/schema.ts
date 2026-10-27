@@ -20,6 +20,10 @@ export const users = pgTable('users', {
   onboardingCompletedAt: timestamp('onboarding_completed_at'),
   lastExportedAt: timestamp('last_exported_at'),
   deletionScheduledAt: timestamp('deletion_scheduled_at'), // When account is scheduled for deletion (24 hours from request)
+  // Push notifications (phase 4): which kinds are on (lib/push/messages.ts has the defaults), and
+  // the person's time zone, for sending at their local 9 am and keeping quiet hours.
+  notificationPrefs: jsonb('notification_prefs'),
+  timeZone: text('time_zone'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
@@ -233,6 +237,50 @@ export const premiumGrants = pgTable('premium_grants', {
 
 export type PremiumGrant = typeof premiumGrants.$inferSelect;
 export type NewPremiumGrant = typeof premiumGrants.$inferInsert;
+
+// RevenueCat's webhook events, by their id, so a retried delivery is handled once. The event is
+// only a nudge: the handler re-reads the subscriber from RevenueCat's API, never trusting the body.
+export const revenuecatEvents = pgTable('revenuecat_events', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  appUserId: text('app_user_id'),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  processedAt: timestamp('processed_at'),
+  error: text('error'),
+});
+
+// Phones that receive push notifications: one row per Expo push token. A token the push service
+// says is dead is disabled rather than deleted, so a stray re-registration doesn't revive it.
+export const pushDevices = pgTable('push_devices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expoToken: text('expo_token').notNull(),
+  platform: text('platform').notNull(), // 'ios' | 'android'
+  appVersion: text('app_version'),
+  locale: text('locale'),
+  timeZone: text('time_zone'),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  disabledAt: timestamp('disabled_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  tokenUnique: uniqueIndex('push_devices_expo_token_uidx').on(table.expoToken),
+  userIdIdx: index('push_devices_user_id_idx').on(table.userId),
+}));
+
+// Notifications sent, one per person, kind and thing (a receipt id, a payment's cycle), so the
+// same one is never sent twice, whichever job or retry gets there first.
+export const notificationLog = pgTable('notification_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  refKey: text('ref_key').notNull(),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+}, (table) => ({
+  oncePerThing: uniqueIndex('notification_log_user_kind_ref_uidx').on(table.userId, table.kind, table.refKey),
+}));
+
+export type PushDevice = typeof pushDevices.$inferSelect;
+export type RevenuecatEvent = typeof revenuecatEvents.$inferSelect;
 
 // TypeScript Types
 export type User = typeof users.$inferSelect;

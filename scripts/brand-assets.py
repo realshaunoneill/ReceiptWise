@@ -86,6 +86,8 @@ def app():
     save(render(icon(1024, 0.7)), APP / 'splash-icon.png')
     save(render(icon(1024, 0.7, DARK)), APP / 'splash-icon-dark.png')
     save(render(icon(48, 0.7, background=CREAM, radius=10.8)), APP / 'favicon.png')
+    # Android draws a notification's small icon as a white silhouette.
+    save(render(icon(96, 0.8, WHITE)), APP / 'notification-icon.png')
 
     # Google Play's 512px listing icon.
     store = ROOT / 'mobile' / 'store'
