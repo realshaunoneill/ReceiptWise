@@ -14,6 +14,7 @@ import { localToday } from '@/lib/dates/local-date';
 import { useCreateEntries } from '@/lib/hooks/use-plan';
 import { fromCents, toCents } from '@/lib/money';
 import { firstBillDate } from '@/lib/plan/new-bill';
+import { quickAddLine } from '@/lib/plan/parse-lines';
 import { type PlanResponse } from '@/lib/services/plan-service';
 import { cn } from '@/lib/utils';
 import { formatCents } from '@/lib/utils/currency';
@@ -65,10 +66,10 @@ export function QuickAdd({ plan, householdId }: QuickAddProps) {
   };
 
   const add = () => {
-    const name = label.trim();
-    const cents = toCents(amount);
-    if (!name) {
-      toast.error('What is it for?');
+    // Only an amount is fine for a one-off ("Extra"); a bill every month needs its name.
+    const { label: name, cents, named } = quickAddLine(label, amount);
+    if (monthly && !named) {
+      toast.error('What is the bill?');
       return;
     }
     if (cents === null || cents < 0) {
@@ -86,7 +87,7 @@ export function QuickAdd({ plan, householdId }: QuickAddProps) {
       createSubscription(
         {
           name,
-          amount,
+          amount: fromCents(cents),
           currency: plan.currency,
           billingFrequency: 'monthly',
           billingDay: day,
@@ -107,7 +108,7 @@ export function QuickAdd({ plan, householdId }: QuickAddProps) {
     }
 
     createEntries(
-      [{ date: defaultEntryDate(plan), label: name, amount, householdId: householdId ?? null }],
+      [{ date: defaultEntryDate(plan), label: name, amount: fromCents(cents), householdId: householdId ?? null }],
       {
         onSuccess: () => {
           toast.success(`${name} added to ${month}`);

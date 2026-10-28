@@ -48,6 +48,20 @@ export function useUpdateEntry() {
   });
 }
 
+/**
+ * One month's pay or savings at a different amount (PUT /api/plan/amounts); amount null is back to
+ * the usual. `day` is the payday for pay, and the period's first day for savings.
+ */
+export type PlanAmountChange = { source: 'income' | 'goal'; sourceId: string; day: string; amount: string | null };
+
+export function useSetPlanAmount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (change: PlanAmountChange) => api('/api/plan/amounts', { method: 'PUT', json: change }),
+    onSuccess: () => invalidateFinanceQueries(queryClient),
+  });
+}
+
 export function useAddContribution() {
   const queryClient = useQueryClient();
   return useMutation({

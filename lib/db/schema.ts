@@ -547,6 +547,27 @@ export const savingsGoals = pgTable('savings_goals', {
   householdIdIdx: index('savings_goals_household_id_idx').on(table.householdId),
 }));
 
+// A different amount for one month only: this payday's pay, or this period's savings (a bill's
+// is its occurrence's expected amount, in subscription_payments). Megan's sheet sets both by hand
+// each month: savings is the figure she moves until what's left is close to nothing. Exactly one
+// of incomeId and goalId is set; `day` is the payday the pay lands on, or the first day of the
+// period the savings belong to. Deleting the pay or the goal deletes its amounts.
+export const planAmounts = pgTable('plan_amounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  incomeId: uuid('income_id').references(() => incomeSources.id, { onDelete: 'cascade' }),
+  goalId: uuid('goal_id').references(() => savingsGoals.id, { onDelete: 'cascade' }),
+  day: date('day').notNull(),
+  amount: money('amount').notNull(),
+  setByUserId: uuid('set_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  incomeDay: uniqueIndex('plan_amounts_income_day_uidx').on(table.incomeId, table.day),
+  goalDay: uniqueIndex('plan_amounts_goal_day_uidx').on(table.goalId, table.day),
+}));
+
+export type PlanAmount = typeof planAmounts.$inferSelect;
+
 export const savingsGoalContributions = pgTable('savings_goal_contributions', {
   id: uuid('id').defaultRandom().primaryKey(),
   goalId: uuid('goal_id').notNull().references(() => savingsGoals.id, { onDelete: 'cascade' }),

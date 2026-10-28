@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseLines } from './parse-lines';
+import { parseLines, quickAddLine } from './parse-lines';
 
 describe('parseLines', () => {
   it('reads "label amount" lines', () => {
@@ -39,7 +39,36 @@ describe('parseLines', () => {
     expect(parseLines('Rent first half of Nov 70')).toEqual([{ label: 'Rent first half of Nov', amount: '70' }]);
   });
 
+  it('calls a line that is only an amount "Extra", typed or copied from a spreadsheet', () => {
+    expect(parseLines('85\n€1,200.50\nDress 40')).toEqual([
+      { label: 'Extra', amount: '85' },
+      { label: 'Extra', amount: '1200.50' },
+      { label: 'Dress', amount: '40' },
+    ]);
+    expect(parseLines('\t60\nRent\t150')).toEqual([
+      { label: 'Extra', amount: '60' },
+      { label: 'Rent', amount: '150' },
+    ]);
+  });
+
   it('skips empty lines and keeps amount-less labels', () => {
     expect(parseLines('\n  \nNCT\n')).toEqual([{ label: 'NCT', amount: null }]);
+  });
+});
+
+describe('quickAddLine', () => {
+  it('takes a label and an amount as typed', () => {
+    expect(quickAddLine(' Dress ', '85.50')).toEqual({ label: 'Dress', cents: 8550, named: true });
+    expect(quickAddLine('Car', '1,450')).toEqual({ label: 'Car', cents: 145000, named: true });
+  });
+
+  it('calls a line with no label "Extra", and reads an amount typed into the label box', () => {
+    expect(quickAddLine('', '60')).toEqual({ label: 'Extra', cents: 6000, named: false });
+    expect(quickAddLine('€85', '')).toEqual({ label: 'Extra', cents: 8500, named: false });
+  });
+
+  it('has no amount when none was typed', () => {
+    expect(quickAddLine('Birthday present', '')).toEqual({ label: 'Birthday present', cents: null, named: true });
+    expect(quickAddLine('Dress', 'lots').cents).toBeNull();
   });
 });

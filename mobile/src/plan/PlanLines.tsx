@@ -9,7 +9,7 @@ import { fromCents } from '@shared/money';
 import { choose, confirm } from '../confirm';
 import { useTheme } from '../contexts/ThemeContext';
 import { openPrivateFile } from '../files';
-import { useAddContribution, useDeleteEntry, useRemoveContributions, useUpdateEntry, useUpdateOccurrence } from '../hooks/usePlan';
+import { useAddContribution, useDeleteEntry, useRemoveContributions, useSetPlanAmount, useUpdateEntry, useUpdateOccurrence } from '../hooks/usePlan';
 import { radius, space } from '../theme';
 import { selectionTick } from '../ui/Button';
 import { Pill } from '../ui/Feedback';
@@ -46,7 +46,11 @@ export default function PlanLines({ plan, offset, viewerId, householdNames }: Co
   return (
     <>
       {incoming.length > 0 && (
-        <Section title="Coming in" accessory={total(incoming)}>
+        <Section
+          title="Coming in"
+          accessory={total(incoming)}
+          footer={incoming.some((line) => line.source === 'income' && line.ownerUserId === viewerId) ? `Tap your pay to change it for ${monthOf(plan)} only.` : undefined}
+        >
           <List inset={60}>
             {incoming.map((line) => (line.source === 'entry'
               ? <EntryRow key={line.key} line={line} context={context} />
@@ -60,7 +64,11 @@ export default function PlanLines({ plan, offset, viewerId, householdNames }: Co
         </Section>
       )}
       {(goals.length > 0 || progressOnly.length > 0) && (
-        <Section title="Savings" accessory={total(goals)}>
+        <Section
+          title="Savings"
+          accessory={total(goals)}
+          footer={goals.some((line) => line.ownerUserId === viewerId && line.status !== 'done') ? `Tap an amount to put aside more or less in ${monthOf(plan)} only.` : undefined}
+        >
           <List inset={60}>
             {goals.map((line) => <GoalRow key={line.key} line={line} context={context} />)}
             {progressOnly.map((goal) => <GoalOnly key={goal.id} goal={goal} currency={plan.currency} />)}
@@ -76,16 +84,56 @@ export default function PlanLines({ plan, offset, viewerId, householdNames }: Co
   );
 }
 
+/**
+ * The amount sheet for this payday's pay or this period's savings (plan_amounts): Megan's sheet
+ * changes both by hand most months. Only the owner can, as with editing the pay or the goal.
+ */
+function useMonthAmount(line: Line, context: Context, day: string) {
+  const openAmount = useAmountSheet();
+  const setAmount = useSetPlanAmount();
+  const source = line.source === 'goal' ? 'goal' : 'income';
+  return {
+    open: () => openAmount(line, {
+      kind: source, id: line.sourceId, day, month: monthOf(context.plan),
+      usual: line.usualCents !== undefined ? String(line.usualCents) : '',
+    }),
+    reset: () => setAmount.mutate({ source, sourceId: line.sourceId, day, amount: null }),
+    error: setAmount.error?.message,
+  };
+}
+
+/** "Just for November" on pay or savings changed for this month only. */
+const justThisMonth = (line: Line, context: Context) => (line.usualCents !== undefined
+  ? <Pill label={`Just for ${monthOf(context.plan)}`} tone="neutral" />
+  : undefined);
+
 function IncomeRow({ line, context }: { line: Line; context: Context }) {
   const router = useRouter();
+  const isOwner = line.ownerUserId === context.viewerId;
+  const amount = useMonthAmount(line, context, line.date);
+  const edit = () => router.push({ pathname: '/sheets/plan-income', params: { id: line.sourceId } });
+
+  const menu = async () => {
+    const options = [
+      { label: `Change the amount for ${monthOf(context.plan)}`, run: amount.open },
+      ...(line.usualCents !== undefined ? [{ label: `Back to the usual ${formatCents(line.usualCents, line.currency)}`, run: amount.reset }] : []),
+      { label: 'Edit your pay', run: edit },
+    ];
+    const index = await choose(line.label, options.map((option) => ({ label: option.label })));
+    if (index !== null) options[index].run();
+  };
+
   return (
     <Shell
       line={line}
       context={context}
       detail={`${shortDay(line.date)} · ${line.status === 'paid' ? 'Arrived' : 'Due'}`}
+      badges={justThisMonth(line, context)}
       amountInk="good"
-      onPress={() => router.push({ pathname: '/sheets/plan-income', params: { id: line.sourceId } })}
-      accessibilityHint="Edit this income"
+      onPress={isOwner ? () => void menu() : edit}
+      onAmountPress={isOwner ? amount.open : undefined}
+      accessibilityHint={isOwner ? 'Change the amount for this month, or edit your pay' : 'See this income'}
+      error={amount.error}
     />
   );
 }
@@ -196,8 +244,25 @@ function GoalRow({ line, context }: { line: Line; context: Context }) {
   const router = useRouter();
   const add = useAddContribution();
   const remove = useRemoveContributions();
+  const amount = useMonthAmount(line, context, context.plan.period.start);
   const done = add.isPending ? true : remove.isPending ? false : line.status === 'done';
   const summary = context.plan.goals.find((goal) => goal.id === line.sourceId);
+  const isOwner = line.ownerUserId === context.viewerId;
+  const edit = () => router.push({ pathname: '/sheets/plan-goal', params: { id: line.sourceId } });
+  // Once it's put aside, the line is what went in: untick it to change the amount.
+  const canChange = isOwner && !done;
+
+  const menu = async () => {
+    const options = [
+      ...(canChange ? [{ label: `Change the amount for ${monthOf(context.plan)}`, run: amount.open }] : []),
+      ...(canChange && line.usualCents !== undefined ? [{ label: `Back to the usual ${formatCents(line.usualCents, line.currency)}`, run: amount.reset }] : []),
+      { label: 'Edit the goal', run: edit },
+    ];
+    if (options.length === 1) return edit();
+    const index = await choose(line.label, options.map((option) => ({ label: option.label })));
+    if (index !== null) options[index].run();
+  };
+
   return (
     <Shell
       line={line}
@@ -209,10 +274,12 @@ function GoalRow({ line, context }: { line: Line; context: Context }) {
         : remove.mutate({ goalId: line.sourceId, contributionIds: line.contributionIds ?? [] }))}
       checkLabel={done ? `Undo putting aside for ${line.label}` : `Mark ${line.label} put aside`}
       detail="Savings"
-      onPress={() => router.push({ pathname: '/sheets/plan-goal', params: { id: line.sourceId } })}
-      accessibilityHint="Edit this goal"
+      badges={done ? undefined : justThisMonth(line, context)}
+      onPress={() => void menu()}
+      onAmountPress={canChange ? amount.open : undefined}
+      accessibilityHint={canChange ? 'Change the amount for this month, or edit the goal' : 'Edit this goal'}
       below={summary ? <GoalProgress goal={summary} currency={context.plan.currency} /> : undefined}
-      error={add.error?.message ?? remove.error?.message}
+      error={add.error?.message ?? remove.error?.message ?? amount.error}
     />
   );
 }

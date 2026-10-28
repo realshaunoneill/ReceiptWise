@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { FileText, MoreHorizontal, Pencil, Receipt as ReceiptIcon, SkipForward, Trash2, Undo2, Users } from 'lucide-react';
+import { FileText, MoreHorizontal, Pencil, Receipt as ReceiptIcon, RotateCcw, SkipForward, Trash2, Undo2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useUpdateOccurrence } from '@/hooks/use-subscriptions';
 import { formatLocalDate, localToday } from '@/lib/dates/local-date';
-import { useAddContribution, useCreateEntries, useDeleteEntry, useRemoveContributions, useUpdateEntry } from '@/lib/hooks/use-plan';
+import { useAddContribution, useCreateEntries, useDeleteEntry, useRemoveContributions, useSetPlanAmount, useUpdateEntry } from '@/lib/hooks/use-plan';
 import { fromCents, toCents } from '@/lib/money';
 import { type GoalSummary, type PlanLine } from '@/lib/plan/compute-plan';
 import { type PlanResponse } from '@/lib/services/plan-service';
@@ -55,12 +55,16 @@ function AmountEditor({
   currency,
   estimated,
   disabled,
+  className,
+  title = 'Change for this period',
   onSave,
 }: {
   cents: number;
   currency: string;
   estimated: boolean;
   disabled?: boolean;
+  className?: string;
+  title?: string;
   onSave: (amount: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -115,8 +119,9 @@ function AmountEditor({
         'amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums',
         !disabled && 'hover:bg-accent',
         estimated && 'text-muted-foreground',
+        className,
       )}
-      title={disabled ? undefined : 'Change for this period'}
+      title={disabled ? undefined : title}
     >
       {estimated ? '~' : ''}{formatCents(cents, currency)}
     </button>
@@ -284,13 +289,38 @@ function GoalProgress({ goal, currency, onEdit }: { goal: GoalSummary; currency:
   );
 }
 
-function GoalRow({ line, context, handlers }: { line: PlanLine; context: RowContext; handlers: PlanLineHandlers }) {
+/**
+ * This payday's pay or this period's savings at a different amount (plan_amounts): Megan's sheet
+ * changes both by hand most months. While it saves, the new amount shows.
+ */
+function useMonthAmount(line: PlanLine, day: string) {
+  const { mutate, isPending, variables } = useSetPlanAmount();
+  const source = line.source === 'goal' ? 'goal' : 'income';
+  const save = (amount: string | null, message?: string) => mutate(
+    { source, sourceId: line.sourceId, day, amount },
+    { onSuccess: () => message && toast.success(message), onError: (error) => toast.error(error.message) },
+  );
+  const pendingCents = isPending ? (variables.amount === null ? line.usualCents : toCents(variables.amount)) : undefined;
+  return { save, isPending, cents: pendingCents ?? line.amountCents };
+}
+
+/** "Just for November" on pay or savings changed for this month only. */
+function JustThisMonth({ line, month }: { line: PlanLine; month: string }) {
+  if (line.usualCents === undefined) return null;
+  return <Badge variant="outline" title={`Usually ${formatCents(line.usualCents, line.currency)}`}>Just for {month}</Badge>;
+}
+
+function GoalRow({ line, viewerId, context, handlers }: { line: PlanLine; viewerId: string; context: RowContext; handlers: PlanLineHandlers }) {
   const { plan } = context;
   const { mutate: addContribution, isPending: adding } = useAddContribution();
   const { mutate: removeContributions, isPending: removing } = useRemoveContributions();
+  const amount = useMonthAmount(line, plan.period.start);
   // While it saves and the plan refreshes, show it as made; a failure puts it back.
   const done = adding ? true : removing ? false : line.status === 'done';
   const summary = plan.goals.find((goal) => goal.id === line.sourceId);
+  const month = plan.period.label.split(' ')[0];
+  // Once it's put aside, the line is what went in: untick it to change the amount.
+  const canChange = line.ownerUserId === viewerId && !done;
 
   return (
     <LineShell
@@ -314,31 +344,77 @@ function GoalRow({ line, context, handlers }: { line: PlanLine; context: RowCont
       }}
       onLabelClick={() => handlers.onEditGoal(line.sourceId)}
       detail="Savings"
-      amount={
+      badges={!done && <JustThisMonth line={line} month={month} />}
+      amount={canChange ? (
+        <AmountEditor
+          cents={amount.cents}
+          currency={line.currency}
+          estimated={false}
+          disabled={amount.isPending}
+          title={`Put aside a different amount in ${month} only`}
+          // Typing the usual amount back in is the same as going back to it.
+          onSave={(value) => amount.save(line.usualCents !== undefined && toCents(value) === line.usualCents ? null : value)}
+        />
+      ) : (
         <button type="button" onClick={() => handlers.onEditGoal(line.sourceId)} className="amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums hover:bg-accent">
           {formatCents(line.amountCents, line.currency)}
         </button>
-      }
+      )}
+      menu={canChange ? (
+        <>
+          <DropdownMenuItem onClick={() => handlers.onEditGoal(line.sourceId)}>
+            <Pencil className="mr-2 h-4 w-4" />Edit the goal
+          </DropdownMenuItem>
+          {line.usualCents !== undefined && (
+            <DropdownMenuItem onClick={() => amount.save(null, `Back to ${formatCents(line.usualCents!, line.currency)}`)}>
+              <RotateCcw className="mr-2 h-4 w-4" />Back to the usual {formatCents(line.usualCents, line.currency)}
+            </DropdownMenuItem>
+          )}
+        </>
+      ) : undefined}
     />
   );
 }
 
-function IncomeRow({ line, context, handlers }: { line: PlanLine; context: RowContext; handlers: PlanLineHandlers }) {
+function IncomeRow({ line, viewerId, context, handlers }: { line: PlanLine; viewerId: string; context: RowContext; handlers: PlanLineHandlers }) {
+  const amount = useMonthAmount(line, line.date);
+  const month = context.plan.period.label.split(' ')[0];
+  const isOwner = line.ownerUserId === viewerId;
+  const edit = () => handlers.onEditIncome(line.sourceId);
   return (
     <LineShell
       line={line}
       context={context}
-      onLabelClick={line.source === 'income' ? () => handlers.onEditIncome(line.sourceId) : () => handlers.onEditEntry(line)}
+      onLabelClick={edit}
       detail={line.status === 'paid' ? 'Arrived' : 'Due'}
-      amount={
-        <button
-          type="button"
-          onClick={line.source === 'income' ? () => handlers.onEditIncome(line.sourceId) : () => handlers.onEditEntry(line)}
-          className="amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums text-success hover:bg-accent"
-        >
+      badges={<JustThisMonth line={line} month={month} />}
+      amount={isOwner ? (
+        <AmountEditor
+          cents={amount.cents}
+          currency={line.currency}
+          estimated={false}
+          disabled={amount.isPending}
+          className="text-success"
+          title={`Change your pay for ${month} only`}
+          onSave={(value) => amount.save(line.usualCents !== undefined && toCents(value) === line.usualCents ? null : value)}
+        />
+      ) : (
+        <button type="button" onClick={edit} className="amount min-h-11 rounded-md px-2 text-right font-semibold tabular-nums text-success hover:bg-accent">
           {formatCents(line.amountCents, line.currency)}
         </button>
-      }
+      )}
+      menu={isOwner ? (
+        <>
+          <DropdownMenuItem onClick={edit}>
+            <Pencil className="mr-2 h-4 w-4" />Edit your pay
+          </DropdownMenuItem>
+          {line.usualCents !== undefined && (
+            <DropdownMenuItem onClick={() => amount.save(null, `Back to ${formatCents(line.usualCents!, line.currency)}`)}>
+              <RotateCcw className="mr-2 h-4 w-4" />Back to the usual {formatCents(line.usualCents, line.currency)}
+            </DropdownMenuItem>
+          )}
+        </>
+      ) : undefined}
     />
   );
 }
@@ -478,10 +554,15 @@ export function PlanLines({ plan, viewerId, householdNames = {}, ...handlers }: 
   return (
     <div className="space-y-4">
       {incoming.length > 0 && (
-        <Section title="Coming in" totalCents={sum(incoming)} currency={plan.currency}>
+        <Section
+          title="Coming in"
+          totalCents={sum(incoming)}
+          currency={plan.currency}
+          hint={incoming.some((line) => line.source === 'income' && line.ownerUserId === viewerId) ? `Click your pay to change it for ${month} only.` : undefined}
+        >
           {incoming.map((line) => (line.source === 'entry'
             ? <EntryRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />
-            : <IncomeRow key={line.key} line={line} context={context} handlers={handlers} />))}
+            : <IncomeRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />))}
         </Section>
       )}
       {recurring.length > 0 && (
@@ -495,8 +576,13 @@ export function PlanLines({ plan, viewerId, householdNames = {}, ...handlers }: 
         </Section>
       )}
       {(goals.length > 0 || progressOnly.length > 0) && (
-        <Section title="Savings" totalCents={sum(goals)} currency={plan.currency}>
-          {goals.map((line) => <GoalRow key={line.key} line={line} context={context} handlers={handlers} />)}
+        <Section
+          title="Savings"
+          totalCents={sum(goals)}
+          currency={plan.currency}
+          hint={goals.some((line) => line.ownerUserId === viewerId && line.status !== 'done') ? `Click an amount to put aside more or less in ${month} only.` : undefined}
+        >
+          {goals.map((line) => <GoalRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />)}
           {progressOnly.map((goal) => (
             <li key={goal.id} className="py-2">
               <GoalProgress goal={goal} currency={plan.currency} onEdit={() => handlers.onEditGoal(goal.id)} />

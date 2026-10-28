@@ -28,7 +28,7 @@ export function HowItWorks() {
         <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
           <li>Each month runs from one payday to the next: your pay comes in, then the bills go out.</li>
           <li>After bills is what you have once the essentials are paid. Subscriptions, savings and one-offs come out of that.</li>
-          <li>A bill different this month, like a bigger credit card bill? Click its amount. Only that month changes.</li>
+          <li>Something different this month, like a bigger credit card bill, a bonus or less to save? Click its amount. Only that month changes.</li>
           <li>Use the arrows to plan next month before it starts.</li>
         </ul>
         <Button

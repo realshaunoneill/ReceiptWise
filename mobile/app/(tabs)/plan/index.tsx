@@ -320,7 +320,7 @@ function HowItWorks() {
   const points = [
     'Each month runs from one payday to the next: your pay comes in, then the bills go out.',
     'After bills is what you have once the essentials are paid. Subscriptions, savings and one-offs come out of that.',
-    'A bill different this month, like a bigger credit card bill? Tap its amount. Only that month changes.',
+    'Something different this month, like a bigger credit card bill, a bonus or less to save? Tap its amount. Only that month changes.',
     'Use the arrows to plan next month before it starts.',
   ];
   return (

@@ -149,6 +149,17 @@ export function useDeleteGoal() {
     fetchJson<{ success: boolean }>(`/api/goals/${id}`, { method: 'DELETE' }, 'Failed to delete the goal'));
 }
 
+/**
+ * One month's pay or savings at a different amount (PUT /api/plan/amounts); amount null is back to
+ * the usual. `day` is the payday for pay, and the period's first day for savings.
+ */
+export type PlanAmountChange = { source: 'income' | 'goal'; sourceId: string; day: string; amount: string | null };
+
+export function useSetPlanAmount() {
+  return useFinanceMutation((change: PlanAmountChange) =>
+    fetchJson('/api/plan/amounts', { method: 'PUT', body: JSON.stringify(change) }, 'Failed to save the amount'));
+}
+
 export function useAddContribution() {
   return useFinanceMutation(({ goalId, amount, contributedOn }: { goalId: string; amount: string | number; contributedOn: string }) =>
     fetchJson(`/api/goals/${goalId}/contributions`, { method: 'POST', body: JSON.stringify({ amount, contributedOn }) }, 'Failed to record it'));

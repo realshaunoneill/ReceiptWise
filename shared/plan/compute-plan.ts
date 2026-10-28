@@ -106,6 +106,9 @@ export type AccountLike = {
   latestBalance: { balance: string; asOfDate: LocalDate; recordedAt?: Date | string | null } | null;
 };
 
+/** A different amount for one month only: a payday's pay, or a period's savings (plan_amounts). */
+export type AmountOverride = { source: 'income' | 'goal'; sourceId: string; day: LocalDate; amount: string };
+
 export type PlanInput = {
   today: LocalDate;
   period: Period;
@@ -115,6 +118,7 @@ export type PlanInput = {
   entries: EntryLike[];
   goals: Array<{ goal: GoalLike; contributions: ContributionLike[] }>;
   accounts: AccountLike[];
+  amounts?: AmountOverride[];
 };
 
 export type LineStatus = 'planned' | 'paid' | 'overdue' | 'skipped' | 'done';
@@ -150,6 +154,8 @@ export type PlanLine = {
   notes?: string | null;
   /** A filed bill (uploaded or emailed) that set this line, for a "From bill" link. Set by plan-service. */
   billDocumentId?: string;
+  /** Pay or savings set to a different amount for this month only (plan_amounts): the usual one. */
+  usualCents?: number;
   paymentMethod?: string | null;
   accountId?: string | null;
   ownerUserId: string;
@@ -372,6 +378,12 @@ function recurringLines(input: PlanInput, window: Window): PlanLine[] {
   return lines;
 }
 
+/** The amount set for this payday or period only, in cents, or null for the usual one. */
+function overrideFor(input: PlanInput, source: AmountOverride['source'], sourceId: string, day: LocalDate): number | null {
+  const found = input.amounts?.find((amount) => amount.source === source && amount.sourceId === sourceId && amount.day === day);
+  return found ? cents(found.amount) : null;
+}
+
 function incomeLines(input: PlanInput, window: Window): PlanLine[] {
   const lines: PlanLine[] = [];
   // The sheet takes a monthly payday by the day it was due (see Period.bucket) when the period
@@ -379,13 +391,15 @@ function incomeLines(input: PlanInput, window: Window): PlanLine[] {
   const byDue = window.byDue && input.period.bucket.dayOfMonth !== null;
   for (const income of input.incomes) {
     if (income.status !== 'active') continue;
-    const amountCents = cents(income.amount) ?? 0;
+    const usualCents = cents(income.amount) ?? 0;
     const payDay = monthlyPayDay(income);
     for (const { due, paid: day } of paydaysDueAndPaid(income, addDays(window.from, -10), addDays(window.to, 10))) {
       if (!(byDue && payDay !== null ? window.has(due, payDay) : window.has(day))) continue;
+      const override = overrideFor(input, 'income', income.id, day);
       lines.push({
         key: `income:${income.id}:${day}`, source: 'income', sourceId: income.id, label: income.name, date: day,
-        amountCents, currency: income.currency, direction: 'in', status: day <= input.today ? 'paid' : 'planned',
+        amountCents: override ?? usualCents, usualCents: override !== null ? usualCents : undefined,
+        currency: income.currency, direction: 'in', status: day <= input.today ? 'paid' : 'planned',
         estimated: false, counted: true, accountId: income.intoAccountId, ownerUserId: income.userId,
         householdId: income.householdId,
       });
@@ -420,11 +434,15 @@ function goalLines(input: PlanInput): PlanLine[] {
     if (goal.status !== 'active') continue;
     const inThisPeriod = contributions.filter((c) => inPeriod(c.contributedOn, input.period));
     const contributed = sumCents(inThisPeriod.map((c) => cents(c.amount)));
-    const perCycle = cents(goal.contributionPerCycle);
-    if (inThisPeriod.length === 0 && !perCycle) continue;
+    // This period's own amount, if one was set (even 0: "nothing this month"), else the usual.
+    const override = overrideFor(input, 'goal', goal.id, input.period.start);
+    const usual = cents(goal.contributionPerCycle);
+    const perCycle = override ?? usual;
+    if (inThisPeriod.length === 0 && !perCycle && override === null) continue;
     lines.push({
       key: `goal:${goal.id}`, source: 'goal', sourceId: goal.id, label: goal.name, date: input.period.start,
-      amountCents: inThisPeriod.length > 0 ? contributed : perCycle ?? 0, currency: goal.currency, direction: 'out',
+      amountCents: inThisPeriod.length > 0 ? contributed : perCycle ?? 0, usualCents: inThisPeriod.length === 0 && override !== null ? usual ?? 0 : undefined,
+      currency: goal.currency, direction: 'out',
       status: inThisPeriod.length > 0 ? 'done' : 'planned', estimated: false, counted: true,
       settledOn: inThisPeriod.length > 0 ? inThisPeriod.map((c) => c.contributedOn).sort().at(-1) : undefined,
       settledAt: inThisPeriod.map((c) => isoOf(c.createdAt)).filter((at): at is string => Boolean(at)).sort().at(-1),

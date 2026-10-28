@@ -212,6 +212,36 @@ describe('computePlan: the monthly sheet', () => {
     expect(computePlan(noBalance).goals[0]).toMatchObject({ savedCents: 70000, linkedAccount: null });
   });
 
+  it("uses this month's own pay and savings amounts, and only this month's", () => {
+    const amounts = [
+      { source: 'income' as const, sourceId: 'salary', day: '2026-11-01', amount: '4100' },
+      { source: 'goal' as const, sourceId: 'savings', day: '2026-11-01', amount: '1200' },
+      // Another month's, and one for a pay that isn't in the plan: neither counts.
+      { source: 'income' as const, sourceId: 'salary', day: '2026-12-01', amount: '9999' },
+      { source: 'goal' as const, sourceId: 'elsewhere', day: '2026-11-01', amount: '5' },
+    ];
+    const plan = computePlan(megan('2026-11-10', { amounts }));
+    expect(plan.lines.find((l) => l.source === 'income')).toMatchObject({ amountCents: 410000, usualCents: 382000 });
+    expect(plan.lines.find((l) => l.source === 'goal')).toMatchObject({ amountCents: 120000, usualCents: 150000 });
+    // 135 left before: 280 more pay and 300 less saved.
+    expect(plan.totals.remainingCents).toBe(13500 + 28000 + 30000);
+
+    const usual = computePlan(megan('2026-11-10'));
+    expect(usual.lines.find((l) => l.source === 'income')!.usualCents).toBeUndefined();
+  });
+
+  it('keeps savings set to nothing this month as a line, and counts what was put in once it is', () => {
+    const nothing = [{ source: 'goal' as const, sourceId: 'savings', day: '2026-11-01', amount: '0' }];
+    expect(computePlan(megan('2026-11-10', { amounts: nothing })).lines.find((l) => l.source === 'goal'))
+      .toMatchObject({ amountCents: 0, usualCents: 150000, status: 'planned' });
+
+    const input = megan('2026-11-10', { amounts: [{ ...nothing[0], amount: '1200' }] });
+    input.goals[0] = { ...input.goals[0], contributions: [{ id: 'c1', goalId: 'savings', amount: '1000', contributedOn: '2026-11-02' }] };
+    const done = computePlan(input).lines.find((l) => l.source === 'goal');
+    expect(done).toMatchObject({ amountCents: 100000, status: 'done' });
+    expect(done!.usualCents).toBeUndefined();
+  });
+
   it('flags a missing income and falls back to the calendar month', () => {
     const plan = computePlan(megan('2026-11-10', { incomes: [], period: periodContaining(null, '2026-11-10') }));
     expect(plan.flags).toContain('no_income');

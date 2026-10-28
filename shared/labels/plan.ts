@@ -27,3 +27,9 @@ export const ESSENTIAL_COPY = {
   on: "A bill: rent, loans, energy, insurance, a credit card. It comes off first, before what's left after bills.",
   off: 'A subscription: a nice-to-have like Netflix or the gym, counted after the bills.',
 } as const;
+
+/**
+ * What a line added with only an amount is called. Megan's sheet has amounts with nothing beside
+ * them (money that went on bits and pieces), so quick add and "Paste a list" don't insist on one.
+ */
+export const UNLABELLED_LINE = 'Extra';

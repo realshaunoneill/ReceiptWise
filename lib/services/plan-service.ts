@@ -11,6 +11,7 @@ import {
   subscriptions,
   type IncomeSource,
   type User,
+  planAmounts,
 } from '@/lib/db/schema';
 import { addDays, type LocalDate, toUtcDate } from '@/lib/dates/local-date';
 import { computePlan, type PlanResult } from '@/lib/plan/compute-plan';
@@ -97,7 +98,22 @@ export async function loadPlan(
   const allSubs = [...subs, ...cancelledWithRows.map((row) => row.subscription)];
   const subIds = allSubs.map((sub) => sub.id);
 
-  const [payments, paidHistory, contributions, latestBalance, suggestionRows] = await Promise.all([
+  // This month's own pay or savings amounts (plan_amounts), around the period's paydays.
+  const incomeIds = incomes.map((income) => income.id);
+  const goalIds = goals.map((goal) => goal.id);
+  const overridesQuery = incomeIds.length + goalIds.length === 0 ? Promise.resolve([]) : db
+    .select({ incomeId: planAmounts.incomeId, goalId: planAmounts.goalId, day: planAmounts.day, amount: planAmounts.amount })
+    .from(planAmounts)
+    .where(and(
+      or(
+        incomeIds.length ? inArray(planAmounts.incomeId, incomeIds) : undefined,
+        goalIds.length ? inArray(planAmounts.goalId, goalIds) : undefined,
+      ),
+      gte(planAmounts.day, addDays(period.start, -ROW_MARGIN_DAYS)),
+      lt(planAmounts.day, addDays(period.end, ROW_MARGIN_DAYS)),
+    ));
+
+  const [payments, paidHistory, contributions, latestBalance, suggestionRows, overrides] = await Promise.all([
     subIds.length === 0 ? [] : db
       .select()
       .from(subscriptionPayments)
@@ -125,6 +141,7 @@ export async function loadPlan(
         lt(planEntries.date, period.start),
       ))
       .orderBy(desc(planEntries.date)),
+    overridesQuery,
   ]);
 
   const recentPaid = new Map<string, string[]>();
@@ -147,6 +164,9 @@ export async function loadPlan(
     entries,
     goals: goals.map((goal) => ({ goal, contributions: contributions.filter((c) => c.goalId === goal.id) })),
     accounts: accounts.map((account) => ({ ...account, latestBalance: latestBalance.get(account.id) ?? null })),
+    amounts: overrides.map((row) => row.goalId
+      ? { source: 'goal' as const, sourceId: row.goalId, day: row.day, amount: row.amount }
+      : { source: 'income' as const, sourceId: row.incomeId ?? '', day: row.day, amount: row.amount }),
   });
 
   const suggestions = usualItems(suggestionRows, period.start, result.lines.map((line) => line.label), MAX_SUGGESTIONS);

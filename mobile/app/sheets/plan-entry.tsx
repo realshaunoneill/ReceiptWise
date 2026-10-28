@@ -5,6 +5,7 @@ import { formatCents } from '@shared/currency';
 import { PAYMENT_METHOD_LABEL, PAYMENT_METHOD_OPTIONS, type PaymentMethodOption } from '@shared/labels/plan';
 import { fromCents, toCents } from '@shared/money';
 import { firstBillDate } from '@shared/plan/new-bill';
+import { quickAddLine } from '@shared/plan/parse-lines';
 import { confirm } from '../../src/confirm';
 import { useCreateBill } from '../../src/hooks/useBills';
 import { useCreateEntries, useDeleteEntry, usePlan, useUpdateEntry } from '../../src/hooks/usePlan';
@@ -55,9 +56,9 @@ function AddEntry({ plan, householdId }: { plan: Plan; householdId?: string }) {
   const month = monthOf(plan);
 
   const add = () => {
-    const name = label.trim();
-    const cents = toCents(amount);
-    if (!name) return setError('What is it for?');
+    // Only an amount is fine for a one-off ("Extra"); a bill every month needs its name.
+    const { label: name, cents, named } = quickAddLine(label, amount);
+    if (monthly && !named) return setError('What is the bill?');
     if (cents === null || cents < 0) {
       amountRef.current?.focus();
       return setError('Enter an amount');
@@ -77,7 +78,7 @@ function AddEntry({ plan, householdId }: { plan: Plan; householdId?: string }) {
 
   return (
     <SheetScreen title={`Add to ${month}`} action={{ label: 'Add', onPress: add, loading: createEntries.isPending || createBill.isPending }}>
-      <Field label="What it's for" value={label} onChangeText={(text) => { setLabel(text); setError(null); }} placeholder="Birthday present" maxLength={120} autoFocus returnKeyType="next" onSubmitEditing={() => amountRef.current?.focus()} />
+      <Field label="What it's for" value={label} onChangeText={(text) => { setLabel(text); setError(null); }} placeholder="Birthday present" hint={monthly ? undefined : 'Leave it blank and it\'s added as "Extra".'} maxLength={120} autoFocus returnKeyType="next" onSubmitEditing={() => amountRef.current?.focus()} />
       <MoneyField ref={amountRef} label="Amount" value={amount} onChangeText={(text) => { setAmount(text); setError(null); }} returnKeyType="done" onSubmitEditing={add} />
       <Chips
         label="Your usual items"

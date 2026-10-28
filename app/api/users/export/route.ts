@@ -15,10 +15,11 @@ import {
   planEntries,
   savingsGoals,
   savingsGoalContributions,
+  planAmounts,
   billDocuments,
   premiumGrants,
 } from '@/lib/db/schema';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and, isNull, inArray, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 
@@ -30,7 +31,8 @@ export const runtime = 'nodejs';
  * Query params:
  * - format: 'csv' | 'json' (default: csv)
  * - type: 'receipts' | 'subscriptions' | 'all' (default: all). 'all' includes the monthly plan:
- *   income, one-off plan entries, savings goals and contributions, accounts and balances.
+ *   income, one-off plan entries, savings goals and contributions, one month's own pay or savings
+ *   amounts, accounts and balances.
  */
 export async function GET(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
@@ -185,13 +187,24 @@ export async function GET(req: NextRequest) {
         }).from(billDocuments).where(and(eq(billDocuments.userId, user.id), isNull(billDocuments.deletedAt))),
       ])
       : [[], [], [], [], []];
-    const [userContributions, userBalances] = await Promise.all([
+    const [userContributions, userBalances, userMonthAmounts] = await Promise.all([
       userGoals.length === 0 ? [] : db.select().from(savingsGoalContributions)
         .where(inArray(savingsGoalContributions.goalId, userGoals.map((goal) => goal.id))),
       userAccounts.length === 0 ? [] : db.select().from(accountBalances)
         .where(inArray(accountBalances.accountId, userAccounts.map((account) => account.id)))
         .orderBy(accountBalances.asOfDate),
+      userIncome.length + userGoals.length === 0 ? [] : db
+        .select({ incomeId: planAmounts.incomeId, goalId: planAmounts.goalId, day: planAmounts.day, amount: planAmounts.amount })
+        .from(planAmounts)
+        .where(or(
+          userIncome.length ? inArray(planAmounts.incomeId, userIncome.map((income) => income.id)) : undefined,
+          userGoals.length ? inArray(planAmounts.goalId, userGoals.map((goal) => goal.id)) : undefined,
+        ))
+        .orderBy(planAmounts.day),
     ]);
+    const monthAmounts = (column: 'incomeId' | 'goalId', id: string) => userMonthAmounts
+      .filter((amount) => amount[column] === id)
+      .map(({ day: on, amount }) => ({ day: on, amount }));
 
     // Update last exported timestamp
     await db
@@ -243,11 +256,12 @@ export async function GET(req: NextRequest) {
           }));
         exportData.households = userHouseholds;
         exportData.plan = {
-          income: userIncome.map(({ userId: _userId, ...income }) => income),
+          income: userIncome.map(({ userId: _userId, ...income }) => ({ ...income, monthAmounts: monthAmounts('incomeId', income.id) })),
           entries: userEntries.map(({ userId: _userId, ...entry }) => entry),
           savingsGoals: userGoals.map(({ userId: _userId, ...goal }) => ({
             ...goal,
             contributions: userContributions.filter((c) => c.goalId === goal.id),
+            monthAmounts: monthAmounts('goalId', goal.id),
           })),
           accounts: userAccounts.map(({ userId: _userId, ...account }) => ({
             ...account,
@@ -394,6 +408,16 @@ export async function GET(req: NextRequest) {
         csvContent += row(['Goal', 'Amount', 'Date']);
         userContributions.forEach((contribution) => {
           csvContent += row([userGoals.find((goal) => goal.id === contribution.goalId)?.name, contribution.amount, contribution.contributedOn]);
+        });
+        csvContent += '\n';
+
+        csvContent += 'PAY AND SAVINGS FOR ONE MONTH\n';
+        csvContent += row(['For', 'Name', 'Day', 'Amount']);
+        userMonthAmounts.forEach((amount) => {
+          const name = amount.incomeId
+            ? userIncome.find((income) => income.id === amount.incomeId)?.name
+            : userGoals.find((goal) => goal.id === amount.goalId)?.name;
+          csvContent += row([amount.incomeId ? 'Pay' : 'Savings', name, amount.day, amount.amount]);
         });
         csvContent += '\n';
 

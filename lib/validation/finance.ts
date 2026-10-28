@@ -272,6 +272,19 @@ export const createContributionSchema = z
   .object({ amount, contributedOn: localDate })
   .strict();
 
+/**
+ * PUT /api/plan/amounts: one month's pay or savings at a different amount from the usual. `day` is
+ * the payday for pay and the period's first day for savings; `amount: null` goes back to the usual.
+ */
+export const setPlanAmountSchema = z
+  .object({
+    source: z.enum(['income', 'goal']),
+    sourceId: z.string().uuid(),
+    day: localDate,
+    amount: amount.nullable(),
+  })
+  .strict();
+
 const accountFields = {
   name: z.string().trim().min(1, 'is required').max(100),
   kind: z.enum(ACCOUNT_KINDS),

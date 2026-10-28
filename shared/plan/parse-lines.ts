@@ -2,13 +2,20 @@
  * Turn pasted text into plan lines: "Rent 150", "Niamhs wedding 400", "Car: €469.00", or a
  * column copied from Google Sheets or Excel, where the label and amount are separated by a tab.
  * One line each. A line with no amount (the usual items Megan keeps blank until they come up) is
- * returned as a label only, so it can be offered as a quick pick instead of added.
+ * returned as a label only, so it can be offered as a quick pick instead of added. A line that is
+ * only an amount (her sheet has those too) is called "Extra".
  */
+
+import { UNLABELLED_LINE } from '../labels/plan';
+import { typedCents } from './setup';
 
 export type ParsedLine = { label: string; amount: string | null };
 
 // An amount at the end of the line: optional currency sign, thousands separators, decimals.
 const TRAILING_AMOUNT = /^(.*?)[\s:=\t]+[€£$]?\s*(-?\d{1,3}(?:[,\s]\d{3})*(?:\.\d{1,2})?|-?\d+(?:[.,]\d{1,2})?)\s*(?:€|eur|euro)?$/i;
+
+// A line, or a spreadsheet cell, that is nothing but an amount.
+const ONLY_AMOUNT = /^[€£$]?\s*(-?\d{1,3}(?:[,\s]\d{3})*(?:\.\d{1,2})?|-?\d+(?:[.,]\d{1,2})?)\s*(?:€|eur|euro)?$/i;
 
 function normaliseAmount(raw: string): string {
   // "1,500" and "1 500" are thousands; "12,50" (a comma then exactly two digits) is a decimal.
@@ -28,10 +35,21 @@ export function parseLines(text: string): ParsedLine[] {
       const cells = rawLine.split('\t').map((cell) => cell.trim());
       const labelIndex = cells.findIndex(Boolean);
       const amountCell = cells.slice(labelIndex + 1).reverse().find(Boolean)?.replace(/[€£$]/g, '').trim();
+      const lone = !amountCell ? ONLY_AMOUNT.exec(cells[labelIndex]) : null;
+      if (lone) {
+        lines.push({ label: UNLABELLED_LINE, amount: normaliseAmount(lone[1]) });
+        continue;
+      }
       lines.push({
         label: cells[labelIndex],
         amount: amountCell && /^-?[\d.,\s]+$/.test(amountCell) ? normaliseAmount(amountCell) : null,
       });
+      continue;
+    }
+
+    const lone = ONLY_AMOUNT.exec(line);
+    if (lone) {
+      lines.push({ label: UNLABELLED_LINE, amount: normaliseAmount(lone[1]) });
       continue;
     }
 
@@ -43,4 +61,17 @@ export function parseLines(text: string): ParsedLine[] {
     }
   }
   return lines;
+}
+
+/**
+ * Quick add's two boxes, read forgivingly: no label is "Extra", and an amount typed into the label
+ * box with the amount box empty ("85") is the amount. `cents` is null when there's no amount.
+ */
+export function quickAddLine(label: string, amount: string): { label: string; cents: number | null; named: boolean } {
+  const name = label.trim();
+  if (!amount.trim() && name) {
+    const typed = typedCents(name);
+    if (typed !== null) return { label: UNLABELLED_LINE, cents: typed, named: false };
+  }
+  return { label: name || UNLABELLED_LINE, cents: amount.trim() ? typedCents(amount) : null, named: !!name };
 }
