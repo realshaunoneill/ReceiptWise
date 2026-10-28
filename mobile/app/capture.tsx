@@ -138,7 +138,7 @@ export default function Capture() {
         <Text variant="largeTitle" accessibilityRole="header">{mode === 'bill' ? 'Bring in a bill' : 'Add a receipt'}</Text>
         <Text variant="callout" ink="secondary">
           {mode === 'bill'
-            ? `It's read for you, and the amount and due date go into ${into ? `${into}'s` : 'your'} plan.`
+            ? `It's read, then waits in Bills to file on the Plan, where its amount and due date go into ${into ? `${into}'s` : 'your'} month.`
             : "It's read for you: the shop, the date, every item and the total."}
         </Text>
       </View>

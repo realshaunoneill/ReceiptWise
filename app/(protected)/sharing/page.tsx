@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HouseholdReceipts } from '@/components/households/household-receipts';
-import { Users, Home, Share2, Receipt, Shield, Crown, Check, UserPlus, ArrowRight } from 'lucide-react';
+import { DefaultHouseholdCard } from '@/components/households/default-household-card';
+import { Users, Home, Share2, Shield, Crown, Check, UserPlus, ArrowRight } from 'lucide-react';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import type { HouseholdMemberRow } from '@/components/households/household-members-list';
 import type { HouseholdSummary } from '@/components/households/household-card';
@@ -139,7 +140,7 @@ export default function SharingPage() {
       <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="sharing-title">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 id="sharing-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Sharing</h1>
+              <h1 id="sharing-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Households</h1>
               <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
                 Households, and who is in them.
               </p>
@@ -268,7 +269,7 @@ export default function SharingPage() {
     <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="sharing-main-title">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 id="sharing-main-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Sharing</h1>
+            <h1 id="sharing-main-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Households</h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
               {billsEnabled
                 ? 'Share receipts, bills and the plan with family or housemates.'
@@ -276,12 +277,15 @@ export default function SharingPage() {
             </p>
           </div>
           {/* A household picker sat here too, beside the list below that already selects one; on a
-              phone the pair pushed "Create household" off the screen. */}
-          <div className="flex flex-wrap items-center gap-3">
-            <CreateHouseholdDialog
-              onHouseholdCreated={handleHouseholdCreated}
-            />
-          </div>
+              phone the pair pushed "Create household" off the screen. Not while there are none:
+              the empty state below has the one button. */}
+          {households.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <CreateHouseholdDialog
+                onHouseholdCreated={handleHouseholdCreated}
+              />
+            </div>
+          )}
         </div>
 
         {householdsLoading ? (
@@ -309,22 +313,10 @@ export default function SharingPage() {
             </div>
             <h2 className="text-2xl font-semibold mb-2 text-foreground">Create your first household</h2>
             <p className="text-muted-foreground mb-8 max-w-md">
-              Households let you share receipts and track expenses with family, a partner or housemates.
+              {billsEnabled
+                ? 'Make a household to share receipts, bills and the plan with a partner or housemates. Invite them with a link.'
+                : 'Make a household to share receipts with a partner or housemates. Invite them with a link.'}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-lg">
-              <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-                <Share2 className="h-5 w-5 text-primary mb-2" />
-                <p className="text-xs text-muted-foreground text-center">Share receipts instantly</p>
-              </div>
-              <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-                <Receipt className="h-5 w-5 text-primary mb-2" />
-                <p className="text-xs text-muted-foreground text-center">Track shared expenses</p>
-              </div>
-              <div className="flex flex-col items-center p-4 rounded-lg bg-muted/50">
-                <Shield className="h-5 w-5 text-primary mb-2" />
-                <p className="text-xs text-muted-foreground text-center">Invite with a link</p>
-              </div>
-            </div>
             <CreateHouseholdDialog
               onHouseholdCreated={handleHouseholdCreated}
             />
@@ -343,6 +335,7 @@ export default function SharingPage() {
                   onSelect={(household) => setSelectedHouseholdId(household.id)}
                   selectedId={selectedHouseholdId}
                 />
+                <DefaultHouseholdCard households={households} />
               </div>
 
               <div className="min-w-0 space-y-4">

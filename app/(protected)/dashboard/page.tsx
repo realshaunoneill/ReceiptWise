@@ -9,8 +9,13 @@ import { HouseholdSelector } from '@/components/households/household-selector';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useDashboardStats } from '@/lib/hooks/use-dashboard-stats';
+import { useDashboardStats, useReceiptStats } from '@/lib/hooks/use-dashboard-stats';
+import { useSpendingTrends } from '@/lib/hooks/use-spending-trends';
+import { localToday } from '@/lib/dates/local-date';
+import { cn } from '@/lib/utils';
+import { latestReceiptDay, monthStart } from '@/shared/insights/quick-stats';
 import { useHouseholds } from '@/lib/hooks/use-households';
+import { useReceipts } from '@/lib/hooks/use-receipts';
 import { useUser } from '@/lib/hooks/use-user';
 import { Upload, Receipt, ArrowRight, Crown, Check, RotateCcw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -18,6 +23,9 @@ import { useRouter } from 'next/navigation';
 import { UpcomingPayments } from '@/components/subscriptions/upcoming-payments';
 import { PlanCard } from '@/components/dashboard/plan-card';
 import { useSubscriptions } from '@/hooks/use-subscriptions';
+
+/** The newest receipt by its date, for "Your last receipt was 7 Jan" in an empty month. */
+const NEWEST_FIRST = { sortBy: 'date', sortOrder: 'desc' } as const;
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
@@ -27,9 +35,8 @@ export default function DashboardPage() {
   const { data: households = [] } = useHouseholds();
   const { isSubscribed, entitlements } = useUser();
 
-  // Determine view mode based on selection
-  const isPersonalOnly = selectedHouseholdId === 'personal';
-  const actualHouseholdId = isPersonalOnly ? undefined : selectedHouseholdId;
+  // A household, or (undefined) everything you added: "Just me", as in the app.
+  const actualHouseholdId = selectedHouseholdId;
   const selectedHousehold = households.find((household: { id: string; name: string }) => household.id === actualHouseholdId);
 
   // The plan and the bills on the way follow the household picked above. A member without Premium
@@ -40,7 +47,13 @@ export default function DashboardPage() {
   const financeHouseholdId = actualHouseholdId ?? coveredHouseholdId;
   const { data: subscriptions = [] } = useSubscriptions(financeHouseholdId, 'active', false);
 
-  const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats(actualHouseholdId, isPersonalOnly);
+  const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats(actualHouseholdId);
+  // This month's receipts, for "3 this month" under the count (the points from the 1st).
+  const { data: thisMonth } = useReceiptStats(actualHouseholdId, false, monthStart(localToday()));
+  // The same query as the spending card's (cached), to leave out an empty chart beside it.
+  const { data: trends } = useSpendingTrends(actualHouseholdId, period);
+  const hasSpending = !!trends && trends.totalSpent > 0;
+  const { receipts: newest } = useReceipts(actualHouseholdId, 1, 1, NEWEST_FIRST);
 
   // Show skeleton loading state
   if (statsLoading) {
@@ -49,7 +62,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Where the money went, and what has come in lately.</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Your month, where the money went, and what&apos;s coming up.</p>
           </div>
           <Skeleton className="h-10 w-48" />
         </div>
@@ -89,57 +102,55 @@ export default function DashboardPage() {
     );
   }
 
-  const quickStats = stats ? {
-    totalReceipts: stats.totalReceipts,
-    totalItems: stats.totalItems,
-    avgSpending: stats.avgSpending,
-    topCategory: stats.topCategory,
-  } : {
-    totalReceipts: 0,
-    totalItems: 0,
-    avgSpending: 0,
-    topCategory: 'No data',
-  };
+  const lastReceipt = latestReceiptDay(newest ?? []);
 
   return (
     <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="dashboard-title">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 id="dashboard-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Where the money went, and what has come in lately.</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Your month, where the money went, and what&apos;s coming up.</p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <HouseholdSelector
-              households={[
-                { id: '', name: 'Everything' },
-                { id: 'personal', name: 'Just mine' },
-                ...households,
-              ]}
-              selectedHouseholdId={selectedHouseholdId || ''}
-              onSelect={(id) => setSelectedHouseholdId(id || undefined)}
-              label="Show"
-            />
-          </div>
+          {/* "Just me" or a household, as on the plan and in the app. "Everything" and "Just mine"
+              (receipts not shared with anyone) were two names for nearly the same view. Nothing to
+              pick without a household. */}
+          {households.length > 0 && (
+            <div className="flex items-center gap-4">
+              <HouseholdSelector
+                households={[
+                  { id: '', name: 'Just me' },
+                  ...households,
+                ]}
+                selectedHouseholdId={selectedHouseholdId || ''}
+                onSelect={(id) => setSelectedHouseholdId(id || undefined)}
+                label="Show"
+              />
+            </div>
+          )}
         </div>
+
+        {/* The plan first: it's what the page is for now, ahead of the receipt totals. */}
+        <PlanCard householdId={financeHouseholdId} />
 
         {/* Quick Stats - show for subscribed users with receipts */}
         {isSubscribed && stats && stats.totalReceipts > 0 && (
           <>
-            <QuickStats stats={quickStats} />
+            <QuickStats stats={stats} receiptsThisMonth={thisMonth ? (thisMonth.points ?? []).length : null} />
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className={cn('grid gap-6', hasSpending && 'lg:grid-cols-2')}>
               <SpendingSummary
                 period={period}
                 onPeriodChange={setPeriod}
                 householdId={actualHouseholdId}
-                personalOnly={isPersonalOnly}
+                lastReceipt={lastReceipt}
               />
-              <SpendingChart
-                period={period}
-                householdId={actualHouseholdId}
-                personalOnly={isPersonalOnly}
-              />
+              {hasSpending && (
+                <SpendingChart
+                  period={period}
+                  householdId={actualHouseholdId}
+                />
+              )}
             </div>
             {/* A "Spending by category" card of percentages sat here, directly under the
                 summary's own euro breakdown by category: the same split twice. */}
@@ -158,8 +169,6 @@ export default function DashboardPage() {
             </AlertDescription>
           </Alert>
         )}
-
-        <PlanCard householdId={financeHouseholdId} />
 
         {subscriptions.length > 0 && (
           <UpcomingPayments subscriptions={subscriptions} daysAhead={7} />

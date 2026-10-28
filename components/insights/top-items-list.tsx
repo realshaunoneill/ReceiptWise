@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTopItems } from '@/hooks/use-top-items';
 import { formatCurrency } from '@/lib/utils/currency';
+import { formatTotals } from '@/lib/utils/currency-totals';
 import { categoryName, formatDisplayDate } from '@/components/receipts/format';
 import { Loader2, TrendingUp, ShoppingBag, Store, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -14,11 +14,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface TopItemsListProps {
   householdId?: string;
+  /** The Overview's period (its one picker), in months. */
+  months: number;
   autoLoad?: boolean;
 }
 
-export function TopItemsList({ householdId, autoLoad = false }: TopItemsListProps) {
-  const [months, setMonths] = useState(12);
+export function TopItemsList({ householdId, months, autoLoad = false }: TopItemsListProps) {
   const [sortBy, setSortBy] = useState<'frequency' | 'spending'>('frequency');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -48,23 +49,10 @@ export function TopItemsList({ householdId, autoLoad = false }: TopItemsListProp
                 Top items
               </CardTitle>
               <CardDescription className="mt-1.5">
-                Your most frequently purchased items
+                What you buy most often, or spend most on
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              {/* Was a native <select>, the only one in the app. */}
-              <Select value={String(months)} onValueChange={(value) => setMonths(parseInt(value, 10))}>
-                <SelectTrigger size="sm" className="w-full sm:w-[150px]" aria-label="Period" disabled={isLoading}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 3, 6, 12].map((period) => (
-                    <SelectItem key={period} value={String(period)}>
-                      {period === 1 ? 'Last month' : `Last ${period} months`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               {!data && !autoLoad && (
                 <Button onClick={() => refetch()} disabled={isLoading} size="sm">
                   {isLoading ? (
@@ -90,7 +78,13 @@ export function TopItemsList({ householdId, autoLoad = false }: TopItemsListProp
             </div>
           )}
 
-          {data && !isLoading && (
+          {data && !isLoading && data.topItems.length === 0 && (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Nothing bought in this period. Try a longer one.
+            </p>
+          )}
+
+          {data && !isLoading && data.topItems.length > 0 && (
             <div className="space-y-4">
               {/* Summary Stats */}
               <div className="grid grid-cols-2 gap-3 pb-4 sm:grid-cols-3 sm:gap-4">
@@ -102,10 +96,10 @@ export function TopItemsList({ householdId, autoLoad = false }: TopItemsListProp
                   <div className="amount text-xl font-bold">{data.summary.totalPurchases}</div>
                   <div className="text-xs text-muted-foreground">Total purchases</div>
                 </div>
-                {/* Was `{currency} {totalSpent}`: "EUR 200.1". */}
+                {/* Per currency ("€463.99 + $125.51"): it added euro and dollars up under one sign. */}
                 <div className="col-span-2 text-center p-3 rounded-lg bg-muted/50 sm:col-span-1">
                   <div className="amount text-xl font-bold">
-                    {formatCurrency(data.summary.totalSpent, data.summary.currency)}
+                    {formatTotals(data.summary.totals ?? [{ currency: data.summary.currency, amount: data.summary.totalSpent }], data.summary.currency)}
                   </div>
                   <div className="text-xs text-muted-foreground">Total spent</div>
                 </div>

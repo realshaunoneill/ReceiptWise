@@ -1,25 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { type WireReceipt } from '@shared/api/receipts';
-import { dayHeading, groupByDay } from './group';
+import { groupByDay } from './group';
 
 const receipt = (id: string, day: string | null, amount: string | null, status = 'completed', currency = 'EUR'): WireReceipt => ({
   id, userId: 'u', householdId: null, imageUrl: 'https://x/y.jpg', merchantName: 'Shop', totalAmount: amount, currency,
   transactionDate: day, category: null, paymentMethod: null, location: null, tax: null, serviceCharge: null, subtotal: null,
   receiptNumber: null, processingStatus: status, processingError: null, isReceipt: true, isBusinessExpense: false,
   businessCategory: null, businessNotes: null, source: 'app', createdAt: '2026-10-26T10:00:00Z', updatedAt: '2026-10-26T10:00:00Z',
-});
-
-describe('dayHeading', () => {
-  const today = '2026-10-26'; // a Monday
-  it('names nearby days in words', () => {
-    expect(dayHeading('2026-10-26', today)).toBe('Today');
-    expect(dayHeading('2026-10-25', today)).toBe('Yesterday');
-    expect(dayHeading('2026-10-22', today)).toBe('Thursday');
-  });
-  it('dates the rest, with the year only when it is another year', () => {
-    expect(dayHeading('2026-10-12', today)).toBe('12 October');
-    expect(dayHeading('2025-12-31', today)).toBe('31 December 2025');
-  });
 });
 
 describe('groupByDay', () => {

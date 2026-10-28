@@ -1,8 +1,9 @@
-import React from 'react';
-import { Linking, Pressable, View } from 'react-native';
+import React, { useState } from 'react';
+import { Linking, Modal, Pressable, Switch, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useNavigation } from 'expo-router';
-import { Briefcase, Mail, RotateCcw, Trash2, Users } from 'lucide-react-native';
+import { Briefcase, Mail, RotateCcw, Trash2, Users, X } from 'lucide-react-native';
 import { categoryName, formatDisplayDate, formatPaymentMethod, receiptDay } from '@shared/receipts/format';
 import { CategoryIcon } from '../../../src/components/CategoryIcon';
 import { SUPPORT_EMAIL } from '../../../src/config';
@@ -32,6 +33,7 @@ export default function ReceiptScreen() {
   const remove = useDeleteReceipt(id);
   const assign = useAssignReceipt(id);
   const business = useSetBusinessExpense(id);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const receipt = query.data;
   if (!receipt) {
@@ -73,23 +75,35 @@ export default function ReceiptScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: receipt.merchantName ?? 'Receipt' }} />
+      {/* The shop is the screen's own heading, so the bar doesn't repeat it. */}
+      <Stack.Screen options={{ title: '' }} />
       <TabScreen onRefresh={() => query.refetch()}>
-        <View style={{ marginHorizontal: GUTTER, marginBottom: space.xl, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.field }}>
-          <Image source={{ uri: receipt.imageUrl }} style={{ width: '100%', aspectRatio: 3 / 4 }} contentFit="contain" transition={150} accessibilityLabel="The receipt's photo" />
-        </View>
-
+        {/* What was read comes first, with the photo as a thumbnail that opens full screen: at full
+            width it pushed the total and the items below the fold. */}
         <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl, gap: space.sm }}>
-          <Text variant="title" accessibilityRole="header">{reading ? 'Being read…' : receipt.merchantName || (failed ? "Couldn't read this one" : 'Receipt')}</Text>
-          {total !== null && !reading && <Amount value={total} currency={receipt.currency} variant="largeTitle" weight="bold" />}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
-            {!!receipt.category && <CategoryIcon category={receipt.category} size={16} />}
-            <Text variant="callout" ink="secondary">
-              {[day ? formatDisplayDate(day) : null, receipt.category ? categoryName(receipt.category) : null].filter(Boolean).join(' · ')}
-            </Text>
+          <View style={{ flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, gap: space.sm }}>
+              <Text variant="title" accessibilityRole="header">{reading ? 'Reading…' : receipt.merchantName || (failed ? "Couldn't read this one" : 'Receipt')}</Text>
+              {total !== null && !reading && <Amount value={total} currency={receipt.currency} variant="largeTitle" weight="bold" />}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
+                {!!receipt.category && <CategoryIcon category={receipt.category} size={16} />}
+                <Text variant="callout" ink="secondary" style={{ flexShrink: 1 }}>
+                  {[day ? formatDisplayDate(day) : null, receipt.category ? categoryName(receipt.category) : null].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </View>
+            {!!receipt.imageUrl && (
+              <Pressable
+                onPress={() => setPhotoOpen(true)}
+                accessibilityRole="imagebutton"
+                accessibilityLabel="The receipt's photo. Open it full screen"
+                style={({ pressed }) => ({ width: 90, height: 120, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.field, opacity: pressed ? 0.7 : 1 })}
+              >
+                <Image source={{ uri: receipt.imageUrl }} style={{ width: 90, height: 120 }} contentFit="cover" transition={150} />
+              </Pressable>
+            )}
           </View>
           <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
-            {reading && <Pill label="Being read" tone="warn" />}
             {failed && <Pill label="Couldn't read" tone="bad" />}
             {receipt.isReceipt === false && <Pill label="Not a receipt" tone="warn" />}
             {!!household && <Pill label={`Shared with ${household.name}`} tone="neutral" />}
@@ -140,17 +154,23 @@ export default function ReceiptScreen() {
               {(households.data?.length ?? 0) > 0 && (
                 <Row icon={Users} label="Shared with" value={household?.name ?? 'Just me'} onPress={() => void share()} />
               )}
-              <Pressable
-                onPress={() => {
-                  selectionTick();
-                  business.mutate(!receipt.isBusinessExpense);
-                }}
-                accessibilityRole="switch"
-                aria-checked={!!receipt.isBusinessExpense}
-                aria-busy={business.isPending}
-              >
-                <Row icon={Briefcase} label="Business expense" value={(business.isPending ? business.variables : receipt.isBusinessExpense) ? 'Yes' : 'No'} />
-              </Pressable>
+              {/* A real switch: it was a row reading "Yes" or "No" that toggled when tapped. */}
+              <Row
+                icon={Briefcase}
+                label="Business expense"
+                value={(
+                  <Switch
+                    value={!!(business.isPending ? business.variables : receipt.isBusinessExpense)}
+                    onValueChange={(next) => {
+                      selectionTick();
+                      business.mutate(next);
+                    }}
+                    disabled={business.isPending}
+                    trackColor={{ true: colors.accent, false: colors.border }}
+                    accessibilityLabel="Business expense"
+                  />
+                )}
+              />
               {failed && <Row icon={RotateCcw} label="Read it again" accent onPress={() => retry.mutate()} />}
               <Row
                 icon={Mail}
@@ -163,6 +183,31 @@ export default function ReceiptScreen() {
           </Section>
         )}
       </TabScreen>
+      {!!receipt.imageUrl && <PhotoViewer uri={receipt.imageUrl} open={photoOpen} onClose={() => setPhotoOpen(false)} />}
     </>
+  );
+}
+
+/** The receipt's photo on its own, full screen, to read what the scan might have missed. */
+function PhotoViewer({ uri, open, onClose }: { uri: string; open: boolean; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={open} animationType="fade" onRequestClose={onClose} presentationStyle="fullScreen">
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <Image source={{ uri }} style={{ flex: 1 }} contentFit="contain" accessibilityLabel="The receipt's photo" />
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close the photo"
+          hitSlop={8}
+          style={({ pressed }) => ({
+            position: 'absolute', top: insets.top + space.sm, right: space.lg, width: 44, height: 44, borderRadius: 22,
+            alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.18)',
+          })}
+        >
+          <X size={22} color="#fff" />
+        </Pressable>
+      </View>
+    </Modal>
   );
 }

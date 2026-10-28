@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryName, formatDisplayDate, formatPaymentMethod, receiptDay, receiptFileName } from './format';
+import { categoryName, dayHeading, formatDisplayDate, formatPaymentMethod, receiptDay, receiptFileName } from './format';
 
 describe('formatDisplayDate', () => {
   it('formats a calendar day in en-IE without shifting it', () => {
@@ -33,10 +33,20 @@ describe('formatPaymentMethod', () => {
     expect(formatPaymentMethod('GOOGLE PAY')).toBe('Google Pay');
   });
 
-  it('sentence-cases plain values and leaves mixed case alone', () => {
+  it('sentence-cases plain values and everyday words', () => {
     expect(formatPaymentMethod('contactless')).toBe('Contactless');
     expect(formatPaymentMethod('direct_debit')).toBe('Direct debit');
-    expect(formatPaymentMethod('Visa Debit')).toBe('Visa Debit');
+    expect(formatPaymentMethod('Visa Debit')).toBe('Visa debit');
+    expect(formatPaymentMethod('Credit Card')).toBe('Credit card');
+    expect(formatPaymentMethod('CreditCard')).toBe('Credit card');
+    expect(formatPaymentMethod('VISA CONTACTLESS')).toBe('Visa contactless');
+  });
+
+  it('keeps brands whole, and shows a card by its last four', () => {
+    expect(formatPaymentMethod('MasterCard')).toBe('Mastercard');
+    expect(formatPaymentMethod('PayPal')).toBe('PayPal');
+    expect(formatPaymentMethod('Card ending in 1784')).toBe('Card ····1784');
+    expect(formatPaymentMethod('VISA ****4821')).toBe('Visa ····4821');
   });
 });
 
@@ -62,5 +72,18 @@ describe('receiptFileName', () => {
   it('falls back to "receipt" and to jpg', () => {
     expect(receiptFileName(null, null)).toBe('receipt.jpg');
     expect(receiptFileName('!!!', '2026-10-21', 'application/octet-stream')).toBe('receipt-2026-10-21.jpg');
+  });
+});
+
+describe('dayHeading', () => {
+  const today = '2026-10-26'; // a Monday
+  it('names today and yesterday in words', () => {
+    expect(dayHeading('2026-10-26', today)).toBe('Today');
+    expect(dayHeading('2026-10-25', today)).toBe('Yesterday');
+  });
+  it('dates the rest with the weekday, and the year only when it is another year', () => {
+    expect(dayHeading('2026-10-22', today)).toBe('Thu 22 Oct');
+    expect(dayHeading('2026-01-07', today)).toBe('Wed 7 Jan');
+    expect(dayHeading('2025-12-31', today)).toBe('Wed 31 Dec 2025');
   });
 });

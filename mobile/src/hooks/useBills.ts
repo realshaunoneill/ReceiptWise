@@ -27,6 +27,17 @@ export function useBills(status: BillStatus = 'active', householdId?: string, in
   });
 }
 
+/**
+ * Every bill whatever its status, for what the Bills tab offers: the Active, Paused and Cancelled
+ * switch only once something is paused or cancelled.
+ */
+export function useAllBills(householdId?: string) {
+  return useQuery({
+    queryKey: ['subscriptions', householdId, 'all', false],
+    queryFn: () => api<WireBill[]>(`/api/subscriptions${householdId ? `?householdId=${encodeURIComponent(householdId)}` : ''}`),
+  });
+}
+
 /** One bill: its last 24 occurrences and the bills filed against it. */
 export function useBill(id: string | undefined) {
   return useQuery({

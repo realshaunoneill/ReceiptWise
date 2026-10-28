@@ -10,7 +10,7 @@ describe('premiumBilling', () => {
       .toMatchObject({ title: 'Billed through the App Store', detail: 'Monthly · renews 27 Nov 2026' });
     expect(premiumBilling({ ...base, source: 'play_store', productId: 'premium:yearly', expiresAt: '2027-10-27T10:00:00Z', willRenew: false })?.detail).toBe('Yearly · ends 27 Oct 2027');
     expect(premiumBilling({ ...base, source: 'app_store', expiresAt: '2026-11-03T10:00:00Z', inTrial: true })?.detail).toBe('Free trial until 3 Nov 2026');
-    expect(premiumBilling({ ...base, source: 'comp', expiresAt: '2027-10-27T10:00:00Z' })).toEqual({ title: 'Given to this account', detail: 'Until 27 Oct 2027', manage: null });
+    expect(premiumBilling({ ...base, source: 'comp', expiresAt: '2027-10-27T10:00:00Z' })).toEqual({ title: 'Free Premium, given to you', detail: 'Until 27 Oct 2027', manage: null });
   });
 
   it('is nothing without Premium of its own', () => {

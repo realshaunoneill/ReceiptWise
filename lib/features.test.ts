@@ -25,7 +25,9 @@ describe('isFeatureEnabled', () => {
   it('builds the flags object for /api/users/me', () => {
     vi.stubEnv('FEATURE_BILLS', '');
     vi.stubEnv('FEATURE_BILLS_ALLOWLIST', '');
-    expect(featureFlagsFor(member)).toEqual({ bills: false });
-    expect(featureFlagsFor(admin)).toEqual({ bills: true });
+    vi.stubEnv('FEATURE_EXTENSION', '');
+    vi.stubEnv('FEATURE_EXTENSION_ALLOWLIST', '');
+    expect(featureFlagsFor(member)).toEqual({ bills: false, extension: false });
+    expect(featureFlagsFor(admin)).toEqual({ bills: true, extension: true });
   });
 });

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSpendingSummary } from '@/hooks/use-spending-summary';
 import { Loader2, FileText, RefreshCw, TrendingUp, ShoppingBag, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +12,9 @@ import { parseSummary, type Inline } from '@/components/insights/summary-markdow
 
 interface SpendingSummaryCardProps {
   householdId?: string;
+  /** The Overview's period (its one picker), in months. */
+  months: number;
 }
-
-const PERIODS = [1, 3, 6, 12];
 
 function InlineText({ parts }: { parts: Inline[] }) {
   return (
@@ -69,8 +68,7 @@ function SummaryText({ markdown }: { markdown: string }) {
  * result now stays in React Query's cache for the period, so coming back to the page shows it
  * again without asking (the route also keeps it for 24 hours).
  */
-export function SpendingSummaryCard({ householdId }: SpendingSummaryCardProps) {
-  const [months, setMonths] = useState(3);
+export function SpendingSummaryCard({ householdId, months }: SpendingSummaryCardProps) {
   // The period the reader asked for on this visit. Changing the period does not write a new
   // summary on its own; one already in the cache still shows.
   const periodKey = `${householdId ?? ''}|${months}`;
@@ -89,9 +87,7 @@ export function SpendingSummaryCard({ householdId }: SpendingSummaryCardProps) {
   return (
     <Card>
       <CardHeader>
-        {/* Wraps on a phone: the title and the period picker side by side made the
-            Insights page 447px wide on a 390px screen. */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
           <div className="min-w-0">
             {/* "AI Spending Insights" promising "personalized insights" — the
                 title named the technology and the description promised
@@ -102,21 +98,9 @@ export function SpendingSummaryCard({ householdId }: SpendingSummaryCardProps) {
               Spending summary
             </CardTitle>
             <CardDescription className="mt-1.5">
-              A written read on the period you pick
+              A written read on {months === 1 ? 'the last month' : `the last ${months} months`}
             </CardDescription>
           </div>
-          <Select value={String(months)} onValueChange={(value) => setMonths(parseInt(value, 10))}>
-            <SelectTrigger size="sm" className="w-full sm:w-[150px]" aria-label="Period" disabled={isLoading}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODS.map((period) => (
-                <SelectItem key={period} value={String(period)}>
-                  {period === 1 ? 'Last month' : `Last ${period} months`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </CardHeader>
       <CardContent>
@@ -158,6 +142,12 @@ export function SpendingSummaryCard({ householdId }: SpendingSummaryCardProps) {
                     <div className="mt-1 text-xs text-muted-foreground">Average per item</div>
                   </div>
                 </div>
+                {/* There's no conversion: the money figures are in one currency only. */}
+                {!!statistics.otherCurrencies?.length && (
+                  <p className="text-xs text-muted-foreground">
+                    Amounts are in {statistics.currency} only; what you bought in {statistics.otherCurrencies.join(' and ')} isn&apos;t in them.
+                  </p>
+                )}
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
@@ -194,7 +184,7 @@ export function SpendingSummaryCard({ householdId }: SpendingSummaryCardProps) {
                   <div>
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                       <Store className="h-4 w-4" aria-hidden="true" />
-                      Top merchants
+                      Top shops
                     </h3>
                     <ul className="space-y-2">
                       {summary.data.topMerchants.slice(0, 5).map((merchant, index) => (

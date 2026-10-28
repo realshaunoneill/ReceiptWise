@@ -24,6 +24,8 @@ import { type GoalSummary, type PlanLine } from '@/lib/plan/compute-plan';
 import { type PlanResponse } from '@/lib/services/plan-service';
 import { cn } from '@/lib/utils';
 import { formatCents } from '@/lib/utils/currency';
+import { useTapOrClick } from '@/lib/hooks/use-touch';
+import { usePlanIntroSeen } from './how-it-works';
 import { PAYMENT_METHOD_LABEL, TAP_TARGET } from './labels';
 
 export type PlanLineHandlers = {
@@ -56,7 +58,7 @@ function AmountEditor({
   estimated,
   disabled,
   className,
-  title = 'Change for this period',
+  title = 'Change it for this month only',
   onSave,
 }: {
   cents: number;
@@ -102,7 +104,7 @@ function AmountEditor({
         }}
         inputMode="decimal"
         className="amount h-11 w-28 text-right"
-        aria-label="Amount for this period"
+        aria-label="Amount for this month only"
       />
     );
   }
@@ -343,7 +345,7 @@ function GoalRow({ line, viewerId, context, handlers }: { line: PlanLine; viewer
         }
       }}
       onLabelClick={() => handlers.onEditGoal(line.sourceId)}
-      detail="Savings"
+      detail={done ? 'Put aside' : undefined}
       badges={!done && <JustThisMonth line={line} month={month} />}
       amount={canChange ? (
         <AmountEditor
@@ -543,7 +545,14 @@ const sum = (lines: PlanLine[]) => lines.filter((line) => line.counted).reduce((
 export function PlanLines({ plan, viewerId, householdNames = {}, ...handlers }: PlanLinesProps) {
   const incoming = plan.lines.filter((line) => line.direction === 'in');
   const recurring = plan.lines.filter((line) => line.direction === 'out' && line.source === 'recurring');
+  // The same split as the summary (shared/plan/breakdown.ts): bills come off before "After bills",
+  // subscriptions after it, so each section's total is a row of the summary.
+  const bills = recurring.filter((line) => line.kind === 'bill');
+  const subscriptions = recurring.filter((line) => line.kind !== 'bill');
   const goals = plan.lines.filter((line) => line.source === 'goal');
+  // One hint, on the bills, and only until How it works (which says the same) has been read.
+  const introSeen = usePlanIntroSeen();
+  const tap = useTapOrClick();
   const oneOffs = plan.lines.filter((line) => line.direction === 'out' && line.source === 'entry');
   const month = plan.period.label.split(' ')[0];
   const context: RowContext = { plan, householdNames };
@@ -554,34 +563,29 @@ export function PlanLines({ plan, viewerId, householdNames = {}, ...handlers }: 
   return (
     <div className="space-y-4">
       {incoming.length > 0 && (
-        <Section
-          title="Coming in"
-          totalCents={sum(incoming)}
-          currency={plan.currency}
-          hint={incoming.some((line) => line.source === 'income' && line.ownerUserId === viewerId) ? `Click your pay to change it for ${month} only.` : undefined}
-        >
+        <Section title="Coming in" totalCents={sum(incoming)} currency={plan.currency}>
           {incoming.map((line) => (line.source === 'entry'
             ? <EntryRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />
             : <IncomeRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />))}
         </Section>
       )}
-      {recurring.length > 0 && (
+      {bills.length > 0 && (
         <Section
-          title="Bills & subscriptions"
-          totalCents={sum(recurring)}
+          title="Bills"
+          totalCents={sum(bills)}
           currency={plan.currency}
-          hint={`Click an amount to change it for ${month} only: a bigger credit card bill, an electricity bill that came in.`}
+          hint={introSeen ? undefined : `${tap} an amount to change it for ${month} only: a bigger credit card bill, an electricity bill that came in.`}
         >
-          {recurring.map((line) => <RecurringRow key={line.key} line={line} context={context} handlers={handlers} />)}
+          {bills.map((line) => <RecurringRow key={line.key} line={line} context={context} handlers={handlers} />)}
+        </Section>
+      )}
+      {subscriptions.length > 0 && (
+        <Section title="Subscriptions" totalCents={sum(subscriptions)} currency={plan.currency}>
+          {subscriptions.map((line) => <RecurringRow key={line.key} line={line} context={context} handlers={handlers} />)}
         </Section>
       )}
       {(goals.length > 0 || progressOnly.length > 0) && (
-        <Section
-          title="Savings"
-          totalCents={sum(goals)}
-          currency={plan.currency}
-          hint={goals.some((line) => line.ownerUserId === viewerId && line.status !== 'done') ? `Click an amount to put aside more or less in ${month} only.` : undefined}
-        >
+        <Section title="Savings" totalCents={sum(goals)} currency={plan.currency}>
           {goals.map((line) => <GoalRow key={line.key} line={line} viewerId={viewerId} context={context} handlers={handlers} />)}
           {progressOnly.map((goal) => (
             <li key={goal.id} className="py-2">

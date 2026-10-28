@@ -99,7 +99,7 @@ export default function Onboarding() {
             <Text variant="body" ink="secondary">Your receipts, your bills and your month, in one place, and shared with your household if you like.</Text>
             <View style={{ gap: space.lg, marginTop: space.md }}>
               <Point icon={ScanLine} title="Receipts, read for you" body="Photograph one, or forward it by email: the shop, the date, every item and the total." />
-              <Point icon={CalendarDays} title="Your month, planned" body="From one payday to the next: the bills on the way, and what's left for each week." />
+              <Point icon={CalendarDays} title="Your month, planned" body="From one payday to the next: what comes in, the bills that go out, and what's left each week." />
               <Point icon={Users} title="Shared with your household" body="A partner, the family or housemates see the same receipts, bills and plan." />
             </View>
           </>
@@ -128,6 +128,8 @@ export default function Onboarding() {
                 );
               })}
             </List>
+            {/* Its own heading: it sat under "Pick your currency" as if it were part of it. */}
+            <Text variant="label" accessibilityRole="header" style={{ marginTop: space.md }}>Help us improve it</Text>
             <SwitchField
               label="Share usage analytics"
               detail="Which features are used, so we know what to improve. Never what's on your receipts."

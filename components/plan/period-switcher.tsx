@@ -23,7 +23,7 @@ export function PeriodSwitcher({ period, offset, onOffsetChange, maxOffset = 24 
         className="h-11 w-11 shrink-0"
         onClick={() => onOffsetChange(offset - 1)}
         disabled={offset <= -maxOffset}
-        aria-label="Previous period"
+        aria-label="Previous month"
       >
         <ChevronLeft className="h-5 w-5" />
       </Button>
@@ -56,7 +56,7 @@ export function PeriodSwitcher({ period, offset, onOffsetChange, maxOffset = 24 
         className="h-11 w-11 shrink-0"
         onClick={() => onOffsetChange(offset + 1)}
         disabled={offset >= maxOffset}
-        aria-label="Next period"
+        aria-label="Next month"
       >
         <ChevronRight className="h-5 w-5" />
       </Button>

@@ -7,26 +7,21 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useSpendingSummary } from '../hooks/useInsights';
 import { radius, space } from '../theme';
 import Button from '../ui/Button';
-import { Segmented } from '../ui/Controls';
 import { Notice } from '../ui/Feedback';
 import { Card } from '../ui/Section';
 import Text from '../ui/Text';
 import SummaryText from './SummaryText';
-
-const PERIODS = ['1', '3', '6', '12'] as const;
-type Months = typeof PERIODS[number];
 
 /**
  * A written read on the period picked (the website's SpendingSummaryCard). It's one AI call per
  * period, so it's only written when asked for; once written it shows again for the visit, and the
  * server keeps it a day. Changing the period doesn't write a new one by itself.
  */
-export default function SummaryCard({ householdId }: { householdId?: string }) {
+export default function SummaryCard({ householdId, months }: { householdId?: string; months: number }) {
   const { colors } = useTheme();
-  const [months, setMonths] = useState<Months>('3');
   const key = `${householdId ?? ''}|${months}`;
   const [asked, setAsked] = useState<string | null>(null);
-  const summary = useSpendingSummary(householdId, Number(months), asked === key);
+  const summary = useSpendingSummary(householdId, months, asked === key);
   const statistics = summary.data?.data?.statistics;
   const money = (amount: number) => formatCurrency(amount, statistics?.currency ?? 'EUR');
   const lists = summary.data?.data
@@ -42,14 +37,8 @@ export default function SummaryCard({ householdId }: { householdId?: string }) {
       <View style={{ gap: space.lg }}>
         <View style={{ gap: 2 }}>
           <Text variant="heading" accessibilityRole="header">Spending summary</Text>
-          <Text variant="footnote" ink="muted">A written read on the period you pick</Text>
+          <Text variant="footnote" ink="muted">{`A written read on ${months === 1 ? 'the last month' : `the last ${months} months`}`}</Text>
         </View>
-        <Segmented<Months>
-          accessibilityLabel="Period"
-          value={months}
-          onChange={setMonths}
-          options={PERIODS.map((value) => ({ value, label: value === '1' ? 'Last month' : `${value} months` }))}
-        />
         {summary.isFetching && !summary.data ? (
           <View style={{ alignItems: 'center', paddingVertical: space.xxl, gap: space.md }} accessibilityLiveRegion="polite">
             <ActivityIndicator color={colors.textMuted} />
@@ -78,6 +67,10 @@ export default function SummaryCard({ householdId }: { householdId?: string }) {
                     </View>
                   ))}
                 </View>
+                {/* There's no conversion: the money figures are in one currency only. */}
+                {!!statistics.otherCurrencies?.length && (
+                  <Text variant="footnote" ink="muted">{`Amounts are in ${statistics.currency} only; what you bought in ${statistics.otherCurrencies.join(' and ')} isn't in them.`}</Text>
+                )}
                 {lists.filter((list) => list.rows.length > 0).map((list) => (
                   <View key={list.title} style={{ gap: space.sm }}>
                     <Text variant="label" accessibilityRole="header">{list.title}</Text>

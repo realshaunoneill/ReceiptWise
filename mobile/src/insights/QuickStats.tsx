@@ -2,26 +2,21 @@ import React from 'react';
 import { View } from 'react-native';
 import { type WireReceiptStats } from '@shared/api/insights';
 import { formatCurrency } from '@shared/currency';
-import { categoryName } from '@shared/receipts/format';
+import { quickStatTiles } from '@shared/insights/quick-stats';
 import { space } from '../theme';
 import { Card } from '../ui/Section';
 import Text from '../ui/Text';
 
 /**
- * Four figures for the view, named for what they are (the website's QuickStats): the receipts,
- * the lines read off them, the average receipt (not a daily figure), and where most went.
+ * Three figures for the view, the same as the website's dashboard (shared/insights/quick-stats.ts):
+ * the receipts (and how many this month), the average receipt, and where most went.
  */
-export default function QuickStats({ stats, currency }: { stats: WireReceiptStats; currency: string }) {
-  const tiles = [
-    { label: 'Receipts', value: String(stats.totalReceipts), detail: 'In this view' },
-    { label: 'Line items', value: String(stats.totalItems), detail: 'Read off those receipts' },
-    { label: 'Average receipt', value: formatCurrency(stats.avgSpending, currency), detail: 'Total over receipts' },
-    { label: 'Top category', value: stats.spendingByCategory[0] ? categoryName(stats.spendingByCategory[0].category) : 'None yet', detail: 'Where most went' },
-  ];
+export default function QuickStats({ stats, currency, receiptsThisMonth }: { stats: WireReceiptStats; currency: string; receiptsThisMonth: number | null }) {
+  const tiles = quickStatTiles(stats, receiptsThisMonth, (amount) => formatCurrency(amount, currency));
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.md }}>
       {tiles.map((tile) => (
-        <Card key={tile.label} padded style={{ flexGrow: 1, flexBasis: '45%' }}>
+        <Card key={tile.key} padded style={{ flexGrow: 1, flexBasis: '45%' }}>
           <View accessible accessibilityLabel={`${tile.label}: ${tile.value}. ${tile.detail}`} style={{ gap: 2 }}>
             <Text variant="footnote" ink="muted">{tile.label}</Text>
             <Text variant="title" tabular numberOfLines={1} adjustsFontSizeToFit>{tile.value}</Text>

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { ChartLine, ReceiptText } from 'lucide-react-native';
+import { localToday } from '@shared/dates/local-date';
+import { latestReceiptDay, monthStart } from '@shared/insights/quick-stats';
 import CaptureButton from '../../../src/components/CaptureButton';
 import PlanCard from '../../../src/components/PlanCard';
 import ReceiptRow from '../../../src/components/ReceiptRow';
@@ -43,6 +45,10 @@ export default function Home() {
   const plan = usePlan(0, financeHousehold);
   const bills = useBills('active', financeHousehold);
   const stats = useReceiptStats(householdId);
+  // This month's receipts, for "3 this month" under the count.
+  const thisMonth = useReceiptStats(householdId, monthStart(localToday()));
+  // The newest receipt by its date, for "Your last receipt was 7 Jan" in an empty month.
+  const newest = useReceipts({ householdId });
   const recent = useReceipts({ sortBy: 'created', householdId });
   const receipts = recent.data?.pages[0]?.receipts.slice(0, 5) ?? [];
   const currency = me.data?.currency ?? 'EUR';
@@ -52,7 +58,7 @@ export default function Home() {
   const switching = plan.isPlaceholderData || stats.isPlaceholderData || bills.isPlaceholderData || recent.isPlaceholderData;
   const scope = scopePickerPlacement(switching);
 
-  const refresh = () => Promise.all([me.refetch(), plan.refetch(), stats.refetch(), bills.refetch(), recent.refetch()]);
+  const refresh = () => Promise.all([me.refetch(), plan.refetch(), stats.refetch(), thisMonth.refetch(), bills.refetch(), recent.refetch()]);
 
   return (
     <>
@@ -80,10 +86,10 @@ export default function Home() {
           {premium && hasReceipts && stats.data && (
             <>
               <Section title="At a glance">
-                <QuickStats stats={stats.data} currency={currency} />
+                <QuickStats stats={stats.data} currency={currency} receiptsThisMonth={thisMonth.data ? (thisMonth.data.points ?? []).length : null} />
               </Section>
               <Section title="Spending">
-                <SpendingSummary householdId={householdId} currency={currency} />
+                <SpendingSummary householdId={householdId} currency={currency} lastReceipt={latestReceiptDay(newest.data?.pages[0]?.receipts.slice(0, 1) ?? [])} />
               </Section>
             </>
           )}
@@ -119,7 +125,8 @@ export default function Home() {
               )
             ) : (
               <List inset={72}>
-                {receipts.map((receipt) => <ReceiptRow key={receipt.id} receipt={receipt} />)}
+                {/* In the order they were added, so each says when: their own dates jumped about. */}
+                {receipts.map((receipt) => <ReceiptRow key={receipt.id} receipt={receipt} when="added" />)}
               </List>
             )}
           </Section>

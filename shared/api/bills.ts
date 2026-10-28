@@ -26,6 +26,11 @@ export type WireBill = {
   startDate: string;
   endDate: string | null;
   nextBillingDate: string;
+  /**
+   * The next cycle's own amount when it has one (read off a filed bill, or typed in for that
+   * month), else null: it's on its usual `amount`. Missing from servers before 2026-10-28.
+   */
+  nextAmount?: string | null;
   lastPaymentDate: string | null;
   website: string | null;
   notes: string | null;

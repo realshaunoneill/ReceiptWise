@@ -8,6 +8,7 @@ import { getAccount } from '@/lib/services/account-service';
 import { canFileFinanceRowUnder, canReadFinanceRow, financeScopeCondition, type FinanceScope } from '@/lib/services/finance-access';
 import { SubscriptionService } from '@/lib/services/subscription-service';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
+import { nextAmounts } from './next-amount';
 import { createSubscriptionSchema, parseBody, readJson, SUBSCRIPTION_KINDS, SUBSCRIPTION_STATUSES } from '@/lib/validation/finance';
 
 export const runtime = 'nodejs';
@@ -20,6 +21,8 @@ const RECENT_PAYMENTS = 12;
 //   ?status=       active | paused | cancelled
 //   ?kind=         subscription | bill
 //   ?includePayments=true  adds recentPayments (unsettled) and missingPayments (overdue count)
+// Every row has nextAmount: the next cycle's own amount when it has one (a filed bill, or typed in
+// for that month), else null for the usual one.
 export async function GET(req: NextRequest) {
   const guard = await guardFinanceRoute(req, { mutating: false });
   if (guard instanceof NextResponse) return guard;
@@ -57,8 +60,11 @@ export async function GET(req: NextRequest) {
       .where(and(...conditions))
       .orderBy(asc(subscriptions.nextBillingDate));
 
+    const ownAmounts = await nextAmounts(rows);
+    const withNext = rows.map((row) => ({ ...row, nextAmount: ownAmounts.get(row.id) ?? null }));
+
     if (!includePayments || rows.length === 0) {
-      return NextResponse.json(rows, { headers: PRIVATE_NO_STORE });
+      return NextResponse.json(withNext, { headers: PRIVATE_NO_STORE });
     }
 
     const unsettled = await db
@@ -79,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     const now = new Date();
     return NextResponse.json(
-      rows.map((subscription) => {
+      withNext.map((subscription) => {
         const payments = paymentsBySubscription.get(subscription.id) ?? [];
         return {
           ...subscription,

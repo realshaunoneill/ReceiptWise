@@ -84,10 +84,10 @@ function GoalForm({ goal, householdId }: { goal?: Goal; householdId?: string }) 
       <DateField label="By (optional)" value={targetDate} onChange={setTargetDate} optional />
       {(choices.length > 0 || linked !== TYPED) && (
         <PickerField
-          label="Kept in"
+          label="Where it's saved"
           value={linked}
           options={[
-            { value: TYPED, label: "No account: I'll type in what's saved" },
+            { value: TYPED, label: "Not linked to an account" },
             ...choices.map((candidate) => ({ value: candidate.id, label: candidate.name })),
             ...(linked !== TYPED && !account ? [{ value: linked, label: 'Another account' }] : []),
           ]}

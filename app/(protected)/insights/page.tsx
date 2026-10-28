@@ -4,15 +4,15 @@ import { useState } from 'react';
 import { SpendingSummaryCard } from '@/components/insights/spending-summary-card';
 import { TopItemsList } from '@/components/insights/top-items-list';
 import { ItemSearchAnalysis } from '@/components/insights/item-search-analysis';
-import { SubscriptionInsights } from '@/components/insights/subscription-insights';
 import { HouseholdSelector } from '@/components/households/household-selector';
-import { useFeature, useUser } from '@/lib/hooks/use-user';
+import { useUser } from '@/lib/hooks/use-user';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, Search, CreditCard, Crown, Check, PieChart, ScanLine, ArrowRight, LineChart } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TrendingUp, Search, Crown, Check, PieChart, ScanLine, ArrowRight, LineChart } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
@@ -25,9 +25,9 @@ export default function InsightsPage() {
   const { data: households = [] } = useHouseholds();
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string>();
   const [activeTab, setActiveTab] = useState('overview');
-  // With bills on, the recurring tab holds rent and loans as well as subscriptions.
-  const billsEnabled = useFeature('bills');
-  const recurringLabel = billsEnabled ? 'Bills & subscriptions' : 'Subscriptions';
+  // One period for the whole Overview: the summary and the top items each had their own picker,
+  // with the same four choices, set to different periods.
+  const [months, setMonths] = useState(3);
 
   return (
     <main className="container mx-auto max-w-7xl space-y-6 p-4 sm:p-6" aria-labelledby="insights-title">
@@ -37,7 +37,7 @@ export default function InsightsPage() {
               Insights
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-              What you spend on, what you buy most, and what the {billsEnabled ? 'bills and subscriptions' : 'subscriptions'} cost.
+              What you spend on, and what you buy most.
             </p>
           </div>
 
@@ -52,7 +52,7 @@ export default function InsightsPage() {
               <span className="sr-only">Show insights for</span>
               <HouseholdSelector
                 households={[
-                  { id: '', name: 'My receipts' },
+                  { id: '', name: 'Just me' },
                   ...households,
                 ]}
                 selectedHouseholdId={selectedHouseholdId || ''}
@@ -68,7 +68,6 @@ export default function InsightsPage() {
             <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
               <Skeleton className="h-9 w-24 rounded-md" />
               <Skeleton className="h-9 w-24 rounded-md" />
-              <Skeleton className="h-9 w-32 rounded-md" />
             </div>
             {/* Main Content Grid - matches loading.tsx */}
             <div className="grid gap-6 lg:grid-cols-2">
@@ -248,7 +247,8 @@ export default function InsightsPage() {
             technology behind it was never useful to the person reading it.
           */
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            {/* Tabs sized to their labels, so "Bills & subscriptions" fits on a phone. */}
+            {/* A third tab, "Bills & subscriptions", repeated the Bills page's totals and upcoming
+                payments; it's gone, and the Bills page is where they are. */}
             <TabsList className="flex w-full lg:inline-flex lg:w-auto lg:self-start">
               <TabsTrigger value="overview" className="flex-auto gap-2">
                 <TrendingUp className="hidden h-4 w-4 sm:block" aria-hidden="true" />
@@ -258,19 +258,30 @@ export default function InsightsPage() {
                 <Search className="hidden h-4 w-4 sm:block" aria-hidden="true" />
                 Items
               </TabsTrigger>
-              <TabsTrigger value="subscriptions" className="flex-auto gap-2">
-                <CreditCard className="hidden h-4 w-4 sm:block" aria-hidden="true" />
-                {recurringLabel}
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <span id="insights-period" className="text-sm text-muted-foreground">Period</span>
+                <Select value={String(months)} onValueChange={(value) => setMonths(parseInt(value, 10))}>
+                  <SelectTrigger size="sm" className="w-[170px]" aria-labelledby="insights-period">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 3, 6, 12].map((period) => (
+                      <SelectItem key={period} value={String(period)}>
+                        {period === 1 ? 'Last month' : `Last ${period} months`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {/* grid-cols-1 is minmax(0, 1fr): without it the one mobile column grew to the
                   longest item name in Top items, and the page scrolled sideways. */}
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* No autoLoad: the summary is an OpenAI call, written when asked for. */}
-                <SpendingSummaryCard householdId={selectedHouseholdId} />
-                <TopItemsList householdId={selectedHouseholdId} autoLoad />
+                <SpendingSummaryCard householdId={selectedHouseholdId} months={months} />
+                <TopItemsList householdId={selectedHouseholdId} months={months} autoLoad />
               </div>
             </TabsContent>
 
@@ -278,9 +289,6 @@ export default function InsightsPage() {
               <ItemSearchAnalysis householdId={selectedHouseholdId} />
             </TabsContent>
 
-            <TabsContent value="subscriptions" className="mt-6 space-y-6">
-              <SubscriptionInsights />
-            </TabsContent>
           </Tabs>
         )}
       </main>

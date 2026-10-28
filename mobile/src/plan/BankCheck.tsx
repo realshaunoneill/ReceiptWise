@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { AlertTriangle, Landmark } from 'lucide-react-native';
 import { type WirePlan } from '@shared/api/plan';
 import { formatCents } from '@shared/currency';
+import { bankCheckExplainer, bankCheckTitle } from '@shared/plan/bank-copy';
 import { useTheme } from '../contexts/ThemeContext';
 import { space } from '../theme';
 import Button from '../ui/Button';
@@ -12,8 +13,10 @@ import Text from '../ui/Text';
 import { shortDay } from './days';
 
 /**
- * The second view, for the period that contains today: from what's actually in the bank, what's
- * left until payday once everything still to go has gone. Balances are typed in.
+ * The second view, for the month that contains today: from what's actually in the bank, what's
+ * left until payday once everything still to go has gone. Balances are typed in. It says where its
+ * figure comes from (shared/plan/bank-copy.ts), so it doesn't read as contradicting the plan's
+ * own "left", as on the website.
  */
 export default function BankCheck({ plan }: { plan: WirePlan }) {
   const router = useRouter();
@@ -38,7 +41,7 @@ export default function BankCheck({ plan }: { plan: WirePlan }) {
           <View style={{ flex: 1, gap: 2 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Landmark size={15} color={colors.textMuted} />
-              <Text variant="footnote" ink="muted">{short ? 'Short before payday' : 'Left until payday'}</Text>
+              <Text variant="footnote" ink="muted">{bankCheckTitle(view)}</Text>
             </View>
             <Text variant="title" ink={short ? 'bad' : 'primary'} tabular>{formatCents(Math.abs(view.availableCents), plan.currency)}</Text>
             <Text variant="footnote" ink="muted" tabular>{split}</Text>
@@ -46,17 +49,16 @@ export default function BankCheck({ plan }: { plan: WirePlan }) {
           <Button label="Update" variant="secondary" size="sm" onPress={update} />
         </View>
         <View style={{ marginTop: space.md, paddingTop: space.md, borderTopWidth: 1, borderColor: colors.separator, gap: 6 }}>
-          {view.accounts.map((account) => (
+          <Text variant="footnote" ink="secondary" tabular>{bankCheckExplainer(view, plan.lines, plan.currency)}</Text>
+          {/* One account is in the sentence above; several are listed. */}
+          {view.accounts.length > 1 && view.accounts.map((account) => (
             <View key={account.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
               {account.stale && <AlertTriangle size={14} color={colors.warn} accessibilityLabel="Out of date" />}
               <Text variant="footnote" ink={account.stale ? 'warn' : 'secondary'} style={{ flex: 1 }} numberOfLines={1}>{`${account.name} (${shortDay(account.asOfDate)})`}</Text>
               <Text variant="footnote" tabular>{formatCents(account.balanceCents, plan.currency)}</Text>
             </View>
           ))}
-          <Text variant="caption" ink="muted" tabular>
-            {`${view.incomingCents > 0 ? `+ ${formatCents(view.incomingCents, plan.currency)} still to come in · ` : ''}− ${formatCents(view.outgoingCents, plan.currency)} still to go out`}
-          </Text>
-          {plan.flags.includes('stale_balance') && <Text variant="caption" ink="warn">A balance is over a week old or from before this period: update it for a true figure.</Text>}
+          {plan.flags.includes('stale_balance') && <Text variant="caption" ink="warn">A balance is over a week old or from before this month: update it for a true figure.</Text>}
         </View>
       </Card>
     </Section>

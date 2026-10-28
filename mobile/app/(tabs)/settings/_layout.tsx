@@ -15,7 +15,7 @@ export default function SettingsStack() {
       <Stack.Screen name="subscription" options={{ title: 'Premium' }} />
 
       {/* Privacy and security (phase 5) */}
-      <Stack.Screen name="privacy" options={{ title: 'Privacy & security' }} />
+      <Stack.Screen name="privacy" options={{ title: 'Hide amounts and app lock' }} />
     </Stack>
   );
 }

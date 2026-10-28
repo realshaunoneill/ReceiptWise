@@ -49,6 +49,8 @@ function IncomeForm({ income, isFirst, currentPrimary, householdId }: { income?:
   const accounts = useAccounts(householdId);
   const save = useSaveIncome();
   const remove = useDeleteIncome();
+  // Adding the very first pay, which sets the months: a second income is just more coming in.
+  const firstPay = !income && isFirst;
   const [name, setName] = useState(income?.name ?? 'Salary');
   const [amount, setAmount] = useState(income?.amount ?? '');
   const [frequency, setFrequency] = useState(income?.frequency ?? 'monthly');
@@ -93,8 +95,8 @@ function IncomeForm({ income, isFirst, currentPrimary, householdId }: { income?:
   };
 
   return (
-    <SheetScreen title={income ? 'Edit income' : 'Add your pay'} fullScreen action={{ label: 'Save', onPress: submit, loading: save.isPending, disabled: !amount.trim() }}>
-      <Notice tone="neutral" title="What comes in, and when">Your main pay sets the plan: each period runs from one payday to the next.</Notice>
+    <SheetScreen title={income ? 'Edit income' : firstPay ? 'Add your pay' : 'Add income'} fullScreen action={{ label: 'Save', onPress: submit, loading: save.isPending, disabled: !amount.trim() }}>
+      {firstPay && <Notice tone="neutral" title="What comes in, and when">Your main pay sets the plan: each month runs from one payday to the next.</Notice>}
       <Field label="Name" value={name} onChangeText={setName} maxLength={100} />
       <MoneyField label="Amount" value={amount} onChangeText={(text) => { setAmount(text); setError(null); }} autoFocus={!income} />
       <PickerField label="How often" value={frequency} options={FREQUENCIES} onChange={setFrequency} />
@@ -119,7 +121,7 @@ function IncomeForm({ income, isFirst, currentPrimary, householdId }: { income?:
       {!isFirst && (
         <SwitchField
           label="My main pay"
-          detail={replaces ? `This replaces ${replaces.name} as your main pay, and the periods will follow this one's paydays.` : 'It sets the period.'}
+          detail={replaces ? `This replaces ${replaces.name} as your main pay, and the months will follow this one's paydays.` : 'Its paydays set when each month starts.'}
           value={isPrimary}
           onChange={setIsPrimary}
         />

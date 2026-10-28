@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
-import { CalendarClock, ChevronLeft, ChevronRight, FileText, Landmark, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
+import { CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, FileText, Landmark, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
 import { formatCents } from '@shared/currency';
 import { type WirePlan } from '@shared/api/plan';
 import { addDays } from '@shared/dates/local-date';
 import { planBreakdown } from '@shared/plan/breakdown';
 import { planNotes } from '@shared/plan/plan-notes';
 import { scopePickerPlacement } from '../../../src/components/ScopePicker';
-import { choose } from '../../../src/confirm';
 import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useHouseholds } from '../../../src/hooks/useHouseholds';
 import { useBillInbox } from '../../../src/hooks/useBills';
@@ -39,7 +38,8 @@ export default function Plan() {
   const me = useMe();
   const { householdId } = useScope();
   const plan = usePlan(offset, householdId);
-  // The month after, for the "Plan December" row (and so stepping forward is instant).
+  const intro = usePlanIntro();
+  // The month after, for the "Next month" row (and so stepping forward is instant).
   const next = usePlan(offset + 1, householdId);
   const households = useHouseholds();
   const inboxCount = useBillInbox(householdId).data?.length ?? 0;
@@ -50,7 +50,7 @@ export default function Plan() {
       <TabScreen>
         <Section>
           <Notice tone="neutral" title="The plan is part of Premium">
-            It lays out your month from payday to payday: what's coming in, the bills on the way, and what's left.
+            It lays out your month from payday to payday: what comes in, the bills that go out, and what's left.
           </Notice>
         </Section>
       </TabScreen>
@@ -61,27 +61,20 @@ export default function Plan() {
   // Another household's plan or another month on its way: the last one stays, dimmed.
   const switching = plan.isPlaceholderData;
   const scope = scopePickerPlacement(switching);
-  const params = { offset: String(offset) };
-  const add = async () => {
-    if (!data) return;
-    const options = [
-      { label: `Add to ${monthOf(data)}`, run: () => router.push({ pathname: '/sheets/plan-entry', params }) },
-      { label: 'Paste a list', run: () => router.push({ pathname: '/sheets/plan-paste', params }) },
-      { label: 'Bring in a bill', run: () => router.push({ pathname: '/capture', params: { mode: 'bill' } }) },
-      { label: data.viewerIncomeCount === 0 ? 'Add your pay' : 'Add income', run: () => router.push('/sheets/plan-income') },
-      { label: 'Add savings', run: () => router.push('/sheets/plan-goal') },
-      ...(data.daysLeft !== null ? [{ label: "Update today's balances", run: () => router.push({ pathname: '/sheets/plan-balances', params: { currency: data.currency } }) }] : []),
-    ];
-    const index = await choose('Add', options.map((option) => ({ label: option.label })));
-    if (index !== null) options[index].run();
-  };
+  // The + adds a line to the month, straight away (pasting a list is inside that sheet); bills,
+  // income and savings each have their row below.
+  const add = () => router.push({ pathname: '/sheets/plan-entry', params: { offset: String(offset) } });
+  // Nothing in the plan at all yet: only the way in (Start with your pay) and How it works. The
+  // summary at €0.00 and six rows of actions were too much to start from.
+  const firstRun = !!data && data.flags.includes('no_income') && !data.primaryIncome && data.viewerIncomeCount === 0
+    && data.lines.length === 0 && data.goals.length === 0;
 
   return (
     <>
-      <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <HeaderButton icon={Plus} label="Add to the plan" onPress={() => void add()} /> }} />
+      <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <HeaderButton icon={Plus} label={data ? `Add to ${monthOf(data)}` : 'Add to the plan'} onPress={add} /> }} />
       <TabScreen onRefresh={() => plan.refetch()}>
         {scope.inline}
-        <PeriodSwitcher plan={data} offset={offset} onChange={setOffset} loading={switching} />
+        {!firstRun && <PeriodSwitcher plan={data} offset={offset} onChange={setOffset} loading={switching} />}
         {plan.isError && !data ? (
           <LoadError message={plan.error.message} onRetry={() => void plan.refetch()} />
         ) : !data ? (
@@ -92,26 +85,32 @@ export default function Plan() {
         ) : (
           <Stale stale={switching}>
             <StartHere plan={data} householdNames={householdNames} />
-            <HowItWorks />
-            <Summary plan={data} />
-            <NextMonth plan={next.isPlaceholderData ? undefined : next.data} onOpen={() => setOffset(offset + 1)} />
-            <BankCheck plan={data} />
-            <BillInbox plan={data} householdId={householdId} />
-            <PlanLines plan={data} offset={offset} viewerId={me.data?.id ?? ''} householdNames={householdNames} />
-            {/* The rest, one row each, so the bills are near the top: adding a one-off or a list is
-                in the + menu, the bank check and bills to file only take space once used. */}
-            <Section>
-              <List>
-                <Row icon={Plus} label={`Add to ${monthOf(data)}`} detail="A one-off, or a list pasted in" onPress={() => void add()} />
-                {data.daysLeft !== null && !data.balance && (
-                  <Row icon={Landmark} label="Check it against your bank" detail="Today's balance, for what's actually left until payday" onPress={() => router.push({ pathname: '/sheets/plan-balances', params: { currency: data.currency } })} />
-                )}
-                {!inboxCount && <Row icon={FileText} label="Bring in a bill" detail="Scan it or choose a PDF; its amount goes into the right month" onPress={() => router.push({ pathname: '/capture', params: { mode: 'bill' } })} />}
-                <Row icon={Wallet} label={data.viewerIncomeCount === 0 ? 'Add your pay' : 'Add income'} onPress={() => router.push('/sheets/plan-income')} />
-                <Row icon={PiggyBank} label="Add savings" onPress={() => router.push('/sheets/plan-goal')} />
-                <Row icon={Receipt} label="All bills & subscriptions" onPress={() => router.navigate('/bills')} />
-              </List>
-            </Section>
+            <HowItWorks seen={intro.seen} onDismiss={intro.dismiss} />
+            {!firstRun && (
+              <>
+                <Summary plan={data} />
+                <BankCheck plan={data} />
+                <BillInbox plan={data} householdId={householdId} />
+                <PlanLines plan={data} offset={offset} viewerId={me.data?.id ?? ''} householdNames={householdNames} hints={intro.seen === false} />
+                {/* After the lines, so it isn't read as a second total for this month. */}
+                <NextMonth plan={next.isPlaceholderData ? undefined : next.data} onOpen={() => setOffset(offset + 1)} />
+                {/* The rest, one row each, so the bills are near the top: the bank check and bills to
+                    file only take space once used. */}
+                <Section>
+                  <List>
+                    <Row icon={Plus} label={`Add to ${monthOf(data)}`} detail="A one-off, or a list pasted in" onPress={add} />
+                    {data.daysLeft !== null && !data.balance && (
+                      <Row icon={Landmark} label="Check it against your bank" detail="Today's balance, for what's actually left until payday" onPress={() => router.push({ pathname: '/sheets/plan-balances', params: { currency: data.currency } })} />
+                    )}
+                    {!inboxCount && <Row icon={FileText} label="Bring in a bill" detail="Scan it or choose a PDF; its amount goes into the right month" onPress={() => router.push({ pathname: '/capture', params: { mode: 'bill' } })} />}
+                    <Row icon={CalendarPlus} label="Add a bill" detail="Rent, electricity, a loan: one that comes every month" onPress={() => router.push({ pathname: '/sheets/bill-edit', params: { kind: 'bill' } })} />
+                    <Row icon={Wallet} label={data.viewerIncomeCount === 0 ? 'Add your pay' : 'Add income'} onPress={() => router.push('/sheets/plan-income')} />
+                    <Row icon={PiggyBank} label="Add savings" onPress={() => router.push('/sheets/plan-goal')} />
+                    <Row icon={Receipt} label="All bills" onPress={() => router.navigate('/bills')} />
+                  </List>
+                </Section>
+              </>
+            )}
           </Stale>
         )}
       </TabScreen>
@@ -141,11 +140,10 @@ function StartHere({ plan, householdNames }: { plan: WirePlan; householdNames: R
     );
   }
   if (householdId && primary && primary.householdId !== householdId) {
-    const where = primary.householdId ? `is shared with ${householdNames[primary.householdId] ?? 'another household'}` : 'is only in your own plan';
     return (
       <Section>
-        <Notice tone="neutral" title={`Your pay isn't shared with ${householdName}`}>
-          {`${primary.name} ${where}, so it isn't counted here${plan.flags.includes('no_income') ? ", and nobody else has shared theirs" : ''}. Share it if the household plans with it; your own plan uses it either way.`}
+        <Notice tone="neutral" title={`Your pay isn't counted in ${householdName}'s plan`}>
+          Share it if you plan your money together.
         </Notice>
         <Button
           label={`Share ${primary.name}`}
@@ -238,10 +236,12 @@ function Summary({ plan }: { plan: WirePlan }) {
     <Section footer={breakdown.estimated ? `An estimate (~) is a bill on its usual amount until the bill comes in. Tap its amount below to set ${month}'s.` : undefined}>
       <Card padded>
         <View style={{ gap: space.xs }}>
-          <Text variant="footnote" ink="muted">{over ? `Over in ${month} by` : current ? 'Left this month' : `Left in ${month}`}</Text>
-          <Text variant="largeTitle" ink={over ? 'bad' : 'primary'} tabular accessibilityLabel={`${over ? 'Over by' : 'Left'} ${money(breakdown.leftCents)}`}>
+          {/* "The plan's", so it isn't taken for what's in the bank (the bank check's figure). */}
+          <Text variant="footnote" ink="muted">{over ? `Over in ${month}'s plan by` : `Left in ${month}'s plan`}</Text>
+          <Text variant="largeTitle" ink={over ? 'bad' : 'primary'} tabular accessibilityLabel={`${over ? `Over in ${month}'s plan by` : `Left in ${month}'s plan`} ${money(breakdown.leftCents)}`}>
             {money(breakdown.leftCents)}
           </Text>
+          <Text variant="caption" ink="muted">Your pay, less everything planned</Text>
           {!over && <Text variant="callout" ink="secondary" tabular>{`${formatCents(weeklyCents, plan.currency)} a week`}</Text>}
         </View>
 
@@ -297,8 +297,8 @@ function NextMonth({ plan, onOpen }: { plan: WirePlan | undefined; onOpen: () =>
       <List>
         <Row
           icon={CalendarClock}
-          label={`Plan ${monthOf(plan)}`}
-          detail={`${left} · ${money(breakdown.afterBillsCents)} after bills`}
+          label={`Next month: ${monthOf(plan)}`}
+          detail={`${left} if nothing changes · ${money(breakdown.afterBillsCents)} after bills`}
           onPress={onOpen}
           accessibilityHint={`Shows ${plan.period.label}, to set its amounts ahead`}
         />
@@ -308,14 +308,27 @@ function NextMonth({ plan, onOpen }: { plan: WirePlan | undefined; onOpen: () =>
 }
 
 /**
- * How the plan works, until it's been read once: the three things that aren't obvious from the
- * screen (bills first, an amount can change for one month, and next month can be planned now).
+ * Whether How it works has been read: null while it's being checked. The screen holds it, so
+ * dismissing the card also hides the bills section's hint (src/plan/PlanLines.tsx), which says
+ * the same thing.
  */
-function HowItWorks() {
+function usePlanIntro() {
   const [seen, setSeen] = useState<boolean | null>(null);
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY).then((value) => setSeen(value === '1')).catch(() => setSeen(true));
   }, []);
+  const dismiss = () => {
+    setSeen(true);
+    void AsyncStorage.setItem(INTRO_KEY, '1').catch(() => undefined);
+  };
+  return { seen, dismiss };
+}
+
+/**
+ * How the plan works, until it's been read once: the things that aren't obvious from the screen
+ * (bills first, an amount can change for one month, and next month can be planned now).
+ */
+function HowItWorks({ seen, onDismiss }: { seen: boolean | null; onDismiss: () => void }) {
   if (seen !== false) return null;
   const points = [
     'Each month runs from one payday to the next: your pay comes in, then the bills go out.',
@@ -335,16 +348,7 @@ function HowItWorks() {
             </View>
           ))}
         </View>
-        <Button
-          label="Got it"
-          variant="secondary"
-          size="sm"
-          onPress={() => {
-            setSeen(true);
-            void AsyncStorage.setItem(INTRO_KEY, '1').catch(() => undefined);
-          }}
-          style={{ alignSelf: 'flex-start', marginTop: space.md }}
-        />
+        <Button label="Got it" variant="secondary" size="sm" onPress={onDismiss} style={{ alignSelf: 'flex-start', marginTop: space.md }} />
       </Card>
     </Section>
   );

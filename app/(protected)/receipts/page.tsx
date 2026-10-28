@@ -13,7 +13,7 @@ import { ReceiptSearchFilters, describeSort, type ReceiptFilters } from '@/compo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Upload, Camera, ScanLine, FileText, Crown, Tag, Chrome, FileX2, SearchX } from 'lucide-react';
+import { Calendar, Upload, Camera, ScanLine, FileText, Crown, Tag, FileX2, SearchX } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import { useUser } from '@/lib/hooks/use-user';
 import { useReceipts } from '@/lib/hooks/use-receipts';
@@ -182,14 +182,8 @@ function ReceiptsPageContent() {
             <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
               Add a receipt and it gets read, itemised and filed.
             </p>
-            {isSubscribed && (
-              /* Was `text-blue-600 dark:text-blue-400` — the only blue text on the
-                 page, on a palette whose accent is emerald. */
-              <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <Chrome className="h-3.5 w-3.5" aria-hidden="true" />
-                Online receipts and bills can be clipped from the browser with the Chrome extension, coming soon.
-              </p>
-            )}
+            {/* A line about the Chrome extension ("coming soon") sat here; it comes back once the
+                extension is in the Chrome Web Store. */}
           </div>
 
           {households.length > 0 && (
@@ -200,7 +194,7 @@ function ReceiptsPageContent() {
               <span className="sr-only">Show receipts from</span>
               <HouseholdSelector
                 households={[
-                  { id: '', name: 'My receipts' },
+                  { id: '', name: 'Just me' },
                   ...households,
                 ]}
                 selectedHouseholdId={selectedHouseholdId || ''}
@@ -216,6 +210,7 @@ function ReceiptsPageContent() {
             <ReceiptBatchUpload
               householdId={selectedHouseholdId}
               onUploadComplete={handleUploadComplete}
+              receiptCount={pagination?.total}
             />
           ) : (
             <Card className="border-primary/30">

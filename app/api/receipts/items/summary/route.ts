@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
       if (membershipCheck) return membershipCheck; // Returns error response if not a member
     }
 
-    // Create cache key from query parameters
-    const cacheKey = `months:${months}|household:${householdId || 'null'}`;
+    // Create cache key from query parameters. v2: money figures are in one currency only.
+    const cacheKey = `v2|months:${months}|household:${householdId || 'null'}`;
 
     // Check cache first
     const cachedResult = await db
@@ -117,8 +117,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Money in one currency only: the user's own, or the one most bought in if there's none in
+    // it. Everything used to be added up under the first item's sign, so €449 and $125 read as
+    // "$574". Purchases in other currencies still count towards how often things are bought.
+    const preferred = user.currency || DEFAULT_CURRENCY;
+    const perCurrency = new Map<string, number>();
+    items.forEach((item) => perCurrency.set(item.currency || preferred, (perCurrency.get(item.currency || preferred) ?? 0) + 1));
+    const currency = perCurrency.has(preferred) ? preferred : [...perCurrency.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const otherCurrencies = [...perCurrency.keys()].filter((code) => code !== currency);
+    const priced = items.filter((item) => (item.currency || preferred) === currency);
+
     // Calculate basic statistics
-    const totalSpent = items.reduce((sum, item) => {
+    const totalSpent = priced.reduce((sum, item) => {
       return sum + parseFloat(item.totalPrice || item.unitPrice || '0');
     }, 0);
 
@@ -127,6 +137,11 @@ export async function GET(request: NextRequest) {
     const itemFrequency: Record<string, number> = {};
 
     items.forEach((item) => {
+      // Item frequency
+      itemFrequency[item.itemName] = (itemFrequency[item.itemName] || 0) + 1;
+    });
+
+    priced.forEach((item) => {
       const price = parseFloat(item.totalPrice || item.unitPrice || '0');
 
       // Category breakdown
@@ -136,9 +151,6 @@ export async function GET(request: NextRequest) {
       // Merchant breakdown
       const merchant = item.merchantName || 'Unknown';
       merchantBreakdown[merchant] = (merchantBreakdown[merchant] || 0) + price;
-
-      // Item frequency
-      itemFrequency[item.itemName] = (itemFrequency[item.itemName] || 0) + 1;
     });
 
     // Get top items by frequency
@@ -164,7 +176,7 @@ export async function GET(request: NextRequest) {
       period: `${months} months`,
       totalItems: items.length,
       totalSpent: totalSpent.toFixed(2),
-      currency: items[0]?.currency || user.currency || DEFAULT_CURRENCY,
+      currency,
       topItems: topItems.slice(0, 10),
       // Names, not keys: the model was handed "gas" and wrote about "gas" above a list that
       // calls the same category "Fuel".
@@ -191,8 +203,10 @@ export async function GET(request: NextRequest) {
         statistics: {
           totalItems: items.length,
           totalSpent: parseFloat(totalSpent.toFixed(2)),
-          currency: items[0]?.currency || user.currency || DEFAULT_CURRENCY,
-          averagePerItem: parseFloat((totalSpent / items.length).toFixed(2)),
+          currency,
+          averagePerItem: priced.length ? parseFloat((totalSpent / priced.length).toFixed(2)) : 0,
+          // Bought in these too, but not in the money figures (there's no conversion).
+          otherCurrencies,
         },
         topItems,
         topCategories,

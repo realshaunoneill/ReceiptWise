@@ -274,8 +274,8 @@ export function EditSubscriptionDialog({
                   placeholder="15"
                   {...register('billingDay', {
                     required: 'Billing day is required',
-                    min: { value: 1, message: 'Day must be between 1-31' },
-                    max: { value: 31, message: 'Day must be between 1-31' },
+                    min: { value: 1, message: 'Pick a day from 1 to 31' },
+                    max: { value: 31, message: 'Pick a day from 1 to 31' },
                   })}
                 />
                 {errors.billingDay && (

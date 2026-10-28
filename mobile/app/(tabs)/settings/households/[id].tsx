@@ -110,8 +110,8 @@ export default function Household() {
         <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl, gap: space.xs }}>
           <Text variant="callout" ink="secondary">
             {covered
-              ? 'Everyone here sees its shared receipts, bills and plan: someone in it has Premium.'
-              : "Everyone here sees its shared receipts. Shared bills and the plan come with a member's Premium."}
+              ? `Everyone here sees what's shared with ${household.name}: receipts, bills and the plan.`
+              : `Everyone here sees the receipts shared with ${household.name}. Sharing bills and the plan needs one of you to have Premium.`}
           </Text>
         </View>
 

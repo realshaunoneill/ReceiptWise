@@ -120,11 +120,11 @@ export function GoalDialog({ open, onOpenChange, goal, householdId }: GoalDialog
           </div>
           {(choices.length > 0 || linked !== TYPED_IN) && (
             <div className="space-y-1.5">
-              <Label htmlFor="goal-account">Kept in</Label>
+              <Label htmlFor="goal-account">Where it&apos;s saved</Label>
               <Select value={linked} onValueChange={setLinked}>
                 <SelectTrigger id="goal-account"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={TYPED_IN}>No account: I&apos;ll type in what&apos;s saved</SelectItem>
+                  <SelectItem value={TYPED_IN}>Not linked to an account</SelectItem>
                   {choices.map((account) => <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>)}
                   {linked !== TYPED_IN && !linkedAccount && <SelectItem value={linked}>Another account</SelectItem>}
                 </SelectContent>

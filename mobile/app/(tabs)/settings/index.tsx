@@ -98,7 +98,7 @@ export default function Settings() {
     if (ok) schedule.mutate();
   };
 
-  const premiumLabel = me.data?.subscribed ? 'Premium' : me.data?.entitlements.householdIds.length ? "Covered by your household's Premium" : 'Not on Premium';
+  const premiumLabel = me.data?.subscribed ? 'On' : me.data?.entitlements.householdIds.length ? 'From your household' : 'Not on';
   // Email forwarding is part of bills, which need Premium of your own or a household's.
   const canForward = !!me.data?.features.bills && (!!me.data.entitlements.personal || me.data.entitlements.householdIds.length > 0);
   const pending = invitations.data?.length ?? 0;
@@ -120,8 +120,10 @@ export default function Settings() {
       <Section title="Account">
         <List>
           <Row label={session.data?.name || 'Signed in'} detail={me.data?.email ?? session.data?.email} />
-          <Row icon={Crown} label="Plan" value={premiumLabel} onPress={() => router.push('/settings/subscription')} />
+          <Row icon={Crown} label="Premium" value={premiumLabel} onPress={() => router.push('/settings/subscription')} />
           <Row icon={KeyRound} label="Sign-in methods" onPress={() => router.push('/settings/sign-in-methods')} />
+          {/* The forwarding address is the account's own, so it sits with the account. */}
+          {canForward && <Row icon={Mail} label="Email forwarding" detail="Forward bills and receipts to ReceiptWise" onPress={() => router.push('/settings/forwarding')} />}
         </List>
       </Section>
 
@@ -149,7 +151,6 @@ export default function Settings() {
             onPress={() => void pickCurrency()}
           />
           <Row icon={Bell} label="Notifications" onPress={() => router.push('/settings/notifications')} />
-          {canForward && <Row icon={Mail} label="Email forwarding" detail="Forward bills and receipts to ReceiptWise" onPress={() => router.push('/settings/forwarding')} />}
         </List>
       </Section>
 
@@ -181,7 +182,7 @@ export default function Settings() {
               />
             )}
           />
-          <Row icon={Lock} label="Privacy & security" detail="Hide amounts, app lock" onPress={() => router.push('/settings/privacy')} />
+          <Row icon={Lock} label="Hide amounts and app lock" onPress={() => router.push('/settings/privacy')} />
           <Row icon={Download} label={exporting ? 'Exporting…' : 'Export your data'} accent onPress={exporting ? undefined : () => void exportData()} />
         </List>
         {!!exportError && <Text variant="footnote" ink="bad" style={{ marginTop: 8, paddingHorizontal: 4 }}>{exportError}</Text>}

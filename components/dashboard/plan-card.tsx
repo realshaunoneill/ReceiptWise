@@ -34,18 +34,20 @@ export function PlanCard({ householdId }: { householdId?: string }) {
                 <p className="font-medium">Plan your month: add your pay and bills</p>
               ) : (
                 <>
-                  {/* Negative figures read as "-€765.27 remaining · -€191.32 a week": say "over". */}
+                  {/* Negative figures read as "-€765.27 remaining · -€191.32 a week": say "over". The
+                      plan's figure and the account's are named apart, so "€2,539 left" and "€289 short"
+                      don't read as a contradiction. */}
                   <p className={cn('amount text-2xl font-semibold', over && 'text-destructive')}>
                     {over
-                      ? `${formatCents(-totals.remainingCents, currency)} over`
-                      : `${formatCents(totals.remainingCents, currency)} remaining`}
+                      ? `${formatCents(-totals.remainingCents, currency)} over in the plan`
+                      : `${formatCents(totals.remainingCents, currency)} left in the plan`}
                   </p>
                   <p className="amount text-sm text-muted-foreground">
                     {!over && `${formatCents(totals.weeklyCents, currency)} a week`}
                     {!over && balance && ' · '}
                     {balance && (balance.availableCents < 0
-                      ? `${formatCents(-balance.availableCents, currency)} short before payday`
-                      : `${formatCents(balance.availableCents, currency)} left in the bank until payday`)}
+                      ? `your account is ${formatCents(-balance.availableCents, currency)} short before payday`
+                      : `${formatCents(balance.availableCents, currency)} left in your account until payday`)}
                   </p>
                 </>
               )}

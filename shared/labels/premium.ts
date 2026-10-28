@@ -60,7 +60,7 @@ export function premiumBilling(premium: PremiumLike | null | undefined): Premium
         manage: 'Manage or cancel it in Google Play: Payments & subscriptions › Subscriptions.',
       };
     case 'comp':
-      return { title: 'Given to this account', detail: expiresAt ? `Until ${day(expiresAt)}` : null, manage: null };
+      return { title: 'Free Premium, given to you', detail: expiresAt ? `Until ${day(expiresAt)}` : null, manage: null };
     default:
       return null;
   }

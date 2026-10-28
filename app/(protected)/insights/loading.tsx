@@ -17,7 +17,6 @@ export default function InsightsLoading() {
       <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
         <Skeleton className="h-9 w-24 rounded-md" />
         <Skeleton className="h-9 w-24 rounded-md" />
-        <Skeleton className="h-9 w-32 rounded-md" />
       </div>
 
       {/* Main Content Grid */}

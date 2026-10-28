@@ -278,8 +278,8 @@ export function ReceiptHeader({
         )}
         {receipt.receiptNumber && (
           <Badge variant="secondary" className="flex items-center gap-1">
-            <Hash className="h-3 w-3" />
-            {receipt.receiptNumber}
+            <Hash className="h-3 w-3" aria-hidden="true" />
+            Receipt no. {receipt.receiptNumber}
           </Badge>
         )}
         {(() => {
@@ -287,7 +287,7 @@ export function ReceiptHeader({
           return ocrData?.orderNumber && (
             <Badge variant="secondary" className="flex items-center gap-1">
               <ReceiptIcon className="h-3 w-3" />
-              Order: {ocrData.orderNumber}
+              Order no. {ocrData.orderNumber}
             </Badge>
           );
         })()}

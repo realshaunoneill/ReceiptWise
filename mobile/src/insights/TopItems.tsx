@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatCurrency } from '@shared/currency';
+import { formatTotals } from '@shared/currency-totals';
 import { formatDisplayDate } from '@shared/receipts/format';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTopItems } from '../hooks/useInsights';
@@ -11,24 +12,23 @@ import { LoadError } from '../ui/Feedback';
 import { Card, List, Section } from '../ui/Section';
 import Text from '../ui/Text';
 
-const PERIODS = ['1', '3', '6', '12'] as const;
-type Months = typeof PERIODS[number];
 type Sort = 'frequency' | 'spending';
 
-/** What you buy most, by how often or by how much (the website's TopItemsList); each opens its history. */
-export default function TopItems({ householdId }: { householdId?: string }) {
+/**
+ * What you buy most, by how often or by how much (the website's TopItemsList), over the Overview's
+ * period; each opens its history.
+ */
+export default function TopItems({ householdId, months }: { householdId?: string; months: number }) {
   const router = useRouter();
   const { colors } = useTheme();
-  const [months, setMonths] = useState<Months>('12');
   const [sortBy, setSortBy] = useState<Sort>('frequency');
-  const top = useTopItems(householdId, Number(months), sortBy);
+  const top = useTopItems(householdId, months, sortBy);
   const data = top.data;
   const money = (amount: number, currency?: string) => formatCurrency(amount, currency ?? data?.summary.currency ?? 'EUR');
 
   return (
-    <Section title="Top items" footer="Your most frequently bought items, read off your receipts.">
+    <Section title="Top items" footer="What you buy most often, or spend most on, read off your receipts.">
       <View style={{ gap: space.md, marginBottom: space.md }}>
-        <Segmented<Months> accessibilityLabel="Period" value={months} onChange={setMonths} options={PERIODS.map((value) => ({ value, label: value === '1' ? 'Last month' : `${value} months` }))} />
         <Segmented<Sort> accessibilityLabel="Order" value={sortBy} onChange={setSortBy} options={[{ value: 'frequency', label: 'Most frequent' }, { value: 'spending', label: 'Highest spending' }]} />
       </View>
       {top.isError && !data ? (
@@ -36,14 +36,15 @@ export default function TopItems({ householdId }: { householdId?: string }) {
       ) : !data ? (
         <ActivityIndicator color={colors.textMuted} style={{ margin: space.xxl }} />
       ) : data.topItems.length === 0 ? (
-        <Card padded><Text variant="callout" ink="secondary">No items in this period yet.</Text></Card>
+        <Card padded><Text variant="callout" ink="secondary">Nothing bought in this period. Try a longer one.</Text></Card>
       ) : (
         <View style={{ gap: space.md }}>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             {[
               { label: 'Different items', value: String(data.summary.totalUniqueItems) },
               { label: 'Purchases', value: String(data.summary.totalPurchases) },
-              { label: 'Total spent', value: money(data.summary.totalSpent) },
+              // Per currency ("€463.99 + $125.51"): it added euro and dollars up under one sign.
+              { label: 'Total spent', value: formatTotals(data.summary.totals ?? [{ currency: data.summary.currency, amount: data.summary.totalSpent }], data.summary.currency) },
             ].map((tile) => (
               <View key={tile.label} accessible accessibilityLabel={`${tile.label}: ${tile.value}`} style={{ flex: 1, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 2 }}>
                 <Text variant="heading" tabular numberOfLines={1} adjustsFontSizeToFit>{tile.value}</Text>

@@ -22,6 +22,10 @@ const MAX_POINTS = 5000;
  *
  * Scope matches /api/receipts: a household (membership required), personal-only, or everything
  * the caller uploaded. Only completed, non-deleted rows that are actually receipts count.
+ *
+ * Money is in the viewer's own currency only (a receipt with none read off it counts as theirs):
+ * amounts are never converted, and adding $ receipts to € ones made the total, the average and
+ * the categories wrong. How many receipts are in other currencies comes back in otherCurrencies.
  */
 
 const numericTotal = sql<string>`CASE WHEN ${receipts.totalAmount} ~ '^-?[0-9]+([.][0-9]+)?$' THEN ${receipts.totalAmount}::numeric ELSE 0 END`;
@@ -57,14 +61,21 @@ export async function GET(req: NextRequest) {
       eq(receipts.processingStatus, 'completed'),
       sql`COALESCE(${receipts.isReceipt}, true)`,
     );
+    const ownCurrency = sql`COALESCE(${receipts.currency}, ${user.currency}) = ${user.currency}`;
+    const spent = and(counted, ownCurrency);
 
-    const [totals] = await db
-      .select({
-        totalReceipts: count(),
-        totalSpent: sql<string>`COALESCE(SUM(${numericTotal}), 0)`,
-      })
-      .from(receipts)
-      .where(counted);
+    const [[totals], [ownTotals], others] = await Promise.all([
+      db.select({ totalReceipts: count() }).from(receipts).where(counted),
+      db
+        .select({ receipts: count(), totalSpent: sql<string>`COALESCE(SUM(${numericTotal}), 0)` })
+        .from(receipts)
+        .where(spent),
+      db
+        .select({ currency: sql<string>`${receipts.currency}`, receipts: count() })
+        .from(receipts)
+        .where(and(counted, sql`NOT (${ownCurrency})`))
+        .groupBy(receipts.currency),
+    ]);
 
     const [itemTotals] = await db
       .select({ totalItems: count() })
@@ -78,7 +89,7 @@ export async function GET(req: NextRequest) {
         amount: sql<string>`COALESCE(SUM(${numericTotal}), 0)`,
       })
       .from(receipts)
-      .where(counted)
+      .where(spent)
       .groupBy(sql`COALESCE(${receipts.category}, 'other')`);
 
     const points = from
@@ -89,11 +100,11 @@ export async function GET(req: NextRequest) {
             category: receipts.category,
           })
           .from(receipts)
-          .where(and(counted, gte(effectiveDate, from)))
+          .where(and(spent, gte(effectiveDate, from)))
           .limit(MAX_POINTS)
       : undefined;
 
-    const totalSpent = parseFloat(totals.totalSpent) || 0;
+    const totalSpent = parseFloat(ownTotals.totalSpent) || 0;
     const spendingByCategory = byCategory
       .map((row) => {
         const amount = parseFloat(row.amount) || 0;
@@ -110,8 +121,12 @@ export async function GET(req: NextRequest) {
         totalReceipts: totals.totalReceipts,
         totalItems: itemTotals.totalItems,
         totalSpent,
-        avgSpending: totals.totalReceipts > 0 ? totalSpent / totals.totalReceipts : 0,
+        avgSpending: ownTotals.receipts > 0 ? totalSpent / ownTotals.receipts : 0,
         spendingByCategory,
+        currency: user.currency,
+        otherCurrencies: others
+          .map((row) => ({ currency: row.currency, receipts: row.receipts }))
+          .sort((a, b) => b.receipts - a.receipts),
         ...(points && {
           points: points.map((p) => ({ date: p.date, amount: parseFloat(p.amount) || 0, category: p.category })),
         }),

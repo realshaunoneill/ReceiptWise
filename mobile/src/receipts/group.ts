@@ -1,17 +1,10 @@
 import { formatTotals, totalsByCurrency } from '@shared/currency-totals';
-import { daysBetween, formatLocalDate, type LocalDate } from '@shared/dates/local-date';
+import { type LocalDate } from '@shared/dates/local-date';
 import { type WireReceipt } from '@shared/api/receipts';
-import { receiptDay } from '@shared/receipts/format';
+import { dayHeading, receiptDay } from '@shared/receipts/format';
 
-/** "Today", "Yesterday", "Monday" within the week, then "15 January", and "15 January 2025" from another year. */
-export function dayHeading(day: LocalDate, today: LocalDate): string {
-  const ago = daysBetween(day, today);
-  if (ago === 0) return 'Today';
-  if (ago === 1) return 'Yesterday';
-  if (ago > 1 && ago < 7) return formatLocalDate(day, { weekday: 'long' }, 'en-IE');
-  const sameYear = day.slice(0, 4) === today.slice(0, 4);
-  return formatLocalDate(day, sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' }, 'en-IE');
-}
+// The day headings are shared with the website's timeline (shared/receipts/format.ts).
+export { dayHeading };
 
 export type ReceiptRow =
   | { type: 'day'; key: string; label: string; total: string; count: number }

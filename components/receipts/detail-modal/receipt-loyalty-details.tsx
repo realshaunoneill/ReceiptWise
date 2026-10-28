@@ -14,9 +14,9 @@ export function ReceiptLoyaltyDetails({ ocrData }: ReceiptLoyaltyDetailsProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <Gift className="h-4 w-4" />
-        Loyalty & Promotions
+        Loyalty and offers
       </div>
         <div className="grid grid-cols-1 gap-2">
           {ocrData?.loyaltyNumber && (

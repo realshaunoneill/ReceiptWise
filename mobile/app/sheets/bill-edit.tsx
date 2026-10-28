@@ -140,9 +140,13 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
     // drops out of the plan's "after bills".
     kind: initialKind ?? 'bill',
     amountType: 'fixed',
-    paymentMethod: NONE,
+    // Most bills are direct debits. "Not sure" counts as paid by hand, which went Overdue a few
+    // days after the date for bills that were really direct debits.
+    paymentMethod: (initialKind ?? 'bill') === 'bill' ? 'direct_debit' : NONE,
     paidFromAccountId: null,
   });
+  // Until someone picks how it's paid, it follows the Essential switch.
+  const [methodPicked, setMethodPicked] = useState(!!bill);
   const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -163,8 +167,10 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
   ];
   // An account that's gone from the list (archived, or someone else's) is kept, not cleared on save.
   const liveAccounts = (accounts.data ?? []).filter((a) => !a.archivedAt);
+  // No account picked means the one the pay goes into (shared/plan/compute-plan.ts), so it's
+  // named that way rather than as a second copy of one of the accounts below.
   const accountOptions = [
-    { value: MAIN_ACCOUNT, label: 'Main account' },
+    { value: MAIN_ACCOUNT, label: 'The one your pay goes into' },
     ...liveAccounts.map((a) => ({ value: a.id, label: a.name })),
     ...(form.paidFromAccountId && !liveAccounts.some((a) => a.id === form.paidFromAccountId) ? [{ value: form.paidFromAccountId, label: 'Another account' }] : []),
   ];
@@ -272,24 +278,15 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
           label={ESSENTIAL_COPY.label}
           detail={form.kind === 'bill' ? ESSENTIAL_COPY.on : ESSENTIAL_COPY.off}
           value={form.kind === 'bill'}
-          onChange={(essential) => set('kind', essential ? 'bill' : 'subscription')}
+          onChange={(essential) => {
+            set('kind', essential ? 'bill' : 'subscription');
+            if (!methodPicked) set('paymentMethod', essential ? 'direct_debit' : NONE);
+          }}
         />
       )}
       <InlinePicker label="Category" value={form.category} groups={categoryGroups} onChange={(value) => set('category', value)} placeholder="None" />
 
-      <View style={{ flexDirection: 'row', gap: space.md }}>
-        <View style={{ flex: 1 }}>
-          <MoneyField label={form.amountType === 'variable' ? 'Usual amount' : 'Amount'} value={form.amount} onChangeText={(value) => set('amount', value)} error={errors.amount} />
-        </View>
-        <View style={{ width: 128 }}>
-          <InlinePicker
-            label="Currency"
-            value={form.currency}
-            groups={[{ options: SUPPORTED_CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} ${c.code}` })) }]}
-            onChange={(value) => set('currency', value)}
-          />
-        </View>
-      </View>
+      <MoneyField label={form.amountType === 'variable' ? 'Usual amount' : 'Amount'} value={form.amount} onChangeText={(value) => set('amount', value)} error={errors.amount} />
       {billsOn && (
         <SwitchField
           label="The amount changes"
@@ -318,7 +315,7 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
           onChangeText={(value) => set('billingDay', value.replace(/\D/g, '').slice(0, 2))}
           keyboardType="number-pad"
           inputMode="numeric"
-          hint="A number from 1 to 31"
+          hint="A day from 1 to 31"
           error={errors.billingDay}
         />
       )}
@@ -331,8 +328,17 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
 
       {billsOn && (
         <>
-          <InlinePicker label="How it's paid" value={form.paymentMethod} groups={[{ options: PAYMENT_METHODS }]} onChange={(value) => set('paymentMethod', value)} />
-          {(liveAccounts.length > 0 || !!form.paidFromAccountId) && (
+          <InlinePicker
+            label="How it's paid"
+            value={form.paymentMethod}
+            groups={[{ options: PAYMENT_METHODS }]}
+            onChange={(value) => {
+              setMethodPicked(true);
+              set('paymentMethod', value);
+            }}
+          />
+          {/* Only a choice with two accounts or more: with one, it's that one either way. */}
+          {(liveAccounts.length > 1 || !!form.paidFromAccountId) && (
             <InlinePicker
               label="Paid from"
               value={form.paidFromAccountId ?? MAIN_ACCOUNT}
@@ -346,6 +352,12 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
 
       <Text variant="heading" style={{ marginTop: space.sm }}>More details</Text>
       <Field label="Description" value={form.description} onChangeText={(value) => set('description', value)} placeholder="Premium plan, family account" maxLength={1000} />
+      <InlinePicker
+        label="Currency"
+        value={form.currency}
+        groups={[{ options: SUPPORTED_CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} ${c.code}` })) }]}
+        onChange={(value) => set('currency', value)}
+      />
       {householdOptions.length > 1 && (
         <InlinePicker
           label="Shared with"

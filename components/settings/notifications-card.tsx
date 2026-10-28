@@ -43,14 +43,16 @@ export function NotificationsCard() {
   const value = (key: keyof NotificationPrefs) => saving?.[key] ?? settings.data?.prefs[key] ?? false;
   const devices = settings.data?.devices ?? 0;
 
+  // Only once the app is on a phone: before that, nine switches for something nobody can get yet
+  // were a dead end. They take effect from the app's own Settings too.
+  if (devices === 0) return null;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Notifications</CardTitle>
         <CardDescription>
-          {devices === 0
-            ? 'Sent to your phone by the ReceiptWise app, once it’s installed and allowed to. Choose them now and they apply from then.'
-            : `Sent to ${devices === 1 ? 'your phone' : `your ${devices} phones`} by the ReceiptWise app. The same switches are in the app’s Settings.`}
+          {`Sent to ${devices === 1 ? 'your phone' : `your ${devices} phones`} by the ReceiptWise app. The same switches are in the app’s Settings.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

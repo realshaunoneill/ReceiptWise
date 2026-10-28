@@ -5,11 +5,10 @@ import { Plus, Repeat, Users } from 'lucide-react-native';
 import { formatCurrency } from '@shared/currency';
 import { formatTotals } from '@shared/currency-totals';
 import { daysBetween, localToday } from '@shared/dates/local-date';
-import { frequencyName, paymentMethodLabel } from '@shared/labels/subscriptions';
-import { getUrgency } from '@shared/urgency';
-import { billDay, dueLabel, filterBills, monthlyTotals, notMarkedPaid, type KindFilter, type ListedBill } from '../../../src/bills/summary';
+import { frequencyName, nextPaymentAmount, nextPaymentLabel, paymentMethodLabel } from '@shared/labels/subscriptions';
+import { billDay, filterBills, monthlyTotals, notMarkedPaid, type KindFilter, type ListedBill } from '../../../src/bills/summary';
 import { useTheme } from '../../../src/contexts/ThemeContext';
-import { useBills, type BillStatus } from '../../../src/hooks/useBills';
+import { useAllBills, useBills, type BillStatus } from '../../../src/hooks/useBills';
 import { useMe } from '../../../src/hooks/useMe';
 import { GUTTER, radius, space } from '../../../src/theme';
 import Button, { tap } from '../../../src/ui/Button';
@@ -20,6 +19,9 @@ import Stale from '../../../src/ui/Stale';
 import TabScreen from '../../../src/ui/TabScreen';
 import Text from '../../../src/ui/Text';
 
+/** The All, Bills and Subscriptions switch only earns its place on a longer list. */
+const KIND_FILTER_FROM = 6;
+
 const STATUS_EMPTY: Record<BillStatus, string> = {
   active: 'Nothing active.',
   paused: 'Nothing paused. A paused bill keeps its history and expects nothing until it is resumed.',
@@ -28,8 +30,8 @@ const STATUS_EMPTY: Record<BillStatus, string> = {
 
 /**
  * Bills and subscriptions, as on the website's page: what they come to a month and a year, the
- * payments nobody has marked paid, and each one by when it's next due. The totals are always the
- * active ones, whichever status is open.
+ * overdue payments, and each one by when it's next due. The totals are always the active ones,
+ * whichever status is open. The status and kind switches only show once they'd change something.
  */
 export default function Bills() {
   const router = useRouter();
@@ -40,6 +42,7 @@ export default function Bills() {
   const list = useBills(status, undefined, true);
   // On the Active tab this is the same query as the list.
   const active = useBills('active', undefined, true);
+  const all = useAllBills();
   const today = localToday();
   const billsOn = !!me.data?.features.bills;
   const currency = me.data?.currency ?? 'EUR';
@@ -63,10 +66,14 @@ export default function Bills() {
   const monthly = monthlyTotals(activeBills, currency);
   const shown = filterBills(list.data ?? [], billsOn ? kind : 'all', missingOnly);
   const missingShown = notMarkedPaid(shown);
+  // Only offered once they'd change something, or while one is in use.
+  const anyStopped = (all.data ?? []).some((bill) => bill.status !== 'active');
+  const showStatus = status !== 'active' || anyStopped;
+  const showKind = billsOn && !nothingYet && (kind !== 'all' || activeBills.length >= KIND_FILTER_FROM);
 
   return (
     <TabScreen
-      onRefresh={() => Promise.all([list.refetch(), active.refetch()])}
+      onRefresh={() => Promise.all([list.refetch(), active.refetch(), all.refetch()])}
     >
       <Stack.Screen options={{ headerRight: () => <AddButton onPress={add} label={billsOn ? 'Add a bill or subscription' : 'Add a subscription'} /> }} />
       {list.isPending ? (
@@ -80,7 +87,6 @@ export default function Bills() {
         <>
           {activeBills.length > 0 && (
             <Stats
-              count={activeBills.length}
               monthly={formatTotals(monthly, currency)}
               yearly={formatTotals(monthly.map((total) => ({ ...total, amount: total.amount * 12 })), currency)}
               missing={missing}
@@ -91,14 +97,17 @@ export default function Bills() {
             />
           )}
 
+          {(showStatus || showKind) && (
           <View style={{ marginHorizontal: GUTTER, marginBottom: space.lg, gap: space.sm }}>
-            <Segmented<BillStatus>
-              accessibilityLabel="Status"
-              value={status}
-              onChange={setStatus}
-              options={[{ value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }, { value: 'cancelled', label: 'Cancelled' }]}
-            />
-            {billsOn && !nothingYet && (
+            {showStatus && (
+              <Segmented<BillStatus>
+                accessibilityLabel="Status"
+                value={status}
+                onChange={setStatus}
+                options={[{ value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }, { value: 'cancelled', label: 'Cancelled' }]}
+              />
+            )}
+            {showKind && (
               <Segmented<KindFilter>
                 accessibilityLabel="Show bills, subscriptions or both"
                 value={kind}
@@ -107,6 +116,7 @@ export default function Bills() {
               />
             )}
           </View>
+          )}
 
           {nothingYet && (
             <EmptyState
@@ -119,9 +129,9 @@ export default function Bills() {
 
           {missingOnly && (
             <Section>
-              <Notice tone="warn" title="Not marked paid">
+              <Notice tone="warn" title="Overdue">
                 {missingShown === 0
-                  ? 'Nothing here is past due and unmarked.'
+                  ? 'Nothing here is overdue.'
                   : `${missingShown === 1 ? '1 payment' : `${missingShown} payments`} past due across ${shown.length === 1 ? '1 item' : `${shown.length} items`}. Mark them paid, or skip them, in each one's details.`}
               </Notice>
               <Button label="Show all" variant="secondary" size="sm" onPress={() => setMissingOnly(false)} style={{ marginTop: space.md, alignSelf: 'flex-start' }} />
@@ -148,22 +158,16 @@ export default function Bills() {
   );
 }
 
-/** What the active ones come to, and the payments past due that nobody has marked paid. */
-function Stats({ count, monthly, yearly, missing, onMissing }: { count: number; monthly: string; yearly: string; missing: number; onMissing: () => void }) {
+/** What the active ones come to, and the payments that are overdue (only those paid by hand). */
+function Stats({ monthly, yearly, missing, onMissing }: { monthly: string; yearly: string; missing: number; onMissing: () => void }) {
   const { colors } = useTheme();
   return (
     <Section>
       <Card padded>
-        <View style={{ flexDirection: 'row', gap: space.lg }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text variant="footnote" ink="muted">A month</Text>
-            <Text variant="title" tabular adjustsFontSizeToFit numberOfLines={1}>{monthly}</Text>
-            <Text variant="footnote" ink="muted" tabular>{`${yearly} a year`}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 2 }}>
-            <Text variant="footnote" ink="muted">Active</Text>
-            <Text variant="title" tabular>{String(count)}</Text>
-          </View>
+        <View style={{ gap: 2 }}>
+          <Text variant="footnote" ink="muted">A month</Text>
+          <Text variant="title" tabular adjustsFontSizeToFit numberOfLines={1}>{monthly}</Text>
+          <Text variant="footnote" ink="muted" tabular>{`${yearly} a year`}</Text>
         </View>
         {missing > 0 && (
           <Pressable
@@ -172,7 +176,7 @@ function Stats({ count, monthly, yearly, missing, onMissing }: { count: number; 
             accessibilityHint="Shows only those"
             style={({ pressed }) => ({ marginTop: space.lg, minHeight: 44, borderRadius: radius.md, paddingHorizontal: space.md, justifyContent: 'center', backgroundColor: pressed ? colors.cardPressed : colors.warnSoft })}
           >
-            <Text variant="callout" weight="medium" ink="warn">{`${missing} not marked paid · Show them`}</Text>
+            <Text variant="callout" weight="medium" ink="warn">{`${missing} overdue · Show them`}</Text>
           </Pressable>
         )}
       </Card>
@@ -185,16 +189,17 @@ function BillRow({ bill, today, billsOn }: { bill: ListedBill; today: string; bi
   const { colors } = useTheme();
   const due = billDay(bill.nextBillingDate);
   const days = daysBetween(today, due);
-  const urgency = getUrgency(days);
-  const amount = Number(bill.amount);
-  const estimate = bill.amountType === 'variable';
+  // A direct debit "goes out" and is never red; one paid by hand is "due" (shared/labels/subscriptions.ts).
+  const next = nextPaymentLabel(due, today, bill.paymentMethod);
+  // This month's own amount where one is set: a card bill that's usually €0 with €809 for November.
+  const { amount, estimated: estimate } = nextPaymentAmount(bill);
   const missing = bill.missingPayments ?? 0;
-  const amountText = `${estimate ? '~' : ''}${Number.isNaN(amount) ? bill.amount : formatCurrency(amount, bill.currency)}`;
+  const amountText = `${estimate ? '~' : ''}${formatCurrency(amount, bill.currency)}`;
   return (
     <Pressable
       onPress={() => router.push(`/bills/${bill.id}`)}
       accessibilityRole="button"
-      accessibilityLabel={`${bill.name}, ${amountText}, ${bill.status === 'active' ? dueLabel(due, today) : bill.status}`}
+      accessibilityLabel={`${bill.name}, ${amountText}, ${bill.status === 'active' ? next.label : bill.status}`}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', padding: space.lg, gap: space.md, backgroundColor: pressed ? colors.cardPressed : 'transparent' })}
     >
       <View style={{ flex: 1, gap: 2 }}>
@@ -207,11 +212,12 @@ function BillRow({ bill, today, billsOn }: { bill: ListedBill; today: string; bi
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: 2 }}>
           {bill.status === 'active' && days >= 0 && (
-            <Pill label={dueLabel(due, today)} tone={urgency === 'due' ? 'bad' : urgency === 'soon' ? 'warn' : 'neutral'} />
+            <Pill label={next.label} tone={next.urgency === 'due' ? 'bad' : next.urgency === 'soon' ? 'warn' : 'neutral'} />
           )}
           {bill.status !== 'active' && <Pill label={bill.status === 'paused' ? 'Paused' : 'Cancelled'} tone="neutral" />}
-          {billsOn && bill.kind === 'bill' && <Pill label="Bill" tone="neutral" />}
-          {missing > 0 && <Pill label={`${missing} not marked paid`} tone="warn" />}
+          {/* Essentials are the usual case here; only the nice-to-haves are marked. */}
+          {billsOn && bill.kind !== 'bill' && <Pill label="Subscription" tone="neutral" />}
+          {missing > 0 && <Pill label={`${missing} overdue`} tone="warn" />}
         </View>
       </View>
       <Text variant="callout" weight="semibold" ink={estimate ? 'muted' : 'primary'} tabular>{amountText}</Text>

@@ -13,7 +13,7 @@ export type WireMe = {
   deletionScheduledAt: string | null;
   stripeCustomerId: string | null;
   createdAt: string;
-  features: { bills: boolean };
+  features: { bills: boolean; extension: boolean };
   /** Finance features: their own Premium, or households another member's Premium covers. */
   entitlements: { personal: boolean; householdIds: string[] };
   /**

@@ -4,14 +4,13 @@ import { Calendar, MapPin, Clock, CreditCard, Users, ChevronRight, Receipt as Re
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { categoryBadgeClasses, categoryTextClasses, getCategory } from '@/lib/utils/categories';
-import { isToday, isYesterday, isThisWeek, isThisMonth } from 'date-fns';
 import type { ReceiptWithItems, OCRData } from '@/lib/types/api-responses';
 import { useCurrency } from '@/lib/hooks/use-currency';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
-import { toUtcDate } from '@/lib/dates/local-date';
+import { localToday } from '@/lib/dates/local-date';
 import { isStuckProcessing } from '@/lib/utils/receipt-status';
-import { formatDisplayDate, formatPaymentMethod, receiptDay } from '@/components/receipts/format';
+import { dayHeading, formatDisplayDate, formatPaymentMethod, receiptDay } from '@/components/receipts/format';
 import { cn } from '@/lib/utils';
 
 interface ReceiptTimelineProps {
@@ -21,36 +20,9 @@ interface ReceiptTimelineProps {
   sortBy?: string;
 }
 
-/** Local midnight of a calendar day, for date-fns's relative checks (which work in local time). */
-function localMidnight(day: string): Date {
-  const utc = toUtcDate(day);
-  return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
-}
-
-function getDateLabel(day: string): string {
-  const date = localMidnight(day);
-  if (isToday(date)) return 'Today';
-  if (isYesterday(date)) return 'Yesterday';
-  if (isThisWeek(date)) return formatDisplayDate(day, { weekday: 'long' }); // Monday
-  if (isThisMonth(date)) return formatDisplayDate(day, { day: 'numeric', month: 'long' }); // 15 January
-  return formatDisplayDate(day, { day: 'numeric', month: 'long', year: 'numeric' }); // 15 January 2025
-}
-
-function getDateSubtitle(day: string): string {
-  const date = localMidnight(day);
-  if (isToday(date) || isYesterday(date)) {
-    return formatDisplayDate(day, { weekday: 'long', day: 'numeric', month: 'long' });
-  }
-  if (isThisWeek(date)) {
-    return formatDisplayDate(day, { day: 'numeric', month: 'long' });
-  }
-  return formatDisplayDate(day, { weekday: 'long' });
-}
-
 interface GroupedReceipts {
   day: string;
   label: string;
-  subtitle: string;
   receipts: ReceiptWithItems[];
 }
 
@@ -70,10 +42,11 @@ function groupReceiptsByDate(receipts: ReceiptWithItems[]): GroupedReceipts[] {
     groups.set(day, group);
   });
 
+  // "Today", "Yesterday", "Wed 7 Jan": one line, as in the app (it was "7 January 2026" over a weekday).
+  const today = localToday();
   return Array.from(groups, ([day, dayReceipts]) => ({
     day,
-    label: getDateLabel(day),
-    subtitle: getDateSubtitle(day),
+    label: dayHeading(day, today),
     receipts: dayReceipts,
   }));
 }
@@ -198,12 +171,12 @@ export function ReceiptTimeline({ receipts, onReceiptClick, sortBy = 'date' }: R
             {isProcessing && (
               <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
                 <Clock className="h-3 w-3" aria-hidden="true" />
-                Processing
+                Reading…
               </Badge>
             )}
             {isFailed && (
               <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
-                {isStuck ? 'Didn’t finish — open to retry' : 'Failed'}
+                {isStuck ? 'Didn’t finish · open it to try again' : 'Couldn’t read'}
               </Badge>
             )}
 
@@ -261,31 +234,29 @@ export function ReceiptTimeline({ receipts, onReceiptClick, sortBy = 'date' }: R
         <div key={group.day} className="relative">
           {/* Date header. The day total was previously flagged with a
               TrendingUp arrow, which reads as "spending is up" — it is just a
-              count, and one day's total trends nowhere. */}
+              count, and one day's total trends nowhere. A day with one receipt shows
+              no total or count: they only repeated the card below. */}
           <div className="sticky top-0 z-10 -mx-4 mb-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <div className="flex items-baseline justify-between gap-4">
               <div className="flex items-baseline gap-3">
                 <Calendar className="h-4 w-4 shrink-0 translate-y-0.5 text-muted-foreground" aria-hidden="true" />
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">{group.label}</h3>
-                  <p className="text-xs text-muted-foreground">{group.subtitle}</p>
-                </div>
+                <h3 className="text-base font-semibold text-foreground">{group.label}</h3>
               </div>
-              <div className="text-right">
-                {/* Per currency: a day with a euro and a sterling receipt was summed as one figure. */}
-                <p className="amount text-base font-semibold text-foreground">
-                  {formatTotals(
-                    totalsByCurrency(
-                      group.receipts.map((r) => ({ amount: r.totalAmount || '0', currency: r.currency })),
+              {group.receipts.length > 1 && (
+                <div className="text-right">
+                  {/* Per currency: a day with a euro and a sterling receipt was summed as one figure. */}
+                  <p className="amount text-base font-semibold text-foreground">
+                    {formatTotals(
+                      totalsByCurrency(
+                        group.receipts.map((r) => ({ amount: r.totalAmount || '0', currency: r.currency })),
+                        userCurrency,
+                      ),
                       userCurrency,
-                    ),
-                    userCurrency,
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {group.receipts.length} receipt{group.receipts.length !== 1 ? 's' : ''}
-                </p>
-              </div>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{group.receipts.length} receipts</p>
+                </div>
+              )}
             </div>
           </div>
 

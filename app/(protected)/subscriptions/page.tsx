@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { CreateSubscriptionDialog } from '@/components/subscriptions/create-subscription-dialog';
 import { SubscriptionDetailModal } from '@/components/subscriptions/subscription-detail-modal';
 import { SubscriptionStats } from '@/components/subscriptions/subscription-stats';
+import { SubscriptionEmptyState } from '@/components/subscriptions/subscription-empty-state';
 import { SubscriptionList } from '@/components/subscriptions/subscription-list';
 import { UpcomingSubscriptionCard } from '@/components/subscriptions/upcoming-subscription-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,12 @@ import { useTrialDays } from '@/lib/hooks/use-trial-days';
 import { useCurrency } from '@/lib/hooks/use-currency';
 import { monthlyEquivalent } from '@/lib/schedule/billing-schedule';
 import { totalsByCurrency } from '@/lib/utils/currency-totals';
+import { nextPaymentAmount } from '@/shared/labels/subscriptions';
+
+/** Upcoming payments only earn their place above a longer list; with a few, it repeats the list. */
+const UPCOMING_FROM = 6;
+/** Nor does the All, Bills and Subscriptions switch. */
+const KIND_FILTER_FROM = 6;
 
 type Status = 'active' | 'paused' | 'cancelled' | undefined;
 type KindFilter = 'all' | 'bill' | 'subscription';
@@ -32,6 +39,8 @@ function SubscriptionsPageContent() {
   // Stats and "upcoming" are about active subscriptions whichever tab is open; on the Active tab
   // this is the same query as the list.
   const { data: activeList } = useSubscriptions(undefined, 'active', true);
+  // Every status, to offer the Active, Paused and Cancelled tabs only once something isn't active.
+  const { data: everything } = useSubscriptions(undefined, undefined, false);
   const { currency: userCurrency } = useCurrency();
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
@@ -83,10 +92,11 @@ function SubscriptionsPageContent() {
     return billingDate >= now && billingDate <= futureDate;
   }).length;
 
-  // Per currency: adding €10 and $10 used to show €20.
+  // Per currency: adding €10 and $10 used to show €20. Each at its next payment's amount, this
+  // month's own where one is set (a card bill of €809, not its usual €0).
   const monthlyTotals = totalsByCurrency(
     activeSubscriptions.map((sub) => ({
-      amount: monthlyEquivalent(parseFloat(sub.amount), sub.billingFrequency, sub.customFrequencyDays),
+      amount: monthlyEquivalent(nextPaymentAmount(sub).amount, sub.billingFrequency, sub.customFrequencyDays),
       currency: sub.currency,
     })),
     userCurrency,
@@ -97,13 +107,15 @@ function SubscriptionsPageContent() {
   // With bills on, the one list holds both kinds, so it can be narrowed to either.
   const kind = billsEnabled ? kindFilter : 'all';
   const ofKind = (sub: { kind: string }) => kind === 'all' || (kind === 'bill' ? sub.kind === 'bill' : sub.kind !== 'bill');
-  // "Not marked paid": payments past due on anything paid by hand. The server never counts
+  // Overdue: payments past due on anything paid by hand. The server never counts
   // direct debits, standing orders or card payments (they're assumed paid), so ?filter=missing
   // lists exactly what the count counts, narrowed to the kind shown like the rest of the list.
   const subscriptionsWithMissing = subscriptions?.filter((sub) => (sub.missingPayments || 0) > 0 && ofKind(sub)) || [];
   const missingShownCount = subscriptionsWithMissing.reduce((sum, sub) => sum + (sub.missingPayments || 0), 0);
   const displaySubscriptions = (showMissingOnly ? subscriptionsWithMissing : subscriptions)?.filter(ofKind);
-  const itemsWord = billsEnabled ? 'bills and subscriptions' : 'subscriptions';
+  // The switches only show once they'd change something, or while one is in use.
+  const showStatusTabs = statusFilter !== 'active' || (everything ?? []).some((sub) => sub.status !== 'active');
+  const showKindFilter = billsEnabled && (kindFilter !== 'all' || activeSubscriptions.length >= KIND_FILTER_FROM);
 
   // Show skeleton loading state
   if (userLoading) {
@@ -199,7 +211,7 @@ function SubscriptionsPageContent() {
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
-              <h1 id="subscriptions-title" className="text-3xl font-bold text-foreground">{billsEnabled ? 'Bills & subscriptions' : 'Subscriptions'}</h1>
+              <h1 id="subscriptions-title" className="text-3xl font-bold text-foreground">{billsEnabled ? 'Bills' : 'Subscriptions'}</h1>
               <p className="text-muted-foreground">Recurring payments, what they cost, and what is due next.</p>
             </div>
           </div>
@@ -272,7 +284,7 @@ function SubscriptionsPageContent() {
                   {[
                     billsEnabled ? 'Unlimited bills and subscriptions' : 'Unlimited subscriptions',
                     'Shared across the household',
-                    'Flags payments not marked paid',
+                    'Flags overdue payments',
                     'Pause and resume',
                     'Unlimited receipts and scanning',
                     'CSV and JSON export',
@@ -309,27 +321,19 @@ function SubscriptionsPageContent() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
-          <h1 id="subscriptions-main-title" className="text-3xl font-bold text-foreground">{billsEnabled ? 'Bills & subscriptions' : 'Subscriptions'}</h1>
-          <p className="text-muted-foreground">Recurring payments, what they cost, and what is due next.</p>
+          <h1 id="subscriptions-main-title" className="text-3xl font-bold text-foreground">{billsEnabled ? 'Bills' : 'Subscriptions'}</h1>
+          <p className="text-muted-foreground">{billsEnabled ? 'Your bills and subscriptions: what they cost, and what goes out next.' : 'Recurring payments, what they cost, and what is due next.'}</p>
         </div>
-        <CreateSubscriptionDialog />
+        {/* While the list is empty its own empty state has the one Add button. */}
+        {(isLoading || hasAnySubscriptions) && <CreateSubscriptionDialog />}
       </div>
 
-      {/* Empty State - No Subscriptions */}
-      {!isLoading && !hasAnySubscriptions && (
-        <div className="text-center py-12">
-          <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" aria-hidden="true" />
-          <h3 className="text-lg font-semibold mb-2 text-foreground">No {itemsWord} yet</h3>
-          <p className="text-muted-foreground mb-4">Start tracking your recurring payments</p>
-          <CreateSubscriptionDialog />
-        </div>
-      )}
+      {!isLoading && !hasAnySubscriptions && <SubscriptionEmptyState status="active" />}
 
       {/* Stats Grid */}
       {hasAnySubscriptions && (
         <div className="mb-6">
           <SubscriptionStats
-            activeCount={activeSubscriptions.length}
             monthlyTotals={monthlyTotals}
             yearlyTotals={yearlyTotals}
             missingPayments={missingPaymentsCount}
@@ -352,7 +356,7 @@ function SubscriptionsPageContent() {
               <AlertCircle className="h-5 w-5 text-warning" aria-hidden="true" />
               <div>
                 <h3 className="font-semibold text-warning">
-                  Not marked paid
+                  Overdue
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {missingShownCount} payment{missingShownCount !== 1 ? 's' : ''} past due across {subscriptionsWithMissing.length}{' '}
@@ -379,15 +383,15 @@ function SubscriptionsPageContent() {
         </div>
       )}
 
-      {/* Upcoming Payments Section. Not on a phone, where it only repeated the first cards of the list below. */}
-      {upcomingPayments.length > 0 && (
+      {/* Upcoming Payments Section. Not on a phone, nor with only a few, where it only repeated the first cards of the list below. */}
+      {upcomingPayments.length > 0 && activeSubscriptions.length >= UPCOMING_FROM && (
         <div className="mb-6 hidden md:block">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-semibold">Upcoming payments</h2>
             {upcomingWithin7Days > 0 && (
               <span className="text-sm text-muted-foreground">
-                • {upcomingWithin7Days} in next 7 days
+                · {upcomingWithin7Days} in the next 7 days
               </span>
             )}
           </div>
@@ -406,13 +410,16 @@ function SubscriptionsPageContent() {
       {/* Tabs: kept even when the open tab is empty, or there was no way back from an empty Paused tab */}
       {hasAnySubscriptions && (
         <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status)} className="w-full">
+          {(showStatusTabs || showKindFilter) && (
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <TabsList className="grid w-full md:w-auto grid-cols-3">
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="paused">Paused</TabsTrigger>
-              <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-            </TabsList>
-            {billsEnabled && (
+            {showStatusTabs ? (
+              <TabsList className="grid w-full md:w-auto grid-cols-3">
+                <TabsTrigger value="active">Active</TabsTrigger>
+                <TabsTrigger value="paused">Paused</TabsTrigger>
+                <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
+              </TabsList>
+            ) : <span />}
+            {showKindFilter && (
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -428,6 +435,7 @@ function SubscriptionsPageContent() {
               </ToggleGroup>
             )}
           </div>
+          )}
 
           <TabsContent value={statusFilter || 'active'} className="mt-6">
             <SubscriptionList

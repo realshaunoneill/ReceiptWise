@@ -73,7 +73,10 @@ export function describeSort(sortBy?: string, sortOrder?: string): string {
   }
 }
 
-/** The fields the Filters sheet edits. Search and the search-all toggle live outside it. */
+/**
+ * The fields the Filters sheet edits. Search, the search-all toggle and the sort live outside it:
+ * the sort was in the sheet as well as beside it, twice over.
+ */
 const SHEET_FIELDS = [
   'category',
   'merchant',
@@ -82,8 +85,6 @@ const SHEET_FIELDS = [
   'startDate',
   'endDate',
   'isBusinessExpense',
-  'sortBy',
-  'sortOrder',
 ] as const satisfies ReadonlyArray<keyof ReceiptFilters>;
 
 interface ReceiptSearchFiltersProps {
@@ -181,9 +182,6 @@ export function ReceiptSearchFilters({
     onFiltersChange(next);
     setIsOpen(false);
   };
-
-  const localSortField = sortField(localFilters.sortBy);
-  const localSortOrders = SORT_ORDERS[localSortField];
 
   const handleClearAll = () => {
     const clearedFilters = {
@@ -467,43 +465,6 @@ export function ReceiptSearchFilters({
               </Select>
             </div>
 
-            {/* Sort Options */}
-            <div className="space-y-2">
-              <Label htmlFor="sortBy">Sort by</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Select
-                  value={localSortField}
-                  onValueChange={(value) =>
-                    setLocalFilters({ ...localFilters, sortBy: value, sortOrder: defaultSortOrder(value) })
-                  }
-                >
-                  <SelectTrigger id="sortBy" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">Date</SelectItem>
-                    <SelectItem value="amount">Amount</SelectItem>
-                    <SelectItem value="merchant">Merchant</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={localFilters.sortOrder || localSortOrders.default}
-                  onValueChange={(value) =>
-                    setLocalFilters({ ...localFilters, sortOrder: value })
-                  }
-                >
-                  <SelectTrigger className="w-full" aria-label="Order">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* The usual direction first: biggest amount, newest date, A–Z. */}
-                    {(localSortOrders.default === 'asc' ? (['asc', 'desc'] as const) : (['desc', 'asc'] as const)).map((order) => (
-                      <SelectItem key={order} value={order}>{localSortOrders[order]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
           </div>
 
           {/* Action Buttons */}
@@ -525,20 +486,26 @@ export function ReceiptSearchFilters({
         </SheetContent>
       </Sheet>
 
-        {/* Sort Quick Controls */}
+        {/* The one sort control: each field in both directions, usual direction first. */}
         <Select
-          value={sortField(filters.sortBy)}
-          onValueChange={(value) =>
-            onFiltersChange({ ...filters, sortBy: value, sortOrder: defaultSortOrder(value) })
-          }
+          value={`${sortField(filters.sortBy)}:${filters.sortOrder === 'asc' || filters.sortOrder === 'desc' ? filters.sortOrder : defaultSortOrder(filters.sortBy)}`}
+          onValueChange={(value) => {
+            const [sortBy, sortOrder] = value.split(':');
+            onFiltersChange({ ...filters, sortBy, sortOrder });
+          }}
         >
-          <SelectTrigger className="w-full sm:w-[180px]" aria-label="Sort receipts by">
+          <SelectTrigger className="w-full sm:w-[200px]" aria-label="Sort receipts">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="date">Sort by date</SelectItem>
-            <SelectItem value="amount">Sort by amount</SelectItem>
-            <SelectItem value="merchant">Sort by merchant</SelectItem>
+            {(Object.keys(SORT_ORDERS) as SortField[]).flatMap((field) => {
+              const orders = SORT_ORDERS[field];
+              return (orders.default === 'asc' ? (['asc', 'desc'] as const) : (['desc', 'asc'] as const)).map((order) => (
+                <SelectItem key={`${field}:${order}`} value={`${field}:${order}`}>
+                  {field === 'amount' ? `${orders[order].replace(' first', '')} amount first` : field === 'merchant' ? `Merchant ${orders[order]}` : orders[order]}
+                </SelectItem>
+              ));
+            })}
           </SelectContent>
         </Select>
       </div>

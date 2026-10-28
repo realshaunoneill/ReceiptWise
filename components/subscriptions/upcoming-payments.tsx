@@ -8,10 +8,15 @@ import { useRouter } from 'next/navigation';
 import { type Subscription } from '@/lib/db/schema';
 import { useCurrency } from '@/lib/hooks/use-currency';
 import { useFeature } from '@/lib/hooks/use-user';
-import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
+import { daysBetween, fromUtcDate, localToday } from '@/lib/dates/local-date';
 import { frequencyLabel } from '@/lib/schedule/billing-schedule';
+import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
+import { nextPaymentAmount, nextPaymentLabel } from '@/shared/labels/subscriptions';
+
+/** What the list gives each row: GET /api/subscriptions adds the next cycle's own amount. */
+type UpcomingSubscription = Subscription & { nextAmount?: string | null };
 
 /** Days from today to a subscription's next billing day (stored as midnight UTC of that day). */
 function daysUntilBilling(subscription: Subscription, today: string): number {
@@ -19,7 +24,7 @@ function daysUntilBilling(subscription: Subscription, today: string): number {
 }
 
 type UpcomingPaymentsProps = {
-  subscriptions: Subscription[];
+  subscriptions: UpcomingSubscription[];
   daysAhead?: number;
   onSelectSubscription?: (id: string) => void;
 };
@@ -54,17 +59,11 @@ export function UpcomingPayments({
     return null;
   }
 
+  // Each at its next payment's amount: this month's own where one is set (a card bill's €809).
   const totalUpcoming = totalsByCurrency(
-    upcomingPayments.map((sub) => ({ amount: sub.amount, currency: sub.currency })),
+    upcomingPayments.map((sub) => ({ amount: nextPaymentAmount(sub).amount, currency: sub.currency })),
     userCurrency,
   );
-
-  const getDateLabel = (subscription: Subscription, days: number) => {
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Tomorrow';
-    if (days <= 7) return `In ${days} days`;
-    return formatLocalDate(fromUtcDate(new Date(subscription.nextBillingDate)), { day: 'numeric', month: 'short' }, 'en-IE');
-  };
 
   const handleClick = (subscriptionId: string) => {
     if (onSelectSubscription) {
@@ -84,7 +83,7 @@ export function UpcomingPayments({
               Upcoming payments
             </CardTitle>
             <CardDescription>
-              Next {daysAhead} days • {upcomingPayments.length} payment{upcomingPayments.length === 1 ? '' : 's'}
+              Next {daysAhead} days · {upcomingPayments.length} payment{upcomingPayments.length === 1 ? '' : 's'}
             </CardDescription>
           </div>
           <div className="text-right">
@@ -96,8 +95,10 @@ export function UpcomingPayments({
       <CardContent>
         <div className="space-y-3">
           {upcomingPayments.map((subscription) => {
-            const daysUntil = daysUntilBilling(subscription, today);
-            const isUrgent = daysUntil <= 2;
+            // "Goes out today" for a direct debit (nothing to do, so never red); "Due today" in red
+            // only for one paid by hand (shared/labels/subscriptions.ts).
+            const { label, urgency } = nextPaymentLabel(fromUtcDate(new Date(subscription.nextBillingDate)), today, subscription.paymentMethod);
+            const amount = nextPaymentAmount(subscription);
 
             return (
               <div
@@ -117,18 +118,16 @@ export function UpcomingPayments({
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-3.5 h-3.5" />
                     {/* One label: a row due today said both "Today" and "Due Today". */}
-                    {isUrgent ? (
-                      <Badge variant="destructive" className="text-xs">
-                        {daysUntil === 0 ? 'Due today' : getDateLabel(subscription, daysUntil)}
-                      </Badge>
+                    {urgency === 'due' ? (
+                      <Badge variant="destructive" className="text-xs">{label}</Badge>
                     ) : (
-                      <span>{getDateLabel(subscription, daysUntil)}</span>
+                      <span className={urgency === 'soon' ? 'text-warning' : undefined}>{label}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <p className="amount font-semibold">{formatCurrency(parseFloat(subscription.amount), subscription.currency)}</p>
+                    <p className={cn('amount font-semibold', amount.estimated && 'text-muted-foreground')}>{amount.estimated ? '~' : ''}{formatCurrency(amount.amount, subscription.currency)}</p>
                     <p className="text-xs text-muted-foreground">{frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}</p>
                   </div>
                 </div>

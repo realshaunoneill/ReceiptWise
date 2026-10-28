@@ -1,6 +1,7 @@
 import { type WireBill, type WirePayment } from '@shared/api/bills';
 import { totalsByCurrency, type CurrencyTotal } from '@shared/currency-totals';
-import { daysBetween, formatLocalDate, fromUtcDate } from '@shared/dates/local-date';
+import { fromUtcDate } from '@shared/dates/local-date';
+import { nextPaymentAmount, nextPaymentLabel } from '@shared/labels/subscriptions';
 import { monthlyEquivalent } from '@shared/schedule/billing-schedule';
 
 /**
@@ -17,10 +18,13 @@ export const billDay = (instant: string) => fromUtcDate(new Date(instant));
 /** The day an occurrence is due: the bill's own due date if it gave one, else the schedule's. */
 export const paymentDay = (payment: Pick<WirePayment, 'dueDate' | 'expectedDate'>) => payment.dueDate ?? billDay(payment.expectedDate);
 
-/** Per currency (€10 and $10 are not €20), with the user's currency first. */
+/**
+ * Per currency (€10 and $10 are not €20), with the user's currency first. Each bill counts at its
+ * next payment's amount, this month's own where one is set (a card bill of €809, not its usual €0).
+ */
 export function monthlyTotals(bills: ListedBill[], preferredCurrency: string): CurrencyTotal[] {
   return totalsByCurrency(
-    bills.map((bill) => ({ amount: monthlyEquivalent(Number(bill.amount), bill.billingFrequency, bill.customFrequencyDays), currency: bill.currency })),
+    bills.map((bill) => ({ amount: monthlyEquivalent(nextPaymentAmount(bill).amount, bill.billingFrequency, bill.customFrequencyDays), currency: bill.currency })),
     preferredCurrency,
   );
 }
@@ -37,13 +41,8 @@ export function filterBills(bills: ListedBill[], kind: KindFilter, missingOnly: 
 
 export const notMarkedPaid = (bills: ListedBill[]) => bills.reduce((total, bill) => total + (bill.missingPayments ?? 0), 0);
 
-/** "Due today", "Due tomorrow", "Due in 3 days" within a week, then "Due 12 Nov" (DESIGN.md). */
-export function dueLabel(day: string, today: string): string {
-  const days = daysBetween(today, day);
-  const date = formatLocalDate(day, { day: 'numeric', month: 'short' }, 'en-IE');
-  if (days < 0) return `Was due ${date}`;
-  if (days === 0) return 'Due today';
-  if (days === 1) return 'Due tomorrow';
-  if (days < 7) return `Due in ${days} days`;
-  return `Due ${date}`;
-}
+/**
+ * "Due today", "Due in 3 days", "Due 12 Nov" for one paid by hand; "Goes out today" and so on for
+ * a direct debit, standing order or card, which needs nothing done (shared/labels/subscriptions.ts).
+ */
+export const dueLabel = (day: string, today: string, paymentMethod: string | null = null) => nextPaymentLabel(day, today, paymentMethod).label;

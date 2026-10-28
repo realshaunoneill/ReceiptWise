@@ -116,10 +116,11 @@ export default function Receipts() {
         ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator style={{ margin: space.xl }} color={colors.textMuted} /> : null}
         renderItem={({ item, index }) => {
           if (item.type === 'day') {
+            // A day with one receipt shows no total or count: they only repeated the row below.
             return (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: GUTTER + space.xs, paddingTop: index === 0 ? space.sm : space.xl, paddingBottom: space.sm }}>
                 <Text variant="label" accessibilityRole="header">{item.label}</Text>
-                <Text variant="footnote" ink="muted" tabular>{`${item.total} · ${item.count === 1 ? '1 receipt' : `${item.count} receipts`}`}</Text>
+                {item.count > 1 && <Text variant="footnote" ink="muted" tabular>{`${item.total ? `${item.total} · ` : ''}${item.count} receipts`}</Text>}
               </View>
             );
           }
@@ -144,7 +145,8 @@ export default function Receipts() {
               }}
             >
               {!first && <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginLeft: 72 }} />}
-              <ReceiptRow receipt={item.receipt} />
+              {/* Under a day's heading the row doesn't repeat the day. */}
+              <ReceiptRow receipt={item.receipt} when={byDay ? 'none' : 'day'} />
             </View>
           );
         }}

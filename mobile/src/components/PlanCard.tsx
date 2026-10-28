@@ -11,8 +11,10 @@ import { Skeleton } from '../ui/Feedback';
 import Text from '../ui/Text';
 
 /**
- * This period at a glance: what's left after everything planned, and the weekly split. A shortfall
- * says "over" rather than showing a minus sign (DESIGN.md).
+ * This period at a glance: what's left after everything planned, the weekly split, and what's in
+ * the bank until payday if a balance was given (the website's dashboard card, in the same words).
+ * The plan's figure and the account's are named apart, so "€2,539 left in the plan" and "your
+ * account is €289 short" don't read as a contradiction. A shortfall says "over" (DESIGN.md).
  */
 export default function PlanCard({ plan, loading }: { plan: WirePlan | undefined; loading: boolean }) {
   const { colors } = useTheme();
@@ -34,6 +36,14 @@ export default function PlanCard({ plan, loading }: { plan: WirePlan | undefined
   const { remainingCents, weeklyCents } = plan.totals;
   const over = remainingCents < 0;
   const noIncome = plan.flags.includes('no_income');
+  const money = (cents: number) => formatCents(Math.abs(cents), plan.currency);
+  const balance = plan.balance;
+  const below = [
+    !over ? `${money(weeklyCents)} a week` : null,
+    balance ? (balance.availableCents < 0
+      ? `your account is ${money(balance.availableCents)} short before payday`
+      : `${money(balance.availableCents)} left in your account until payday`) : null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <Pressable onPress={() => router.navigate('/plan')} accessibilityRole="button" accessibilityHint="Opens the plan">
@@ -47,9 +57,9 @@ export default function PlanCard({ plan, loading }: { plan: WirePlan | undefined
               ) : (
                 <>
                   <Text variant="title" ink={over ? 'bad' : 'primary'} tabular>
-                    {`${formatCents(Math.abs(remainingCents), plan.currency)} ${over ? 'over' : 'left'}`}
+                    {`${money(remainingCents)} ${over ? 'over in the plan' : 'left in the plan'}`}
                   </Text>
-                  {!over && <Text variant="footnote" ink="secondary" tabular>{`${formatCents(weeklyCents, plan.currency)} a week`}</Text>}
+                  {!!below && <Text variant="footnote" ink="secondary" tabular>{below}</Text>}
                 </>
               )}
             </View>

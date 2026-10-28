@@ -19,6 +19,10 @@ describe('bills summary', () => {
     expect(totals).toEqual([{ currency: 'EUR', amount: 20 }, { currency: 'USD', amount: 10 }]);
   });
 
+  it("counts a variable bill at this month's own amount when it has one", () => {
+    expect(monthlyTotals([bill({ amount: '0.00', amountType: 'variable', nextAmount: '809.00' })], 'EUR')).toEqual([{ currency: 'EUR', amount: 809 }]);
+  });
+
   it('narrows to a kind, and to those not marked paid', () => {
     const bills = [bill({ id: 'a', kind: 'bill', missingPayments: 2 }), bill({ id: 'b', kind: 'subscription' }), bill({ id: 'c', kind: 'subscription', missingPayments: 1 })];
     expect(filterBills(bills, 'subscription', false).map((b) => b.id)).toEqual(['b', 'c']);
@@ -37,5 +41,6 @@ describe('bills summary', () => {
     expect(dueLabel('2026-10-29', '2026-10-26')).toBe('Due in 3 days');
     expect(dueLabel('2026-11-12', '2026-10-26')).toBe('Due 12 Nov');
     expect(dueLabel('2026-10-20', '2026-10-26')).toBe('Was due 20 Oct');
+    expect(dueLabel('2026-10-26', '2026-10-26', 'direct_debit')).toBe('Goes out today');
   });
 });

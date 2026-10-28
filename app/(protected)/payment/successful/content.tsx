@@ -23,10 +23,10 @@ export default function SuccessContent({
   // had just started a trial and had not been charged, and when the session could not be
   // confirmed at all.
   const trialEndLabel = trialEndsAt
-    ? new Date(trialEndsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(trialEndsAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const statusLine = trialEndLabel
-    ? `Your free trial runs until ${trialEndLabel}. Nothing is charged before then, and you can cancel any time under Settings → Subscription.`
+    ? `Your free trial runs until ${trialEndLabel}. Nothing is charged before then, and you can cancel any time under Settings → Premium.`
     : subscriptionStatus === 'active'
       ? 'Your subscription is active. Nothing else to do.'
       : 'Thanks — your checkout is complete. If Premium features are not unlocked within a minute, refresh the page.';
@@ -85,7 +85,7 @@ export default function SuccessContent({
                   ...(billsEnabled ? [{
                     icon: Wallet,
                     title: 'Bills and a monthly plan',
-                    body: 'Your pay, the bills on the way, and what is left for each week.',
+                    body: 'Your pay, your bills, and what is left for each week.',
                   }] : []),
                   {
                     icon: CheckCircle,
@@ -107,14 +107,24 @@ export default function SuccessContent({
 
           {/* Action Buttons */}
           <div className="flex w-full max-w-md flex-col gap-3 px-2 sm:flex-row sm:gap-4 sm:px-0">
-            <Button asChild className="flex-1 gap-2" size="lg">
+            {/* The plan first when there's one: it's the thing to set up; receipts can come any time. */}
+            {billsEnabled && (
+              <Button asChild className="flex-1 gap-2" size="lg">
+                <Link href="/plan">
+                  Set up your plan <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant={billsEnabled ? 'outline' : 'default'} className="flex-1 gap-2" size="lg">
               <Link href="/receipts">
-                Add a receipt <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Add a receipt {!billsEnabled && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
               </Link>
             </Button>
-            <Button asChild variant="outline" className="flex-1" size="lg">
-              <Link href="/dashboard">Go to dashboard</Link>
-            </Button>
+            {!billsEnabled && (
+              <Button asChild variant="outline" className="flex-1" size="lg">
+                <Link href="/dashboard">Go to dashboard</Link>
+              </Button>
+            )}
           </div>
 
           {/* Session Details */}

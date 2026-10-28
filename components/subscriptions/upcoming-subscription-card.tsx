@@ -4,14 +4,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, TrendingUp } from 'lucide-react';
 import { type Subscription } from '@/lib/db/schema';
-import { urgencyTextClass } from '@/lib/utils/urgency';
+import { nextPaymentAmount, nextPaymentLabel } from '@/shared/labels/subscriptions';
 import { cn } from '@/lib/utils';
 import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
 import { frequencyLabel } from '@/lib/schedule/billing-schedule';
 import { formatCurrency } from '@/lib/utils/currency';
 
 type UpcomingSubscriptionCardProps = {
-  subscription: Subscription;
+  /** With the next cycle's own amount, when it has one (GET /api/subscriptions). */
+  subscription: Subscription & { nextAmount?: string | null };
   onClick?: () => void;
 };
 
@@ -20,12 +21,15 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
 
   // Midnight UTC of the billing day, read as that calendar day rather than in the browser's zone.
   const billingDay = fromUtcDate(new Date(subscription.nextBillingDate));
-  const daysUntil = daysBetween(localToday(), billingDay);
+  const today = localToday();
+  const daysUntil = daysBetween(today, billingDay);
 
-  // "In 3 days · 27 Oct 2026", or just the date further out: it used to show
-  // "Nov 1, 2026 • Nov 1, 2026", and "Due Today" in the corner as well as "Today" here.
+  // "Goes out in 3 days · 27 Oct 2026" (or "Due…" for one paid by hand), or just the date further
+  // out: it used to show "Nov 1, 2026 • Nov 1, 2026". Only one paid by hand turns red or amber.
   const date = formatLocalDate(billingDay, { day: 'numeric', month: 'short', year: 'numeric' }, 'en-IE');
-  const relative = daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : daysUntil <= 7 ? `In ${daysUntil} days` : null;
+  const next = nextPaymentLabel(billingDay, today, subscription.paymentMethod);
+  const relative = daysUntil >= 0 && daysUntil < 7 ? next.label : null;
+  const amount = nextPaymentAmount(subscription);
 
   return (
     <Card
@@ -48,7 +52,7 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
         {/* Date */}
         <div className="flex items-center gap-2 text-sm border-t pt-3">
           <Calendar className="w-4 h-4 text-muted-foreground" />
-          <span className={cn('font-semibold', urgencyTextClass(daysUntil))}>
+          <span className={cn('font-semibold', next.urgency === 'due' && 'text-destructive', next.urgency === 'soon' && 'text-warning')}>
             {relative ?? date}
           </span>
           {relative && <span className="text-muted-foreground">· {date}</span>}
@@ -62,8 +66,8 @@ export function UpcomingSubscriptionCard({ subscription, onClick }: UpcomingSubs
               {frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}
             </span>
           </div>
-          <span className="amount text-3xl font-semibold tracking-tight">
-            {formatCurrency(parseFloat(subscription.amount), subscription.currency)}
+          <span className={cn('amount text-3xl font-semibold tracking-tight', amount.estimated && 'text-muted-foreground')}>
+            {amount.estimated ? '~' : ''}{formatCurrency(amount.amount, subscription.currency)}
           </span>
         </div>
       </CardContent>

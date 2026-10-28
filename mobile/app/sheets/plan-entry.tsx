@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { View, type TextInputInstance } from 'react-native';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { formatCents } from '@shared/currency';
 import { PAYMENT_METHOD_LABEL, PAYMENT_METHOD_OPTIONS, type PaymentMethodOption } from '@shared/labels/plan';
 import { fromCents, toCents } from '@shared/money';
@@ -35,14 +35,15 @@ export default function PlanEntry() {
       </SheetScreen>
     );
   }
-  return line ? <EditEntry plan={plan} line={line} /> : <AddEntry plan={plan} householdId={householdId} />;
+  return line ? <EditEntry plan={plan} line={line} /> : <AddEntry plan={plan} householdId={householdId} offset={offset ?? '0'} />;
 }
 
 type Plan = NonNullable<ReturnType<typeof usePlan>['data']>;
 type Line = Plan['lines'][number];
 
-function AddEntry({ plan, householdId }: { plan: Plan; householdId?: string }) {
+function AddEntry({ plan, householdId, offset }: { plan: Plan; householdId?: string; offset: string }) {
   const navigation = useNavigation();
+  const router = useRouter();
   const amountRef = useRef<TextInputInstance>(null);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
@@ -108,6 +109,10 @@ function AddEntry({ plan, householdId }: { plan: Plan; householdId?: string }) {
         </>
       )}
       {!!error && <Notice tone="bad" title="That didn't work">{error}</Notice>}
+      {/* Several at once, copied from a sheet or a note: the paste sheet instead of this one. */}
+      {!monthly && (
+        <Button label="Paste a list instead" variant="plain" size="sm" onPress={() => router.replace({ pathname: '/sheets/plan-paste', params: { offset } })} style={{ alignSelf: 'flex-start' }} />
+      )}
     </SheetScreen>
   );
 }

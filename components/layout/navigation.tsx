@@ -25,7 +25,7 @@ const navItems = [
   { href: '/receipts', label: 'Receipts', icon: Receipt },
   { href: '/subscriptions', label: 'Subscriptions', icon: Repeat },
   { href: '/insights', label: 'Insights', icon: TrendingUp },
-  { href: '/sharing', label: 'Sharing', icon: Users },
+  { href: '/sharing', label: 'Households', icon: Users },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -203,17 +203,11 @@ export function Navigation() {
                 <p className="text-sm font-medium">{user?.name || 'User'}</p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/settings">
-                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
+              {/* Settings is in the navigation itself, so the account menu only signs out. */}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-                Log out
+                Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

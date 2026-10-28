@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { AlertCircle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 /**
@@ -16,29 +16,25 @@ import { Badge } from '@/components/ui/badge';
  *
  * A badge states the state. Anything a user can act on belongs next to the
  * control that acts on it.
+ *
+ * A finished receipt has no badge: "Scanned" sat on nearly every receipt, so it said nothing.
+ * Only one still being read, or one that couldn't be, is worth pointing out.
  */
 export function ReceiptStatusBadge({ status }: { status: string }) {
   switch (status) {
-    case 'completed':
-      return (
-        <Badge variant="outline" className="border-success/25 bg-success/10 text-success">
-          <CheckCircle className="h-3 w-3" aria-hidden="true" />
-          Scanned
-        </Badge>
-      );
     case 'processing':
     case 'pending':
       return (
         <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
           <Clock className="h-3 w-3" aria-hidden="true" />
-          Processing
+          Reading…
         </Badge>
       );
     case 'failed':
       return (
         <Badge variant="outline" className="border-destructive/25 bg-destructive/10 text-destructive">
           <AlertCircle className="h-3 w-3" aria-hidden="true" />
-          Failed
+          Couldn&apos;t read
         </Badge>
       );
     default:

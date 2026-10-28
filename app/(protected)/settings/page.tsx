@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,11 +26,10 @@ import { premiumBilling } from '@/shared/labels/premium';
 import { useOnboarding } from '@/components/onboarding/onboarding-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { PlayCircle, User, CreditCard, Home, Download, AlertTriangle, Settings2, SlidersHorizontal, Trash2, Clock, Mail, FileImage, Puzzle, Copy, Plus, Key, Lock } from 'lucide-react';
+import { PlayCircle, User, CreditCard, Download, AlertTriangle, Settings2, SlidersHorizontal, Trash2, Clock, Mail, FileImage, Copy, Plus, Key, Lock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HideAmountsSetting } from '@/components/settings/hide-amounts';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
-import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { SUPPORTED_CURRENCIES } from '@/lib/utils/currency';
 import { EmailForwardingCard } from '@/components/settings/email-forwarding-card';
@@ -39,7 +37,8 @@ import { NotificationsCard } from '@/components/settings/notifications-card';
 
 // 'subscription' is the Premium tab: the label changed so it isn't confused with the
 // subscriptions tracker, but the value stays so ?tab=subscription links keep working.
-const VALID_TABS = ['profile', 'preferences', 'subscription', 'household', 'integrations', 'data'] as const;
+// 'household' went to the Households page (New receipts go to); 'integrations' is Email forwarding.
+const VALID_TABS = ['profile', 'preferences', 'subscription', 'integrations', 'data'] as const;
 
 /** A calendar date in en-IE ("24 Oct 2026") in the viewer's time zone. Was toLocaleDateString(), US format here. */
 function formatDay(value: string | Date): string {
@@ -59,7 +58,8 @@ export default function SettingsPage() {
   const billing = premiumBilling(userData?.premium);
   const { startOnboarding } = useOnboarding();
   const billsEnabled = useFeature('bills');
-  const [selectedHousehold, setSelectedHousehold] = useState<string>('none');
+  // The Chrome extension isn't on the Web Store yet: its keys show for admins only until it is.
+  const extensionEnabled = useFeature('extension');
   const [selectedCurrency, setSelectedCurrency] = useState<string>('EUR');
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingImages, setIsExportingImages] = useState(false);
@@ -84,13 +84,6 @@ export default function SettingsPage() {
     parseAsStringLiteral(VALID_TABS).withDefault('profile'),
   );
 
-  // Update selected household when userData loads
-  useEffect(() => {
-    if (userData?.defaultHouseholdId) {
-      setSelectedHousehold(userData.defaultHouseholdId);
-    }
-  }, [userData?.defaultHouseholdId]);
-
   // Update selected currency when userData loads
   useEffect(() => {
     if (userData?.currency) {
@@ -99,31 +92,10 @@ export default function SettingsPage() {
   }, [userData?.currency]);
 
   // Fetch user's households using the shared hook
-  const { data: households = [], isLoading: householdsLoading } = useHouseholds();
+  const { data: households = [] } = useHouseholds();
   // Covered without Premium of their own: a household another member's Premium pays for.
   const coveringHousehold = (households as Array<{ id: string; name: string }>)
     .find((household) => userData?.entitlements?.householdIds.includes(household.id))?.name ?? null;
-
-  // Update default household mutation
-  const updateDefaultHousehold = useMutation({
-    mutationFn: async (householdId: string | null) => {
-      const response = await fetch('/api/users/default-household', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ householdId }),
-      });
-      if (!response.ok) throw new Error('Failed to update default household');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
-      toast.success('Default household updated successfully');
-    },
-    onError: (error) => {
-      console.error('Error updating default household:', error);
-      toast.error('Failed to update default household');
-    },
-  });
 
   // Update currency mutation
   const updateCurrency = useMutation({
@@ -145,11 +117,6 @@ export default function SettingsPage() {
       toast.error('Failed to update currency');
     },
   });
-
-  const handleSaveDefaultHousehold = () => {
-    const householdId = selectedHousehold === 'none' ? null : selectedHousehold;
-    updateDefaultHousehold.mutate(householdId);
-  };
 
   const handleSaveCurrency = () => {
     updateCurrency.mutate(selectedCurrency);
@@ -396,9 +363,9 @@ export default function SettingsPage() {
           </div>
         </div>
         {/* Tabs - matches loading.tsx */}
-        {/* Six tabs, not five — the skeleton was a tab short of the real list. */}
+        {/* As many as the real list (five). */}
         <div className="grid w-full grid-cols-3 gap-1 rounded-lg bg-muted p-1 lg:w-auto lg:flex">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-9 rounded-md lg:w-28" />
           ))}
         </div>
@@ -442,7 +409,7 @@ export default function SettingsPage() {
               <Settings2 className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
               Settings
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Manage your account and preferences</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:mt-2">Your account, Premium and preferences</p>
           </div>
         </div>
 
@@ -465,13 +432,11 @@ export default function SettingsPage() {
               <CreditCard className="hidden h-4 w-4 sm:block" aria-hidden="true" />
               Premium
             </TabsTrigger>
-            <TabsTrigger value="household" className="gap-2">
-              <Home className="hidden h-4 w-4 sm:block" aria-hidden="true" />
-              Household
-            </TabsTrigger>
+            {/* Email forwarding is all most people have here; the extension's keys join it (and
+                the tab is Integrations, as the extension's pages call it) once it's live. */}
             <TabsTrigger value="integrations" className="gap-2">
-              <Puzzle className="hidden h-4 w-4 sm:block" aria-hidden="true" />
-              Integrations
+              <Mail className="hidden h-4 w-4 sm:block" aria-hidden="true" />
+              {extensionEnabled ? 'Integrations' : 'Email forwarding'}
             </TabsTrigger>
             <TabsTrigger value="data" className="gap-2">
               <Download className="hidden h-4 w-4 sm:block" aria-hidden="true" />
@@ -483,12 +448,12 @@ export default function SettingsPage() {
           <TabsContent value="profile" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
+                <CardTitle>Profile</CardTitle>
                 <CardDescription>From the Google account you sign in with</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">Name</Label>
                   <Input
                     id="name"
                     value={authUser.name || 'Not set'}
@@ -507,38 +472,9 @@ export default function SettingsPage() {
                     disabled
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="user-id">User ID</Label>
-                  <Input
-                    id="user-id"
-                    value={userData?.id ?? authUser.id}
-                    disabled
-                    className="font-mono text-xs"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Information</CardTitle>
-                <CardDescription>Your ReceiptWise account details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Member Since</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {userData?.createdAt ? formatDay(userData.createdAt) : 'Unknown'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Last Updated</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {userData?.updatedAt ? formatDay(userData.updatedAt) : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
+                {userData?.createdAt && (
+                  <p className="text-sm text-muted-foreground">Member since {formatDay(userData.createdAt)}</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -567,10 +503,10 @@ export default function SettingsPage() {
                 <HideAmountsSetting />
 
                 <div className="space-y-3">
-                  <Label htmlFor="currency">Display currency</Label>
+                  <Label htmlFor="currency">Your currency</Label>
                   <p className="text-sm text-muted-foreground">
-                    Used for every amount in the app. Receipts keep the currency they were
-                    issued in.{' '}
+                    {billsEnabled ? 'The currency the plan, bills and totals use.' : 'The currency totals use.'}{' '}
+                    Receipts keep the currency they were paid in.{' '}
                     {/* This link pointed at support@receiptwise.app. The domain is
                         receiptwise.io everywhere else — 15 other references — so
                         mail sent from here went nowhere. */}
@@ -584,13 +520,13 @@ export default function SettingsPage() {
                       value={selectedCurrency}
                       onValueChange={setSelectedCurrency}
                     >
-                      <SelectTrigger className="w-[200px]">
+                      <SelectTrigger id="currency" className="w-[200px]">
                         <SelectValue placeholder="Select currency" />
                       </SelectTrigger>
                       <SelectContent>
                         {SUPPORTED_CURRENCIES.map((currency) => (
                           <SelectItem key={currency.code} value={currency.code}>
-                            {currency.symbol} {currency.code} - {currency.name}
+                            {currency.symbol} {currency.code} · {currency.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -599,7 +535,7 @@ export default function SettingsPage() {
                       onClick={handleSaveCurrency}
                       disabled={updateCurrency.isPending || selectedCurrency === userData?.currency}
                     >
-                      {updateCurrency.isPending ? 'Saving...' : 'Save'}
+                      {updateCurrency.isPending ? 'Saving…' : 'Save'}
                     </Button>
                   </div>
                 </div>
@@ -639,13 +575,11 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <div>
                         <div className="flex items-center gap-2">
+                          {/* There is no free plan — only Premium, with a trial. The card is
+                              already titled Premium, so this only says whether it's on. */}
                           <p className="font-medium text-foreground">
-                            {userData?.subscribed ? 'Premium Plan' : 'No subscription'}
+                            {userData?.subscribed ? 'Premium is on' : 'Not on Premium'}
                           </p>
-                          {/* There is no free plan — only Premium, with a trial. */}
-                          <Badge variant={userData?.subscribed ? 'default' : 'secondary'}>
-                            {userData?.subscribed ? 'Premium' : 'Inactive'}
-                          </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           {userData?.subscribed
@@ -678,7 +612,7 @@ export default function SettingsPage() {
                           onClick={handleManageSubscription}
                           disabled={billingPortalMutation.isPending}
                         >
-                          {billingPortalMutation.isPending ? 'Loading...' : 'Manage billing'}
+                          {billingPortalMutation.isPending ? 'Loading…' : 'Manage billing'}
                         </Button>
                       ) : null}
                     </div>
@@ -721,83 +655,17 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Household Tab */}
-          <TabsContent value="household" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Default Household</CardTitle>
-                <CardDescription>
-                  Set a default household for automatic receipt uploads
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="default-household">Default Household</Label>
-                  <Select
-                    value={selectedHousehold}
-                    onValueChange={setSelectedHousehold}
-                    disabled={householdsLoading || households.length === 0}
-                  >
-                    <SelectTrigger id="default-household">
-                      <SelectValue placeholder="Select a household" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (Personal receipts only)</SelectItem>
-                      {households.map((household: HouseholdWithMembers) => (
-                        <SelectItem key={household.id} value={household.id}>
-                          {household.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    When set, newly uploaded receipts will automatically be assigned to this household
-                  </p>
-                </div>
-                <Button
-                  onClick={handleSaveDefaultHousehold}
-                  disabled={
-                    updateDefaultHousehold.isPending ||
-                    selectedHousehold === (userData?.defaultHouseholdId || 'none')
-                  }
-                >
-                  {updateDefaultHousehold.isPending ? 'Saving...' : 'Save Default Household'}
-                </Button>
-                {billsEnabled && (
-                  <p className="text-xs text-muted-foreground">
-                    This only sets where new receipts go. Shared bills and the household&apos;s plan are
-                    managed from the Plan and Bills pages.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {households.length === 0 && (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-                  <Home className="h-10 w-10 text-muted-foreground mb-3" />
-                  <h3 className="font-semibold mb-1">No Households Yet</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Create or join a household to share receipts with family members
-                  </p>
-                  {/* Was `window.location.href`, which threw away the SPA and
-                      reloaded the whole app to reach an internal route. */}
-                  <Button variant="outline" onClick={() => router.push('/sharing')}>
-                    Go to sharing
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
           {/* Integrations Tab */}
           <TabsContent value="integrations" className="space-y-6 mt-6">
             <EmailForwardingCard />
 
-            {/* Hidden on phones: Chrome on mobile doesn't run extensions. */}
+            {/* Hidden on phones: Chrome on mobile doesn't run extensions. And until the extension
+                is on the Web Store (FEATURE_EXTENSION), for admins only: keys for an extension
+                nobody can install were a dead end. */}
+            {extensionEnabled && (
             <Card className="hidden md:flex">
               <CardHeader>
-                <CardTitle>Chrome Extension</CardTitle>
+                <CardTitle>Chrome extension</CardTitle>
                 <CardDescription>
                   Clip receipts and bills from any web page. The extension is on its way to the
                   Chrome Web Store.
@@ -856,12 +724,12 @@ export default function SettingsPage() {
                     {/* API Keys List */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <Label>Your API Keys</Label>
+                        <Label>Your keys</Label>
                         <AlertDialog open={showNewKeyDialog} onOpenChange={setShowNewKeyDialog}>
                           <AlertDialogTrigger asChild>
                             <Button size="sm" disabled={isLoadingApiKeys}>
                               <Plus className="h-4 w-4 mr-2" />
-                              Create New Key
+                              Create a key
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -873,10 +741,10 @@ export default function SettingsPage() {
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                              <Label htmlFor="key-name">Key Name</Label>
+                              <Label htmlFor="key-name">Name</Label>
                               <Input
                                 id="key-name"
-                                placeholder="e.g., Chrome Extension"
+                                placeholder="Home laptop"
                                 value={newKeyName}
                                 onChange={(e) => setNewKeyName(e.target.value)}
                                 onKeyDown={(e) => {
@@ -889,7 +757,7 @@ export default function SettingsPage() {
                             <AlertDialogFooter>
                               <AlertDialogCancel onClick={() => setNewKeyName('')}>Cancel</AlertDialogCancel>
                               <Button onClick={createApiKey} disabled={isLoadingApiKeys || !newKeyName.trim()}>
-                                {isLoadingApiKeys ? 'Creating...' : 'Create Key'}
+                                {isLoadingApiKeys ? 'Creating…' : 'Create key'}
                               </Button>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -968,7 +836,7 @@ export default function SettingsPage() {
                                       onClick={() => deleteApiKey(key.id)}
                                       disabled={isLoadingApiKeys}
                                     >
-                                      {isLoadingApiKeys ? 'Deleting...' : 'Delete Key'}
+                                      {isLoadingApiKeys ? 'Deleting…' : 'Delete key'}
                                     </Button>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -1012,19 +880,20 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+            )}
           </TabsContent>
 
           {/* Data Tab */}
           <TabsContent value="data" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Data Export</CardTitle>
+                <CardTitle>Export your data</CardTitle>
                 <CardDescription>Download your data for backup or tax purposes</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-lg bg-muted/50 p-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">Last Export</span>
+                    <span className="text-sm font-medium text-foreground">Last export</span>
                     <span className="text-sm text-muted-foreground">
                       {userData?.lastExportedAt ? formatMoment(userData.lastExportedAt) : 'Never'}
                     </span>
@@ -1043,7 +912,7 @@ export default function SettingsPage() {
                     className="justify-start"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? 'Exporting...' : 'All Data (CSV)'}
+                    {isExporting ? 'Exporting…' : 'All data (CSV)'}
                   </Button>
                   <Button
                     variant="outline"
@@ -1052,7 +921,7 @@ export default function SettingsPage() {
                     className="justify-start"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? 'Exporting...' : 'All Data (JSON)'}
+                    {isExporting ? 'Exporting…' : 'All data (JSON)'}
                   </Button>
                   <Button
                     variant="outline"
@@ -1061,7 +930,7 @@ export default function SettingsPage() {
                     className="justify-start"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? 'Exporting...' : 'Receipts only'}
+                    {isExporting ? 'Exporting…' : 'Receipts only'}
                   </Button>
                   <Button
                     variant="outline"
@@ -1070,7 +939,7 @@ export default function SettingsPage() {
                     className="justify-start"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? 'Exporting...' : billsEnabled ? 'Bills & subscriptions only' : 'Subscriptions only'}
+                    {isExporting ? 'Exporting…' : billsEnabled ? 'Bills only' : 'Subscriptions only'}
                   </Button>
                 </div>
                 <div className="border-t pt-4 mt-4">
@@ -1084,7 +953,7 @@ export default function SettingsPage() {
                     className="w-full justify-start"
                   >
                     <FileImage className="h-4 w-4 mr-2" />
-                    {isExportingImages ? 'Generating...' : 'Receipts with Images (HTML)'}
+                    {isExportingImages ? 'Making it…' : 'Receipts with their photos (HTML)'}
                   </Button>
                 </div>
               </CardContent>
@@ -1094,9 +963,9 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive">
                   <AlertTriangle className="h-5 w-5" />
-                  Danger Zone
+                  Delete your account
                 </CardTitle>
-                <CardDescription>Irreversible actions</CardDescription>
+                <CardDescription>Your receipts, bills and plan are deleted 24 hours after you ask.</CardDescription>
               </CardHeader>
               <CardContent>
                 {isDeletionScheduled ? (
@@ -1141,7 +1010,7 @@ export default function SettingsPage() {
                       disabled={cancelDeletionMutation.isPending}
                       className="w-full sm:w-auto"
                     >
-                      {cancelDeletionMutation.isPending ? 'Cancelling...' : 'Cancel Account Deletion'}
+                      {cancelDeletionMutation.isPending ? 'Cancelling…' : 'Keep my account'}
                     </Button>
                   </div>
                 ) : (
@@ -1162,7 +1031,7 @@ export default function SettingsPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
                             <AlertTriangle className="h-5 w-5" />
-                            Delete Your Account?
+                            Delete your account?
                           </AlertDialogTitle>
                           <AlertDialogDescription asChild>
                             <div className="space-y-4 text-sm text-muted-foreground">
@@ -1220,7 +1089,7 @@ export default function SettingsPage() {
                               deleteConfirmation.toLowerCase() !== 'delete my account'
                             }
                           >
-                            {deleteAccountMutation.isPending ? 'Scheduling...' : 'Delete My Account'}
+                            {deleteAccountMutation.isPending ? 'Scheduling…' : 'Delete my account'}
                           </Button>
                         </AlertDialogFooter>
                       </AlertDialogContent>

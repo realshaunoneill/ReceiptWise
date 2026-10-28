@@ -33,10 +33,10 @@ import { formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { useAccounts } from '@/lib/hooks/use-plan';
 import { useFeature } from '@/lib/hooks/use-user';
-import { frequencyLabel } from '@/lib/schedule/billing-schedule';
+import { frequencyLabel, isAutoPaid } from '@/lib/schedule/billing-schedule';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
 import { formatCurrency } from '@/lib/utils/currency';
-import { frequencyName, itemNoun, paymentMethodLabel, paymentStatusLabel, statusLabel } from './labels';
+import { frequencyName, itemNoun, nextPaymentAmount, paymentMethodLabel, paymentStatusLabel, statusLabel } from './labels';
 import {
   Dialog,
   DialogContent,
@@ -72,11 +72,17 @@ function formatPeriod(start: string, end: string): string {
   return `${formatLocalDate(start, short, 'en-IE')} – ${formatLocalDate(end, short, 'en-IE')}`;
 }
 
-/** The account's name. Its own component so accounts (a bills-only API) are only fetched with bills on. */
-function AccountName({ accountId }: { accountId: string | null }) {
+/**
+ * Which account it's paid from, only when that's a choice (two accounts or more, or one picked).
+ * Its own component so accounts (a bills-only API) are only fetched with bills on. No account
+ * picked means the one the pay goes into (shared/plan/compute-plan.ts).
+ */
+function PaidFromRow({ accountId }: { accountId: string | null }) {
   const { data: accounts } = useAccounts();
-  if (!accountId) return <>Main account</>;
-  return <>{accounts?.find((account) => account.id === accountId)?.name ?? 'Another account'}</>;
+  const live = (accounts ?? []).filter((account) => !account.archivedAt);
+  if (!accountId && live.length < 2) return null;
+  const name = accountId ? accounts?.find((account) => account.id === accountId)?.name ?? 'Another account' : 'The one your pay goes into';
+  return <DetailRow label="Paid from">{name}</DetailRow>;
 }
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -158,7 +164,7 @@ export function SubscriptionDetailModal({
       { status: 'cancelled' },
       {
         onSuccess: () => {
-          toast.success(`${subscription.name} has been cancelled`);
+          toast.success(`${subscription.name} is stopped`);
           setConfirming(null);
         },
         onError: (error) => {
@@ -200,19 +206,19 @@ export function SubscriptionDetailModal({
       <Dialog open={open} onOpenChange={(next) => { if (!next) setConfirming(null); onOpenChange(next); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{deleting ? `Delete ${subscription?.name ?? `this ${noun}`}?` : `Cancel ${subscription?.name ?? `this ${noun}`}?`}</DialogTitle>
+            <DialogTitle>{deleting ? `Delete ${subscription?.name ?? `this ${noun}`}?` : `Stop ${subscription?.name ?? `this ${noun}`}?`}</DialogTitle>
             <DialogDescription>
               {deleting
-                ? 'This removes it and all its payment records, and cannot be undone.'
-                : 'It ends today, so nothing more is expected after this. Its payment history is kept, and you can resume it from the Cancelled tab.'}
+                ? 'This removes it and its payment history, and can’t be undone.'
+                : 'Nothing more is expected after today. Its payment history is kept, and you can start it again from the Cancelled list.'}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setConfirming(null)}>
-              {deleting ? 'Keep it' : 'Don’t cancel'}
+              {deleting ? 'Keep it' : 'Keep it going'}
             </Button>
             <Button variant="destructive" onClick={deleting ? handleDelete : handleCancel}>
-              {deleting ? 'Delete' : `Cancel ${noun}`}
+              {deleting ? 'Delete' : `Stop this ${noun}`}
             </Button>
           </div>
         </DialogContent>
@@ -225,6 +231,10 @@ export function SubscriptionDetailModal({
     : null;
   const bills = subscription?.bills ?? [];
   const billForPayment = (paymentId: string) => bills.find((bill) => bill.paymentId === paymentId);
+  const next = subscription ? nextPaymentAmount(subscription) : { amount: 0, estimated: false };
+  // GET /api/subscriptions/[id] adds the next cycle's own amount (null when it's on the usual one).
+  const nextAmount = (subscription as { nextAmount?: string | null } | undefined)?.nextAmount;
+  const nextOwn = !!subscription && nextAmount != null && next.amount !== parseFloat(subscription.amount);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -253,11 +263,7 @@ export function SubscriptionDetailModal({
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge
-                    variant={subscription.status === 'active' ? 'default' : 'secondary'}
-                  >
-                    {statusLabel(subscription.status)}
-                  </Badge>
+                  {subscription.status !== 'active' && <Badge variant="secondary">{statusLabel(subscription.status)}</Badge>}
                   {subscription.canEdit !== false && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" aria-label={`Actions for ${subscription.name}`}>
@@ -286,7 +292,7 @@ export function SubscriptionDetailModal({
                       {subscription.status !== 'cancelled' && (
                         <DropdownMenuItem onClick={() => setConfirming('cancel')}>
                           <X className="w-4 h-4 mr-2" />
-                          Cancel {noun}
+                          Stop this {noun}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
@@ -310,22 +316,24 @@ export function SubscriptionDetailModal({
                   <CardTitle className="text-lg">Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <DetailRow label={subscription.amountType === 'variable' ? 'Usual amount' : 'Amount'}>
+                  {/* The next payment's own amount where one is set (a card bill's €809 this month), else the usual. */}
+                  <DetailRow label={nextOwn ? 'Next payment' : subscription.amountType === 'variable' ? 'Usual amount' : 'Amount'}>
                     <span className="amount text-2xl font-bold">
-                      {subscription.amountType === 'variable' ? '~' : ''}
-                      {formatCurrency(parseFloat(subscription.amount), subscription.currency)}
+                      {next.estimated ? '~' : ''}
+                      {formatCurrency(next.amount, subscription.currency)}
                     </span>
                     {' '}
                     <span className="text-sm font-normal text-muted-foreground">
-                      {frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}
+                      {nextOwn
+                        ? `usually ${formatCurrency(parseFloat(subscription.amount), subscription.currency)}`
+                        : frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}
                     </span>
                   </DetailRow>
                   {billsEnabled && (
-                    <DetailRow label="Type">
-                      {subscription.kind === 'bill' ? 'Bill' : 'Subscription'}
-                      {' · '}
-                      {subscription.amountType === 'variable' ? 'amount changes' : 'fixed amount'}
-                    </DetailRow>
+                    <DetailRow label="Essential">{subscription.kind === 'bill' ? 'Yes, a bill' : 'No, a subscription'}</DetailRow>
+                  )}
+                  {billsEnabled && (
+                    <DetailRow label="The amount">{subscription.amountType === 'variable' ? 'Changes each time' : 'The same each time'}</DetailRow>
                   )}
                   <DetailRow label="How often">{frequencyName(subscription.billingFrequency, subscription.customFrequencyDays)}</DetailRow>
                   {subscription.billingFrequency !== 'custom' && subscription.billingFrequency !== 'once' && (
@@ -334,7 +342,7 @@ export function SubscriptionDetailModal({
                   {billsEnabled && (
                     <>
                       <DetailRow label="How it's paid">{paymentMethodLabel(subscription.paymentMethod)}</DetailRow>
-                      <DetailRow label="Paid from"><AccountName accountId={subscription.paidFromAccountId} /></DetailRow>
+                      <PaidFromRow accountId={subscription.paidFromAccountId} />
                     </>
                   )}
                   <DetailRow label="Shared with">
@@ -363,7 +371,7 @@ export function SubscriptionDetailModal({
                   </div>
                   {subscription.nextBillingDate && (
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Next due</span>
+                      <span className="text-muted-foreground">{isAutoPaid(subscription.paymentMethod) ? 'Next goes out' : 'Next due'}</span>
                       <div className="flex items-center gap-2 font-medium">
                         <Calendar className="w-4 h-4" />
                         {formatDay(subscription.nextBillingDate)}
@@ -598,6 +606,16 @@ export function SubscriptionDetailModal({
                     )}
                   </CardContent>
                 </Card>
+              )}
+
+              {/* Editing was only in the ⋮ menu, so the details looked read-only. */}
+              {subscription.canEdit !== false && (
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+                    <Edit className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Edit {noun}
+                  </Button>
+                </div>
               )}
             </div>
           </>

@@ -8,6 +8,10 @@ export interface ReceiptStats {
   avgSpending: number;
   spendingByCategory: Array<{ category: string; amount: number; percentage: number }>;
   points?: Array<{ date: string; amount: number; category: string | null }>;
+  /** The viewer's currency: the amounts are in it only. */
+  currency?: string;
+  /** Receipts in other currencies: counted in totalReceipts, in no amount. */
+  otherCurrencies?: Array<{ currency: string; receipts: number }>;
 }
 
 /**
@@ -57,6 +61,8 @@ export function useDashboardStats(householdId?: string, personalOnly: boolean = 
     avgSpending: data?.avgSpending ?? 0,
     topCategory: data?.spendingByCategory[0]?.category ?? 'No data',
     spendingByCategory: data?.spendingByCategory ?? [],
+    currency: data?.currency,
+    otherCurrencies: data?.otherCurrencies ?? [],
     recentReceipts,
   };
 

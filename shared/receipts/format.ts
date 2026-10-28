@@ -1,4 +1,4 @@
-import { formatLocalDate, isLocalDate, localToday } from '../dates/local-date';
+import { daysBetween, formatLocalDate, isLocalDate, localToday, type LocalDate } from '../dates/local-date';
 import { CATEGORY_INFO, getCategoryInfo } from './categories';
 
 /*
@@ -24,6 +24,21 @@ export function formatDisplayDate(
   return new Intl.DateTimeFormat('en-IE', options).format(date);
 }
 
+/**
+ * A day's heading in a list of receipts: "Today", "Yesterday", then "Wed 7 Jan", with the year
+ * only when it isn't this one ("Wed 31 Dec 2025"). Built from parts because en-IE's short date
+ * comes out as "Wed, 7 Jan" in some engines and without the comma in others. The website's
+ * timeline and the app's list both use it.
+ */
+export function dayHeading(day: LocalDate, today: LocalDate): string {
+  const ago = daysBetween(day, today);
+  if (ago === 0) return 'Today';
+  if (ago === 1) return 'Yesterday';
+  const weekday = formatLocalDate(day, { weekday: 'short' }, 'en-IE');
+  const date = formatLocalDate(day, day.slice(0, 4) === today.slice(0, 4) ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }, 'en-IE');
+  return `${weekday} ${date}`;
+}
+
 /** The calendar day a receipt is for: its transaction date, or the local day it was uploaded. */
 export function receiptDay(receipt: { transactionDate?: string | null; createdAt?: string | Date | null }): string | null {
   if (receipt.transactionDate && isLocalDate(receipt.transactionDate)) return receipt.transactionDate;
@@ -32,21 +47,35 @@ export function receiptDay(receipt: { transactionDate?: string | null; createdAt
   return Number.isNaN(created.getTime()) ? null : localToday(created);
 }
 
-const PAYMENT_BRANDS = ['Apple Pay', 'Google Pay', 'Samsung Pay', 'PayPal', 'Revolut', 'Visa', 'Mastercard', 'Maestro', 'Amex', 'American Express', 'PIN'];
+const PAYMENT_BRANDS = ['Apple Pay', 'Google Pay', 'Samsung Pay', 'PayPal', 'Revolut', 'Visa', 'Mastercard', 'Maestro', 'Amex', 'American Express', 'PIN', 'Klarna', 'Curve'];
+
+/** The everyday words in a payment method, which stay lower case after the first word ("Debit card"). */
+const PAYMENT_WORDS = new Set(['card', 'credit', 'debit', 'contactless', 'cash', 'chip', 'payment', 'online', 'transfer', 'voucher', 'gift']);
 
 /**
- * "Apple Pay", "Chip & PIN", "Contactless". Was `capitalizeText`, which lower-cases everything
- * after the first letter of each underscore-separated word, so the scanner's "Apple Pay" came
- * out as "Apple pay".
+ * "Apple Pay", "Chip & PIN", "Credit card", "Visa ····4821". Was `capitalizeText`, which
+ * lower-cases everything after the first letter of each underscore-separated word, so the scanner's
+ * "Apple Pay" came out as "Apple pay". The scanner also writes "CreditCard", "Credit Card" and
+ * "Card ending in 1784"; those read as the rest of the app's sentence case, and a card's last four
+ * as ····1784.
  */
 export function formatPaymentMethod(raw: string): string {
-  const spaced = raw.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
-  // Leave mixed case from the receipt alone ("Visa Debit"); only all-lower or all-upper is recased.
+  const spaced = raw
+    .replace(/_+/g, ' ')
+    .replace(/master\s*card/gi, 'Mastercard')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\s*(?:ending(?:\s+in)?|\*{2,}|x{2,}|[·•]{2,})\s*(\d{4})\b/gi, ' ····$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Only all-lower or all-upper is recased as a whole; mixed case from the receipt keeps its words.
   let label = spaced === spaced.toLowerCase() || spaced === spaced.toUpperCase()
     ? spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase()
     : spaced;
+  label = label.split(' ').map((word, index) => (index > 0 && PAYMENT_WORDS.has(word.toLowerCase()) ? word.toLowerCase() : word)).join(' ');
   for (const brand of PAYMENT_BRANDS) {
-    label = label.replace(new RegExp(`\\b${brand}\\b`, 'gi'), brand);
+    // Tolerates the space a split "MasterCard" or "PayPal" picked up.
+    const pattern = brand.split(/(?=[A-Z])|\s+/).filter(Boolean).join('\\s*');
+    label = label.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), brand);
   }
   return label;
 }

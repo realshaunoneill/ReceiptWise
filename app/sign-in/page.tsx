@@ -52,10 +52,12 @@ export default async function SignInPage({
                   three colours for three items on a page with one accent. */}
               <div>
                 <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                  Welcome back
+                  Welcome to ReceiptWise
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground">
-                  Your receipts and your household are where you left them.
+                  {BILLS_LAUNCHED
+                    ? 'Your receipts, bills and monthly plan, in one place.'
+                    : 'Your receipts and your household, in one place.'}
                 </p>
               </div>
 
@@ -80,7 +82,7 @@ export default async function SignInPage({
                     <h2 className="font-semibold text-foreground">{BILLS_LAUNCHED ? 'Your month, planned' : 'Spending analytics'}</h2>
                     <p className="text-sm text-muted-foreground">
                       {BILLS_LAUNCHED
-                        ? 'Your pay, the bills on the way, and what is left for each week.'
+                        ? 'Your pay, your bills, and what is left for each week.'
                         : 'Category breakdowns and trends over the period you choose.'}
                     </p>
                   </div>

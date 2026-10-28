@@ -6,7 +6,7 @@ import { Ban, Check, ExternalLink, FileText, Pause, Play, Trash2 } from 'lucide-
 import { type WireBillDetail, type WireFiledBill, type WirePayment } from '@shared/api/bills';
 import { formatCurrency } from '@shared/currency';
 import { formatLocalDate, localToday } from '@shared/dates/local-date';
-import { frequencyName, itemNoun, paymentMethodLabel, paymentStatusLabel, statusLabel } from '@shared/labels/subscriptions';
+import { frequencyName, itemNoun, nextPaymentAmount, paymentMethodLabel, paymentStatusLabel, statusLabel } from '@shared/labels/subscriptions';
 import { fromCents, toCents } from '@shared/money';
 import { frequencyLabel, isAutoPaid } from '@shared/schedule/billing-schedule';
 import { billDay, paymentDay } from '../../../src/bills/summary';
@@ -70,9 +70,12 @@ export default function BillScreen() {
   const billsOn = !!me.data?.features.bills;
   const noun = itemNoun(bill.kind, billsOn);
   const variable = bill.amountType === 'variable';
-  const amount = Number(bill.amount);
+  // The next payment's own amount where one is set (a card bill's €809 this month), else the usual.
+  const next = nextPaymentAmount(bill);
+  const usual = Number(bill.amount);
+  const ownNext = bill.nextAmount != null && next.amount !== usual;
   const household = bill.householdId ? households.data?.find((h) => h.id === bill.householdId) : null;
-  const account = bill.paidFromAccountId ? accounts.data?.find((a) => a.id === bill.paidFromAccountId)?.name ?? 'Another account' : 'Main account';
+  const account = bill.paidFromAccountId ? accounts.data?.find((a) => a.id === bill.paidFromAccountId)?.name ?? 'Another account' : 'The one your pay goes into';
   const schedule = bill.billingFrequency !== 'custom' && bill.billingFrequency !== 'once';
 
   const toggleStatus = () => {
@@ -81,7 +84,7 @@ export default function BillScreen() {
   };
 
   const cancel = async () => {
-    if (!(await confirm(`Cancel ${bill.name}?`, "It ends today, so nothing more is expected after this. Its payment history is kept, and you can resume it from the Cancelled tab.", `Cancel ${noun}`))) return;
+    if (!(await confirm(`Stop ${bill.name}?`, "Nothing more is expected after today. Its payment history is kept, and you can start it again from the Cancelled list.", `Stop this ${noun}`))) return;
     // The server ends it today when no end date is given.
     update.mutate({ status: 'cancelled' }, { onSuccess: success });
   };
@@ -97,7 +100,8 @@ export default function BillScreen() {
     <>
       <Stack.Screen
         options={{
-          title: bill.name,
+          // The name is the screen's own heading, so the bar doesn't repeat it.
+          title: '',
           headerRight: bill.canEdit
             ? () => (
               <Pressable onPress={() => router.push({ pathname: '/sheets/bill-edit', params: { id: bill.id } })} hitSlop={12} accessibilityRole="button" style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
@@ -111,13 +115,15 @@ export default function BillScreen() {
         <View style={{ marginHorizontal: GUTTER + space.xs, marginBottom: space.xl, gap: space.sm }}>
           <Text variant="title" accessibilityRole="header">{bill.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.sm, flexWrap: 'wrap' }}>
-            <Text variant="largeTitle" tabular>{`${variable ? '~' : ''}${Number.isNaN(amount) ? bill.amount : formatCurrency(amount, bill.currency)}`}</Text>
+            <Text variant="largeTitle" tabular>{`${next.estimated ? '~' : ''}${formatCurrency(next.amount, bill.currency)}`}</Text>
             <Text variant="callout" ink="secondary">{frequencyLabel(bill.billingFrequency, bill.customFrequencyDays)}</Text>
           </View>
+          {ownNext && !!bill.nextBillingDate && (
+            <Text variant="footnote" ink="muted" tabular>{`The one on ${shortDay(billDay(bill.nextBillingDate))} · usually ${formatCurrency(usual, bill.currency)}`}</Text>
+          )}
           {!!bill.description && <Text variant="callout" ink="secondary">{bill.description}</Text>}
           <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
-            <Pill label={statusLabel(bill.status)} tone={bill.status === 'active' ? 'good' : 'neutral'} />
-            {billsOn && <Pill label={bill.kind === 'bill' ? 'Bill' : 'Subscription'} tone="neutral" />}
+            {bill.status !== 'active' && <Pill label={statusLabel(bill.status)} tone="neutral" />}
             {!!bill.isBusinessExpense && <Pill label="Business" tone="neutral" />}
             {!!household && <Pill label={`Shared with ${household.name}`} tone="neutral" />}
           </View>
@@ -131,11 +137,13 @@ export default function BillScreen() {
 
         <Section title="Details">
           <List>
-            {billsOn && <Row label="Type" value={`${bill.kind === 'bill' ? 'Bill' : 'Subscription'} · ${variable ? 'amount changes' : 'fixed amount'}`} />}
+            {billsOn && <Row label="Essential" value={bill.kind === 'bill' ? 'Yes, a bill' : 'No, a subscription'} />}
+            <Row label="Amount" value={variable ? 'Changes each time' : 'The same each time'} />
             <Row label="How often" value={frequencyName(bill.billingFrequency, bill.customFrequencyDays)} />
             {schedule && <Row label="Day of the month" value={String(bill.billingDay)} />}
             {billsOn && <Row label="How it's paid" value={paymentMethodLabel(bill.paymentMethod)} />}
-            {billsOn && <Row label="Paid from" value={account} />}
+            {/* Which account only matters with more than one. */}
+            {billsOn && (!!bill.paidFromAccountId || (accounts.data ?? []).filter((a) => !a.archivedAt).length > 1) && <Row label="Paid from" value={account} />}
             <Row label="Shared with" value={bill.householdId ? household?.name ?? 'A household' : 'Just you'} />
             {!!bill.category && <Row label="Category" value={bill.category} />}
           </List>
@@ -144,7 +152,7 @@ export default function BillScreen() {
         <Section title="Dates">
           <List>
             <Row label="Started" value={showDay(billDay(bill.startDate))} />
-            {!!bill.nextBillingDate && bill.status === 'active' && <Row label="Next due" value={showDay(billDay(bill.nextBillingDate))} />}
+            {!!bill.nextBillingDate && bill.status === 'active' && <Row label={isAutoPaid(bill.paymentMethod) ? 'Next goes out' : 'Next due'} value={showDay(billDay(bill.nextBillingDate))} />}
             {!!bill.lastPaymentDate && <Row label="Last paid" value={showDay(billDay(bill.lastPaymentDate))} />}
             {!!bill.endDate && <Row label="Ends" value={showDay(billDay(bill.endDate))} />}
           </List>
@@ -180,8 +188,8 @@ export default function BillScreen() {
           <Section>
             <List>
               <Row icon={bill.status === 'active' ? Pause : Play} label={bill.status === 'active' ? 'Pause' : 'Resume'} accent onPress={toggleStatus} />
-              {bill.status !== 'cancelled' && <Row icon={Ban} label={`Cancel ${noun}`} destructive onPress={() => void cancel()} />}
-              <Row icon={Trash2} label="Delete" destructive onPress={() => void del()} />
+              {bill.status !== 'cancelled' && <Row icon={Ban} label={`Stop this ${noun}`} detail="Keeps its history" destructive onPress={() => void cancel()} />}
+              <Row icon={Trash2} label="Delete" detail="And its payment history" destructive onPress={() => void del()} />
             </List>
           </Section>
         ) : (

@@ -17,7 +17,6 @@ import {
   Users,
   ArrowRight,
   ScanLine,
-  Shield,
   ChevronLeft,
   Receipt,
   Check,
@@ -64,7 +63,8 @@ type OnboardingStep = {
   icon: LucideIcon;
   color: string;
   bgColor: string;
-  features?: Array<{ icon: LucideIcon; text: string }>;
+  /** `requiresBills`: only for accounts with the monthly plan. */
+  features?: Array<{ icon: LucideIcon; text: string; requiresBills?: boolean }>;
   pricing?: boolean;
   cta?: boolean;
   currencySelect?: boolean;
@@ -92,15 +92,16 @@ const onboardingSteps: OnboardingStep[] = [
   {
     id: 1,
     title: 'Welcome to ReceiptWise',
-    description: 'An expense tracker built around receipts, and around households that share them.',
+    // Was "An expense tracker built around receipts", then straight into setting up the plan.
+    description: 'Your receipts read for you, your bills in one list, and a plan for the month, shared with your household if you like.',
     icon: Receipt,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
     features: [
-      { icon: Users, text: 'Shared with family, a partner or housemates' },
+      { icon: Wallet, text: 'Your month, planned, payday to payday', requiresBills: true },
       { icon: ScanLine, text: 'Receipts read and itemised for you' },
+      { icon: Users, text: 'Shared with family, a partner or housemates' },
       { icon: BarChart3, text: 'Spending broken down by category' },
-      { icon: Shield, text: 'Your data, exportable and deletable' },
     ],
   },
   {
@@ -374,7 +375,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                 {/* Features */}
                 {step.features && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-4">
-                    {step.features.map((feature, index) => (
+                    {step.features.filter((feature) => !feature.requiresBills || billsEnabled).map((feature, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, y: 10 }}

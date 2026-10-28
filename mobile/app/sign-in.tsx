@@ -110,7 +110,7 @@ export default function SignIn() {
         <Logo size={72} dark={theme === 'dark'} />
         <Text variant="largeTitle" align="center">ReceiptWise</Text>
         <Text variant="callout" ink="secondary" align="center">
-          Receipts read for you, the bills on the way, and a plan for the month, shared with your household.
+          Receipts read for you, your bills in one list, and a plan that shows what's left each month.
         </Text>
       </View>
 

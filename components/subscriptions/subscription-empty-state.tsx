@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp, Calendar, Link2, PieChart, Pause, XCircle, PlayCircle, CreditCard } from 'lucide-react';
+import { TrendingUp, Calendar, Pause, XCircle, PlayCircle, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useFeature } from '@/lib/hooks/use-user';
 import { CreateSubscriptionDialog } from './create-subscription-dialog';
@@ -83,46 +83,21 @@ export function SubscriptionEmptyState({ status, kind = 'all' }: SubscriptionEmp
     );
   }
 
+  // One sentence and one action, as in the app: three "benefit" tiles under it said what the page
+  // would show once something was added, which adding one shows anyway.
   return (
-    /* "Payment Reminders / Never miss a due date" was one of three tiles here.
-       No reminder is ever sent — the app shows upcoming payments when you look at
-       it. The tiles say what actually happens. */
     <Card className="border-dashed">
       <CardContent className="px-6 py-12">
         <div className="mx-auto max-w-lg">
-          {/* Icon */}
           <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
             <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
           </div>
-
-          {/* Title & Description */}
-          <h3 className="mb-2 text-xl font-semibold text-foreground">{billsEnabled ? 'No bills or subscriptions yet' : 'No subscriptions yet'}</h3>
-          <p className="mb-8 text-muted-foreground">
+          <h3 className="mb-2 text-xl font-semibold text-foreground">{billsEnabled ? 'No bills yet' : 'No subscriptions yet'}</h3>
+          <p className="mb-6 text-muted-foreground">
             {billsEnabled
               ? 'Add your rent, electricity and phone, and the plan shows what’s left after them.'
               : 'Add the recurring payments you already have, like streaming, phone and insurance, and they get totalled and tracked alongside your receipts.'}
           </p>
-
-          {/* Benefits */}
-          <div className="mb-8 grid w-full grid-cols-1 gap-6 sm:grid-cols-3">
-            <div>
-              <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
-              <p className="mt-2 text-sm font-medium">What is due next</p>
-              <p className="text-xs text-muted-foreground">Shown on this page and the dashboard</p>
-            </div>
-            <div>
-              <PieChart className="h-5 w-5 text-primary" aria-hidden="true" />
-              <p className="mt-2 text-sm font-medium">Monthly and yearly cost</p>
-              <p className="text-xs text-muted-foreground">For each one and in total</p>
-            </div>
-            <div>
-              <Link2 className="h-5 w-5 text-primary" aria-hidden="true" />
-              <p className="mt-2 text-sm font-medium">Matched to receipts</p>
-              <p className="text-xs text-muted-foreground">Link the receipt that proves a payment</p>
-            </div>
-          </div>
-
-          {/* CTA */}
           <CreateSubscriptionDialog />
         </div>
       </CardContent>

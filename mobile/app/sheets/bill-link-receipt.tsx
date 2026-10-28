@@ -141,7 +141,7 @@ export default function LinkReceipt() {
                     setChosenReceipt(null);
                   }}
                   title={shortDay(paymentDay(p))}
-                  detail={p.status === 'paid' ? 'Marked paid' : p.status === 'missed' ? 'Not marked paid' : 'Due'}
+                  detail={p.status === 'paid' ? 'Marked paid' : p.status === 'missed' ? 'Overdue' : 'Due'}
                   amount={formatCurrency((toCents(p.expectedAmount) ?? 0) / 100, currency)}
                 />
               ))}

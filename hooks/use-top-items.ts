@@ -20,6 +20,8 @@ export interface TopItemsResponse {
     totalPurchases: number;
     totalSpent: number;
     currency: string;
+    /** What was spent per currency, never added across currencies. */
+    totals?: Array<{ currency: string; amount: number }>;
     period: {
       startDate: string;
       endDate: string;

@@ -2,7 +2,7 @@
 
 import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Upload, Loader2, CheckCircle2, XCircle, X, RefreshCw, Camera, Lightbulb, FileImage } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2, XCircle, X, RefreshCw, Camera, Lightbulb, FileImage, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -42,11 +42,19 @@ function safeFileName(name: string): string {
 export function ReceiptBatchUpload({
   householdId,
   onUploadComplete,
+  receiptCount,
 }: {
   householdId?: string
   onUploadComplete?: () => void
+  /** How many receipts there are, once known: the tips start open only for someone new (under 3). */
+  receiptCount?: number
 }) {
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  // Decided once, when the count arrives, so the tips don't snap shut after the list loads.
+  const [tipsOpen, setTipsOpen] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (tipsOpen === null && receiptCount !== undefined) setTipsOpen(receiptCount < 3);
+  }, [receiptCount, tipsOpen]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -206,7 +214,7 @@ export function ReceiptBatchUpload({
             prev.map(i => (i.id === item.id ? { ...i, status: 'completed' as const, progress: 100 } : i)),
           );
 
-          toast.success('Receipt processed successfully!');
+          toast.success('Receipt read');
 
           // Notify parent to refresh
           onUploadComplete?.();
@@ -303,7 +311,7 @@ export function ReceiptBatchUpload({
         prev.map(i => (i.id === id ? { ...i, status: 'completed' as const, progress: 100 } : i)),
       );
 
-      toast.success('Receipt processed successfully!');
+      toast.success('Receipt read');
       onUploadComplete?.();
     } catch (error) {
       setUploadItems(prev =>
@@ -357,111 +365,92 @@ export function ReceiptBatchUpload({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
-              Add receipts
-            </CardTitle>
-            {/* Led with dragging on a phone, which can't drag. */}
-            <CardDescription className="mt-1">
-              <span className="md:hidden">Take a photo, or choose some you already have</span>
-              <span className="hidden md:inline">Drag a stack in, or pick files</span>
-            </CardDescription>
-          </div>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="h-5 w-5 text-primary" aria-hidden="true" />
+          Add receipts
+        </CardTitle>
+        {/* Led with dragging on a phone, which can't drag. A mouse gets the drop zone; a touch
+            screen, whatever its width, gets the camera and the library. */}
+        <CardDescription className="mt-1">
+          <span className="md:pointer-fine:hidden">Take a photo, or choose some you already have</span>
+          <span className="hidden md:pointer-fine:inline">Drop a stack in, or choose files</span>
+        </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Side by side from lg: stacked, the card was 600px tall across the full width
-            once the "Recent receipts" list beside it went. */}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-6">
-          {/* Tips Section. Was headed with a 📸 emoji. */}
-          <div className="space-y-2 rounded-lg border bg-muted/40 p-4 text-sm">
-            <p className="flex items-center gap-2 font-medium text-foreground">
-              <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
-              For a clean read
-            </p>
-            <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-              <li>Flat and well lit, with the whole receipt in frame</li>
-              <li>The total and the date matter most — don&apos;t crop those off</li>
-              <li>Trim the table, the floor and your thumb out of the shot</li>
-              <li>A whole stack can go in at once</li>
-            </ul>
-          </div>
-
-          <div className="space-y-4">
-            {/* Upload Area - Drag & Drop Zone. Desktop only: on a phone the camera and
-                library buttons below are the way in. */}
-            <div
-              ref={dropZoneRef}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                'relative hidden w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 transition-all duration-200 cursor-pointer md:flex',
-                isDragging
-                  ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg'
-                  : 'border-muted-foreground/25 bg-linear-to-b from-muted/30 to-muted/50 hover:border-primary/50 hover:bg-muted/80',
-              )}
-            >
-              {/* Animated background elements when dragging */}
-              {isDragging && (
-                <div className="absolute inset-0 overflow-hidden rounded-xl">
-                  <div className="absolute top-1/4 left-1/4 h-32 w-32 rounded-full bg-primary/20 blur-3xl animate-pulse" />
-                  <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-primary/20 blur-3xl animate-pulse delay-150" />
-                </div>
-              )}
-
-              <div className="relative z-10 flex flex-col items-center">
-                {isDragging ? (
-                  <>
-                    <div className="rounded-full bg-primary/20 p-4 mb-3 animate-bounce">
-                      <FileImage className="h-10 w-10 text-primary" />
-                    </div>
-                    <span className="text-lg font-semibold text-primary">Drop them here</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="rounded-full bg-muted p-4 mb-3">
-                      <Upload className="h-10 w-10 text-muted-foreground" />
-                    </div>
-                    <span className="text-base font-medium text-foreground">
-                      Click to upload or drag & drop receipts
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons. Take photo comes first and is the primary action on a phone. */}
-            <div className="flex gap-3">
-              <Button
-                className="flex-1 h-12 md:hidden"
-                onClick={() => cameraInputRef.current?.click()}
-              >
-                <Camera className="h-4 w-4 mr-2" aria-hidden="true" />
-                Take photo
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 h-12"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <FileImage className="h-4 w-4 mr-2" aria-hidden="true" />
-                <span className="md:hidden">Choose photos</span>
-                <span className="hidden md:inline">Browse files</span>
-              </Button>
-            </div>
-
-            {/* The formats and size limit were stated twice, here and in the drop zone. */}
-            <p className="text-xs text-center text-muted-foreground">
-              PNG, JPG or WebP, up to {MAX_FILE_MB} MB each
-            </p>
-          </div>
+      <CardContent className="space-y-3">
+        {/* The drop zone is the way in with a mouse: one short strip, which also opens the file
+            picker. It used to sit beside a tips panel and above a separate "Browse files" button
+            that did the same thing. */}
+        <div
+          ref={dropZoneRef}
+          role="button"
+          tabIndex={0}
+          aria-label="Choose receipts to add"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
+          className={cn(
+            'hidden w-full cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-6 transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:pointer-fine:flex',
+            isDragging
+              ? 'border-primary bg-primary/10'
+              : 'border-muted-foreground/25 bg-muted/30 hover:border-primary/50 hover:bg-muted/60',
+          )}
+        >
+          {isDragging ? (
+            <>
+              <FileImage className="h-6 w-6 text-primary" aria-hidden="true" />
+              <span className="font-semibold text-primary">Drop them here</span>
+            </>
+          ) : (
+            <>
+              <Upload className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+              <span className="font-medium text-foreground">
+                Drop receipts here, or <span className="text-primary underline-offset-2 hover:underline">choose files</span>
+              </span>
+            </>
+          )}
         </div>
+
+        {/* On a touch screen: the camera first, then the library. */}
+        <div className="flex gap-3 md:pointer-fine:hidden">
+          <Button className="h-12 flex-1" onClick={() => cameraInputRef.current?.click()}>
+            <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
+            Take photo
+          </Button>
+          <Button variant="outline" className="h-12 flex-1" onClick={() => fileInputRef.current?.click()}>
+            <FileImage className="mr-2 h-4 w-4" aria-hidden="true" />
+            Choose photos
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">PNG, JPG or WebP, up to {MAX_FILE_MB} MB each. A whole stack can go in at once.</p>
+
+        {/* Folded away once there are a few receipts: it was a third of the first screen on a
+            phone, for advice people need once. Was headed with a 📸 emoji. */}
+        <details
+          open={tipsOpen ?? false}
+          onToggle={(e) => setTipsOpen(e.currentTarget.open)}
+          className="group rounded-lg border bg-muted/40 text-sm"
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 font-medium text-foreground [&::-webkit-details-marker]:hidden">
+            <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
+            Tips for a clean read
+            <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <ul className="ml-8 list-disc space-y-1 px-4 pb-3 text-muted-foreground">
+            <li>Flat and well lit, with the whole receipt in frame</li>
+            <li>The total and the date matter most, so don&apos;t crop those off</li>
+            <li>Trim the table, the floor and your thumb out of the shot</li>
+          </ul>
+        </details>
 
         {/* Hidden file inputs. Outside the drop zone, which is not shown on a phone. */}
         <input
@@ -497,7 +486,7 @@ export function ReceiptBatchUpload({
                 {processingCount > 0 && (
                   <span className="flex items-center gap-1 text-primary">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {processingCount} processing
+                    {processingCount} reading
                   </span>
                 )}
                 {failedCount > 0 && (
@@ -568,10 +557,10 @@ export function ReceiptBatchUpload({
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
                       {item.status === 'processing' && (
-                        <span className="text-primary">• AI scanning...</span>
+                        <span className="text-primary">· Reading…</span>
                       )}
                       {item.status === 'uploading' && (
-                        <span className="text-primary">• Uploading...</span>
+                        <span className="text-primary">· Uploading…</span>
                       )}
                     </div>
                     {item.error && (

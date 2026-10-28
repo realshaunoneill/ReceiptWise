@@ -114,9 +114,11 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, currentPrima
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{income ? 'Edit income' : 'Add your pay'}</DialogTitle>
+          <DialogTitle>{income ? 'Edit income' : isFirst ? 'Add your pay' : 'Add income'}</DialogTitle>
           <DialogDescription>
-            What comes in and when. Your main pay sets the plan: each period runs from one payday to the next.
+            {!income && isFirst
+              ? 'What comes in and when. Your main pay sets the plan: each month runs from one payday to the next.'
+              : 'What comes in and when.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -191,7 +193,7 @@ export function IncomeDialog({ open, onOpenChange, income, isFirst, currentPrima
                 My main pay (sets the period)
               </Label>
               {replacesPrimary && (
-                <p className="text-xs text-warning">This replaces {replacesPrimary.name} as your main pay, and the periods will follow this one&apos;s paydays.</p>
+                <p className="text-xs text-warning">This replaces {replacesPrimary.name} as your main pay, and the months will follow this one&apos;s paydays.</p>
               )}
             </div>
           )}

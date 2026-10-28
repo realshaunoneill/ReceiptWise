@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { TrendingDown, TrendingUp } from 'lucide-react-native';
 import { formatCurrency } from '@shared/currency';
 import { localToday } from '@shared/dates/local-date';
+import { nothingSpentLine } from '@shared/insights/quick-stats';
 import { categoryName } from '@shared/receipts/format';
 import { useTheme } from '../contexts/ThemeContext';
 import { useReceiptStats } from '../hooks/useInsights';
@@ -21,7 +22,7 @@ const PERIOD_LABEL: Record<TrendPeriod, string> = { week: 'Last 7 days', month: 
  * over time and by category (the website's SpendingSummary and SpendingChart, as one card).
  * Spending more is shown in red and less in green, as on the website.
  */
-export default function SpendingSummary({ householdId, currency }: { householdId?: string; currency: string }) {
+export default function SpendingSummary({ householdId, currency, lastReceipt = null }: { householdId?: string; currency: string; lastReceipt?: string | null }) {
   const { colors } = useTheme();
   const [period, setPeriod] = useState<TrendPeriod>('month');
   const today = localToday();
@@ -49,7 +50,7 @@ export default function SpendingSummary({ householdId, currency }: { householdId
         ) : trends.total === 0 ? (
           <View style={{ gap: space.xs }}>
             <Text variant="footnote" ink="muted">{PERIOD_LABEL[period]}</Text>
-            <Text variant="callout" ink="secondary">{`Nothing spent ${period === 'week' ? 'in the last 7 days' : period === 'month' ? 'this month' : 'this year'} yet.`}</Text>
+            <Text variant="callout" ink="secondary">{nothingSpentLine(period, lastReceipt, today)}</Text>
           </View>
         ) : (
           <>

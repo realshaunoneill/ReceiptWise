@@ -21,7 +21,6 @@ export function PlanSummary({ plan }: { plan: PlanResponse }) {
   const paidShare = totals.outgoingCents > 0 ? Math.round((totals.paidOutCents / totals.outgoingCents) * 100) : 0;
   const notes = planNotes(plan.lines, { estimates: false });
   const month = period.label.split(' ')[0];
-  const current = plan.daysLeft !== null;
   const money = (cents: number) => formatCents(Math.abs(cents), currency);
   const rows: Array<{ label: string; cents: number; minus?: boolean; total?: boolean; hint?: string }> = [
     { label: 'Coming in', cents: breakdown.incomeCents },
@@ -37,18 +36,21 @@ export function PlanSummary({ plan }: { plan: PlanResponse }) {
       <CardContent className="space-y-4 p-5 sm:p-6">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-sm text-muted-foreground">{negative ? `Over in ${month} by` : current ? 'Left this month' : `Left in ${month}`}</p>
+            {/* "The plan's", so it isn't taken for what's in the bank (the bank check's figure). */}
+            <p className="text-sm text-muted-foreground">{negative ? `Over in ${month}'s plan by` : `Left in ${month}'s plan`}</p>
             <p className={cn('amount text-4xl font-semibold tracking-tight', negative && 'text-destructive')}>
               {money(breakdown.leftCents)}
             </p>
+            <p className="text-xs text-muted-foreground">Your pay, less everything planned</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Weekly split</p>
-            <p className={cn('amount text-2xl font-semibold', negative && 'text-destructive')}>
-              {formatCents(totals.weeklyCents, currency)}
-            </p>
-            <p className="text-xs text-muted-foreground">over {period.weeks} weeks</p>
-          </div>
+          {/* Over, there's nothing to split a week (as in the app): "-€126.32 a week" meant nothing. */}
+          {!negative && (
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Weekly split</p>
+              <p className="amount text-2xl font-semibold">{formatCents(totals.weeklyCents, currency)}</p>
+              <p className="text-xs text-muted-foreground">over {period.weeks} weeks</p>
+            </div>
+          )}
         </div>
 
         <dl className="border-t text-sm">

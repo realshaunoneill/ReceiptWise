@@ -52,7 +52,15 @@ type FormData = {
   notes: string;
 };
 
-export function CreateSubscriptionDialog() {
+type CreateSubscriptionDialogProps = {
+  /** The button's words; "Add bill or subscription" (or "Add subscription" without bills) when left out. */
+  label?: string;
+  /** The button's style, e.g. 'outline' beside other outline buttons; the primary style when left out. */
+  variant?: React.ComponentProps<typeof Button>['variant'];
+  className?: string;
+};
+
+export function CreateSubscriptionDialog({ label, variant, className }: CreateSubscriptionDialogProps = {}) {
   const [open, setOpen] = useState(false);
   const { data: households } = useHouseholds();
   const { mutate: createSubscription, isPending } = useCreateSubscription();
@@ -101,7 +109,7 @@ export function CreateSubscriptionDialog() {
     }
 
     if (billingDay < 1 || billingDay > 31) {
-      toast.error('Billing day must be between 1 and 31');
+      toast.error('Pick a day of the month from 1 to 31');
       return;
     }
 
@@ -152,9 +160,9 @@ export function CreateSubscriptionDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button variant={variant} className={className}>
           <Plus className="w-4 h-4 mr-2" />
-          {billsEnabled ? 'Add bill or subscription' : 'Add subscription'}
+          {label ?? (billsEnabled ? 'Add bill or subscription' : 'Add subscription')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -198,7 +206,7 @@ export function CreateSubscriptionDialog() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <CreditCard className="w-4 h-4" />
-              <span>Amount</span>
+              <span>How much, how often</span>
             </div>
             <Separator />
 
@@ -304,11 +312,11 @@ export function CreateSubscriptionDialog() {
                   {...register('billingDay', { required: true })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enter a number between 1-31
+                  A day from 1 to 31
                 </p>
                 {errors.billingDay && (
                   <p className="text-sm text-destructive">
-                    Billing day is required (1-31)
+                    Pick a day from 1 to 31
                   </p>
                 )}
               </div>
@@ -329,7 +337,8 @@ export function CreateSubscriptionDialog() {
             </div>
           </div>
 
-          {billsEnabled && <BillFields value={billFields} onChange={setBillFields} />}
+          {/* Keyed to the dialog opening, so a fresh form follows Essential again. */}
+          {billsEnabled && <BillFields key={String(open)} value={billFields} onChange={setBillFields} followKind />}
 
           {/* Step 4: Additional Details (Collapsible/Optional) */}
           <div className="space-y-4">

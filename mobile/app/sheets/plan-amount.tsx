@@ -30,7 +30,7 @@ type Params = {
 };
 
 const HINT: Record<Params['kind'], (month: string) => string | undefined> = {
-  occurrence: () => 'Only for this period: the bill keeps its usual amount.',
+  occurrence: (month) => `Only for ${month}: other months keep the usual amount.`,
   entry: () => undefined,
   income: (month) => `Only for ${month}: other months keep your usual pay.`,
   goal: (month) => `Only for ${month}: other months keep the usual amount. 0 skips it this month.`,

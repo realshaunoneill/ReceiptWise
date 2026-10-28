@@ -20,6 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { formatLocalDate, localToday } from '@/lib/dates/local-date';
 import { type AccountWithBalance, useAccounts, useArchiveAccount, useRecordBalances, useSaveAccount } from '@/lib/hooks/use-plan';
 import { changedBalances } from '@/lib/plan/balances';
+import { bankCheckExplainer, bankCheckTitle } from '@/shared/plan/bank-copy';
 import { toCents } from '@/lib/money';
 import { type PlanResponse } from '@/lib/services/plan-service';
 import { cn } from '@/lib/utils';
@@ -35,7 +36,8 @@ type BankCheckProps = {
 /**
  * The optional second view: from the balance actually in the bank, what is left until payday once
  * everything still to go has gone. Balances are typed in; there is no bank connection. Only shown
- * for the period that contains today.
+ * for the month that contains today. It says where its figure comes from (shared/plan/bank-copy.ts),
+ * so it doesn't read as contradicting the plan's own "left".
  */
 export function BankCheck({ plan, householdId }: BankCheckProps) {
   const [open, setOpen] = useState(false);
@@ -53,7 +55,7 @@ export function BankCheck({ plan, householdId }: BankCheckProps) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Landmark className="h-4 w-4" />{short ? 'Short before payday' : 'Left until payday'}
+                  <Landmark className="h-4 w-4" />{bankCheckTitle(view)}
                 </p>
                 <p className={cn('amount text-3xl font-semibold tracking-tight', short && 'text-destructive')}>
                   {formatCents(short ? -view.availableCents : view.availableCents, plan.currency)}
@@ -68,7 +70,9 @@ export function BankCheck({ plan, householdId }: BankCheckProps) {
               <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Update</Button>
             </div>
             <div className="space-y-1 border-t pt-3 text-sm">
-              {view.accounts.map((account) => (
+              <p className="amount text-muted-foreground">{bankCheckExplainer(view, plan.lines, plan.currency)}</p>
+              {/* One account is in the sentence above; several are listed. */}
+              {view.accounts.length > 1 && view.accounts.map((account) => (
                 <div key={account.id} className="flex items-center justify-between gap-2">
                   <span className={cn('flex items-center gap-1.5', account.stale && 'text-warning')}>
                     {account.stale && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -78,12 +82,11 @@ export function BankCheck({ plan, householdId }: BankCheckProps) {
                   <span className="amount tabular-nums">{formatCents(account.balanceCents, plan.currency)}</span>
                 </div>
               ))}
-              <p className="amount pt-1 text-xs text-muted-foreground">
-                {view.incomingCents > 0 && `+ ${formatCents(view.incomingCents, plan.currency)} still to come in · `}
-                − {formatCents(view.outgoingCents, plan.currency)} still to go out
-              </p>
               {plan.flags.includes('stale_balance') && (
-                <p className="text-xs text-warning">A balance is over a week old or from before this period: update it for a true figure.</p>
+                <p className="flex items-center gap-1.5 text-xs text-warning">
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  A balance is over a week old or from before this month: update it for a true figure.
+                </p>
               )}
             </div>
           </CardContent>

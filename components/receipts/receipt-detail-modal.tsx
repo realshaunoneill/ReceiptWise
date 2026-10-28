@@ -130,7 +130,7 @@ export function ReceiptDetailModal({
           }}
         >
           <VisuallyHidden>
-            <DialogTitle>Receipt Details - {receipt.merchantName}</DialogTitle>
+            <DialogTitle>Receipt from {receipt.merchantName || 'an unknown shop'}</DialogTitle>
           </VisuallyHidden>
 
           {/* Close Button */}

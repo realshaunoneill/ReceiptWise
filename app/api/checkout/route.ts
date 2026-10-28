@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       if (liveSubscription) {
         return NextResponse.json(
           {
-            error: 'You already have a ReceiptWise subscription. Manage or change it under Settings → Subscription.',
+            error: 'You already have Premium. Manage or change it under Settings → Premium.',
             code: 'ALREADY_SUBSCRIBED',
           },
           { status: 409 },

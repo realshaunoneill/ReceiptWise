@@ -66,7 +66,7 @@ const features = [
     icon: Wallet,
     title: 'Your month, planned',
     description:
-      'Your pay, the bills on the way and what is left for each week, payday to payday. Upload a bill or forward it by email: it is read for you, and one tap files it against the right bill and month.',
+      'Your pay, your bills and what is left for each week, payday to payday. Upload a bill or forward it by email: it is read for you, and one tap files it against the right bill and month.',
   }] : []),
   {
     icon: Scan,
@@ -117,8 +117,8 @@ const benefits = [
   'Everything categorised as it arrives',
   'Split view: shared, personal, or both',
   'Export for an accountant or a tax return',
-  'Shared subscriptions tracked alongside receipts',
-  ...(BILLS_LAUNCHED ? ['Bills, savings and a weekly split, payday to payday'] : []),
+  // One line for bills: "shared subscriptions" and "bills, savings and a weekly split" overlapped.
+  BILLS_LAUNCHED ? 'Bills, savings and a weekly split, payday to payday' : 'Shared subscriptions tracked alongside receipts',
   'Find any receipt by something on it',
 ];
 
@@ -189,7 +189,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
           </h1>
           <p className="mt-6 max-w-xl text-pretty text-lg text-muted-foreground">
             Photograph a receipt and it is filed, itemised and searchable — for you and
-            for everyone you share the bills with.{BILLS_LAUNCHED && ' Then plan the month: your pay, the bills on the way, and what is left for each week.'}{' '}
+            for everyone you share the bills with.{BILLS_LAUNCHED && ' Then plan the month: your pay, your bills, and what is left for each week.'}{' '}
             Built for families, couples and housemates who are tired of asking who paid
             for what.
           </p>
@@ -267,7 +267,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
               What it actually does
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              All of it works today. The one thing you cannot get yet is marked.
+              Everything here works today, apart from the one marked as coming.
             </p>
           </div>
           <div className="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2 lg:grid-cols-3">

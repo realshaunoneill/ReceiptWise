@@ -7,6 +7,7 @@ import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
 import { parseBoundedInt, parseMonths, receiptScope, windowStart } from '@/lib/utils/insights-params';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
+import { totalsByCurrency } from '@/lib/utils/currency-totals';
 
 export const runtime = 'nodejs';
 
@@ -42,9 +43,9 @@ export async function GET(request: NextRequest) {
       if (membershipCheck) return membershipCheck; // Returns error response if not a member
     }
 
-    // Create cache key from query parameters. v2: entries now carry merchantBreakdown, so the
-    // older cached shape (merchant names only) must not be served.
-    const cacheKey = `v2|months:${months}|limit:${limit}|sort:${sortBy}|household:${householdId || 'null'}`;
+    // Create cache key from query parameters. v2: entries carry merchantBreakdown. v3: items are
+    // grouped per currency and the summary has `totals`, so older cached shapes must not be served.
+    const cacheKey = `v3|months:${months}|limit:${limit}|sort:${sortBy}|household:${householdId || 'null'}`;
 
     // Check cache first
     const cachedResult = await db
@@ -124,8 +125,10 @@ export async function GET(request: NextRequest) {
       const price = parseFloat(item.totalPrice || item.unitPrice || '0');
       const qty = parseFloat(item.quantity || '1');
 
-      // Normalize item name (case-insensitive grouping)
-      const normalizedName = item.itemName.toLowerCase().trim();
+      // Grouped by name (case-insensitively) and currency: the same thing bought in euro and in
+      // dollars is two rows, never one total under one sign.
+      const currency = item.currency || user.currency || DEFAULT_CURRENCY;
+      const normalizedName = `${item.itemName.toLowerCase().trim()}|${currency}`;
 
       if (!itemMap.has(normalizedName)) {
         itemMap.set(normalizedName, {
@@ -137,7 +140,7 @@ export async function GET(request: NextRequest) {
           category: item.category,
           merchants: new Map(),
           lastPurchased: item.transactionDate || new Date().toISOString().split('T')[0],
-          currency: item.currency || user.currency || DEFAULT_CURRENCY,
+          currency,
         });
       }
 
@@ -192,7 +195,12 @@ export async function GET(request: NextRequest) {
     // Calculate summary statistics
     const totalUniqueItems = itemsArray.length;
     const totalPurchases = itemsArray.reduce((sum, item) => sum + item.count, 0);
-    const totalSpent = itemsArray.reduce((sum, item) => sum + item.totalSpent, 0);
+    // What was spent, per currency (there's no conversion). totalSpent and currency are the
+    // biggest of those, for app builds from before `totals`: it used to add every currency up
+    // under the first item's sign.
+    const preferredCurrency = user.currency || DEFAULT_CURRENCY;
+    const totals = totalsByCurrency(itemsArray.map((item) => ({ amount: item.totalSpent, currency: item.currency })), preferredCurrency);
+    const main = [...totals].sort((a, b) => b.amount - a.amount)[0];
 
     submitLogEvent('receipt', 'Top items fetched successfully', correlationId, {
       userId: user.id,
@@ -205,8 +213,9 @@ export async function GET(request: NextRequest) {
       summary: {
         totalUniqueItems,
         totalPurchases,
-        totalSpent: parseFloat(totalSpent.toFixed(2)),
-        currency: topItems[0]?.currency || user.currency || DEFAULT_CURRENCY,
+        totalSpent: main?.amount ?? 0,
+        currency: main?.currency ?? preferredCurrency,
+        totals,
         period: {
           startDate: startDate.toISOString().split('T')[0],
           endDate: new Date().toISOString().split('T')[0],

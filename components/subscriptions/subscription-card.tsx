@@ -1,22 +1,22 @@
 'use client';
 
-import { useState } from 'react';
 import { AlertCircle, ExternalLink, Calendar, TrendingUp, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { LinkReceiptDialog } from './link-receipt-dialog';
 import { type Subscription, type SubscriptionPayment } from '@/lib/db/schema';
 import { daysBetween, formatLocalDate, fromUtcDate, localToday } from '@/lib/dates/local-date';
 import { useFeature } from '@/lib/hooks/use-user';
 import { frequencyLabel } from '@/lib/schedule/billing-schedule';
 import { formatCurrency } from '@/lib/utils/currency';
 import { cn } from '@/lib/utils';
-import { statusLabel } from './labels';
+import { nextPaymentAmount, nextPaymentLabel, statusLabel } from './labels';
 
 type SubscriptionWithPayments = Subscription & {
   missingPayments?: number;
   recentPayments?: SubscriptionPayment[];
+  /** The next cycle's own amount, when it has one (GET /api/subscriptions). */
+  nextAmount?: string | null;
 };
 
 type SubscriptionCardProps = {
@@ -25,27 +25,30 @@ type SubscriptionCardProps = {
 };
 
 /**
- * When it's next due: "Today", "Tomorrow" or "In 3 days" with the date beside it, and just the
- * date further out. The card used to show "Nov 01 • Nov 1, 2026", the same day twice.
+ * When it's next: "Goes out in 3 days" for a direct debit, "Due in 3 days" for one paid by hand,
+ * with the date beside it within a week, and just the date further out. Only a payment you make
+ * yourself turns red on the day (shared/labels/subscriptions.ts).
  */
-function nextPayment(nextBillingDate: Date | string | null) {
+function nextPayment(nextBillingDate: Date | string | null, paymentMethod: string | null) {
   if (!nextBillingDate) return null;
   // Midnight UTC of the billing day: read it as that calendar day, not in the browser's zone
   // (a day early west of UTC).
   const billingDay = fromUtcDate(new Date(nextBillingDate));
-  const daysUntil = daysBetween(localToday(), billingDay);
+  const today = localToday();
+  const daysUntil = daysBetween(today, billingDay);
   if (daysUntil < 0) return null;
 
   const date = formatLocalDate(billingDay, { day: 'numeric', month: 'short', year: 'numeric' }, 'en-IE');
-  const relative = daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : daysUntil <= 7 ? `In ${daysUntil} days` : null;
-  return { relative, date, daysUntil };
+  const { label, urgency } = nextPaymentLabel(billingDay, today, paymentMethod);
+  return { relative: daysUntil < 7 ? label : null, date, urgency };
 }
 
 export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProps) {
   const billsEnabled = useFeature('bills');
-  const [linkOpen, setLinkOpen] = useState(false);
-  const next = nextPayment(subscription.nextBillingDate);
+  const next = nextPayment(subscription.nextBillingDate, subscription.paymentMethod);
   const notMarkedPaid = subscription.missingPayments ?? 0;
+  // This month's own amount where one is set: a card bill that's usually €0 with €809 for November.
+  const amount = nextPaymentAmount(subscription);
 
   return (
     <>
@@ -67,8 +70,9 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
                 )}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                {billsEnabled && subscription.kind === 'bill' && (
-                  <Badge variant="secondary" className="text-xs">Bill</Badge>
+                {/* Essentials are the usual case; only the nice-to-haves are marked. */}
+                {billsEnabled && subscription.kind !== 'bill' && (
+                  <Badge variant="secondary" className="text-xs">Subscription</Badge>
                 )}
                 {subscription.category && (
                   <Badge variant="outline" className="text-xs">{subscription.category}</Badge>
@@ -80,20 +84,18 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
                 )}
               </div>
             </div>
-            <Badge
-              variant={subscription.status === 'active' ? 'default' : 'secondary'}
-              className="shrink-0"
-            >
-              {statusLabel(subscription.status)}
-            </Badge>
+            {/* Only when it isn't the usual: every card on the Active tab said "Active". */}
+            {subscription.status !== 'active' && (
+              <Badge variant="secondary" className="shrink-0">{statusLabel(subscription.status)}</Badge>
+            )}
           </div>
 
           {/* Amount & Next Payment Section */}
           <div className="space-y-3 border-t pt-4">
             <div className="flex items-baseline gap-2">
               <TrendingUp className="w-5 h-5 text-muted-foreground" />
-              <span className="amount text-3xl font-bold tracking-tight">
-                {formatCurrency(parseFloat(subscription.amount), subscription.currency)}
+              <span className={cn('amount text-3xl font-bold tracking-tight', amount.estimated && 'text-muted-foreground')}>
+                {amount.estimated ? '~' : ''}{formatCurrency(amount.amount, subscription.currency)}
               </span>
               <span className="text-sm text-muted-foreground font-medium">
                 {frequencyLabel(subscription.billingFrequency, subscription.customFrequencyDays)}
@@ -105,7 +107,7 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 {next.relative ? (
                   <>
-                    <span className={cn('font-medium', next.daysUntil === 0 && 'text-destructive')}>{next.relative}</span>
+                    <span className={cn('font-medium', next.urgency === 'due' && 'text-destructive', next.urgency === 'soon' && 'text-warning')}>{next.relative}</span>
                     <span className="text-muted-foreground">· {next.date}</span>
                   </>
                 ) : (
@@ -128,17 +130,17 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/25 bg-warning/10 p-3">
               <AlertCircle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
               <span className="text-sm font-medium text-warning">
-                {notMarkedPaid} not marked paid
+                {notMarkedPaid} overdue
               </span>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-2 border-t pt-3 mt-3">
+          {/* One way in, for the keyboard too: linking a receipt, editing and the payments are in the details. */}
+          <div className="border-t pt-3 mt-3">
             <Button
-              variant="default"
+              variant="outline"
               size="sm"
-              className="flex-1"
+              className="w-full"
               onClick={(e) => {
                 e.stopPropagation();
                 onClick();
@@ -146,30 +148,9 @@ export function SubscriptionCard({ subscription, onClick }: SubscriptionCardProp
             >
               View details
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLinkOpen(true);
-              }}
-            >
-              Link receipt
-            </Button>
           </div>
         </CardContent>
       </Card>
-      {/*
-        Outside the card: React sends clicks inside a portal up the component tree, so with the
-        dialog inside the clickable card every click in it also opened the detail modal on top.
-      */}
-      <LinkReceiptDialog
-        subscription={subscription}
-        payments={subscription.recentPayments || []}
-        open={linkOpen}
-        onOpenChange={setLinkOpen}
-      />
     </>
   );
 }

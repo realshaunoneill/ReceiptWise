@@ -95,9 +95,9 @@ export default function Households() {
                   icon={Users}
                   label={household.name}
                   detail={[
-                    household.memberCount === 1 ? '1 member' : `${household.memberCount} members`,
+                    household.memberCount === 1 ? 'Just you' : `${household.memberCount} people`,
                     household.isAdmin ? 'You own it' : null,
-                    covered ? 'Bills and plan shared' : null,
+                    covered ? 'Bills and plan too' : null,
                   ].filter(Boolean).join(' · ')}
                   onPress={() => router.push({ pathname: '/settings/households/[id]', params: { id: household.id } })}
                 />

@@ -22,6 +22,7 @@ import { PlanLines } from '@/components/plan/plan-lines';
 import { PlanSetup } from '@/components/plan/plan-setup';
 import { PlanSummary } from '@/components/plan/plan-summary';
 import { QuickAdd } from '@/components/plan/quick-add';
+import { CreateSubscriptionDialog } from '@/components/subscriptions/create-subscription-dialog';
 import { SubscriptionDetailModal } from '@/components/subscriptions/subscription-detail-modal';
 import { SubscriptionUpsell } from '@/components/subscriptions/subscription-upsell';
 import { type IncomeSource, type SavingsGoal } from '@/lib/db/schema';
@@ -108,6 +109,10 @@ function PlanPageContent() {
   const yourPrimary = plan?.primaryIncome ?? null;
   const yourIncomeCount = plan?.viewerIncomeCount ?? 0;
   const payNotShared = Boolean(householdId && yourPrimary && yourPrimary.householdId !== householdId);
+  // Nothing in the plan at all yet: only the way in (Start with your pay) and How it works. The
+  // summary at €0.00, the bank check, quick add and the buttons were too much to start from.
+  const firstRun = Boolean(plan && plan.flags.includes('no_income') && !yourPrimary && yourIncomeCount === 0
+    && plan.lines.length === 0 && plan.goals.length === 0);
   const sharePay = () => {
     if (!yourPrimary || !householdId) return;
     saveIncome(
@@ -138,7 +143,7 @@ function PlanPageContent() {
         )}
       </div>
 
-      <PeriodSwitcher period={plan?.period} offset={offset} onOffsetChange={(next) => setOffset(next === 0 ? null : next)} />
+      {!firstRun && <PeriodSwitcher period={plan?.period} offset={offset} onOffsetChange={(next) => setOffset(next === 0 ? null : next)} />}
 
       {error && <Card><CardContent className="p-4 text-destructive">{error.message}</CardContent></Card>}
       {isLoading || !plan ? <PlanSkeleton /> : (
@@ -163,15 +168,8 @@ function PlanPageContent() {
                 <div className="flex items-start gap-3">
                   <Users className="mt-0.5 h-5 w-5 text-primary" />
                   <div>
-                    <p className="font-medium">Your pay isn&apos;t shared with {householdName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {yourPrimary.householdId
-                        ? `${yourPrimary.name} is shared with ${householdNames[yourPrimary.householdId] ?? 'another household'}, so it isn't counted here`
-                        : `${yourPrimary.name} is only in your own plan, so it isn't counted here`}
-                      {plan.flags.includes('no_income') ? ', and nobody else has shared theirs' : ''}. Share it if the household
-                      plans with it (a line can be shared with one household at a time); your own plan uses it to set
-                      the periods either way.
-                    </p>
+                    <p className="font-medium">Your pay isn&apos;t counted in {householdName}&apos;s plan</p>
+                    <p className="text-sm text-muted-foreground">Share it if you plan your money together.</p>
                   </div>
                 </div>
                 <Button variant={plan.flags.includes('no_income') ? 'default' : 'outline'} disabled={sharing} onClick={sharePay}>
@@ -182,36 +180,43 @@ function PlanPageContent() {
           )}
 
           <HowItWorks />
-          <PlanSummary plan={plan} />
-          <NextMonth plan={nextIsStale ? undefined : nextPlan} onOpen={() => setOffset(offset + 1)} />
-          {/* The bills near the top: the bank check and bills to file come first only once used,
-              and adding a one-off or a list follows the lines (the app keeps it in its + menu). */}
-          {plan.balance && <BankCheck plan={plan} householdId={householdId} />}
-          {inbox.length > 0 && <BillInbox plan={plan} householdId={householdId} />}
+          {!firstRun && (
+            <>
+              <PlanSummary plan={plan} />
+              {/* The bills near the top: the bank check and bills to file come first only once used,
+                  and adding a one-off or a list follows the lines. */}
+              {plan.balance && <BankCheck plan={plan} householdId={householdId} />}
+              {inbox.length > 0 && <BillInbox plan={plan} householdId={householdId} />}
 
-          <PlanLines
-            plan={plan}
-            viewerId={user!.id}
-            householdNames={householdNames}
-            onEditEntry={setEntryLine}
-            onEditIncome={(id) => setIncomeDialog({ open: true, income: editingIncome(id) })}
-            onEditGoal={(id) => setGoalDialog({ open: true, goal: editingGoal(id) })}
-            onOpenBill={setBillId}
-          />
+              <PlanLines
+                plan={plan}
+                viewerId={user!.id}
+                householdNames={householdNames}
+                onEditEntry={setEntryLine}
+                onEditIncome={(id) => setIncomeDialog({ open: true, income: editingIncome(id) })}
+                onEditGoal={(id) => setGoalDialog({ open: true, goal: editingGoal(id) })}
+                onOpenBill={setBillId}
+              />
+              {/* After the lines, so it isn't read as a second total for this month. */}
+              <NextMonth plan={nextIsStale ? undefined : nextPlan} onOpen={() => setOffset(offset + 1)} />
 
-          <QuickAdd plan={plan} householdId={householdId} />
-          {!plan.balance && <BankCheck plan={plan} householdId={householdId} />}
-          {inbox.length === 0 && <BillInbox plan={plan} householdId={householdId} />}
+              <QuickAdd plan={plan} householdId={householdId} />
+              {!plan.balance && <BankCheck plan={plan} householdId={householdId} />}
+              {inbox.length === 0 && <BillInbox plan={plan} householdId={householdId} />}
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setIncomeDialog({ open: true, income: null })}>
-              <Wallet className="mr-1.5 h-4 w-4" />{yourIncomeCount === 0 ? 'Add your pay' : 'Add income'}
-            </Button>
-            <Button variant="outline" onClick={() => setGoalDialog({ open: true, goal: null })}>
-              <PiggyBank className="mr-1.5 h-4 w-4" />Add savings
-            </Button>
-            <Button variant="ghost" asChild><Link href="/subscriptions">All bills &amp; subscriptions</Link></Button>
-          </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setIncomeDialog({ open: true, income: null })}>
+                  <Wallet className="mr-1.5 h-4 w-4" />{yourIncomeCount === 0 ? 'Add your pay' : 'Add income'}
+                </Button>
+                <Button variant="outline" onClick={() => setGoalDialog({ open: true, goal: null })}>
+                  <PiggyBank className="mr-1.5 h-4 w-4" />Add savings
+                </Button>
+                {/* Adds an essential bill by default (bill-fields' DEFAULT_BILL_FIELDS). */}
+                <CreateSubscriptionDialog label="Add a bill" variant="outline" />
+                <Button variant="ghost" asChild><Link href="/subscriptions">All bills</Link></Button>
+              </div>
+            </>
+          )}
         </>
       )}
 

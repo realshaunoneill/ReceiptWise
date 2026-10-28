@@ -14,9 +14,9 @@ export function ReceiptBusinessDetails({ ocrData }: ReceiptBusinessDetailsProps)
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <Building2 className="h-4 w-4" />
-        Business Details
+        Business details
       </div>
         <div className="grid grid-cols-1 gap-2">
           {ocrData?.phoneNumber && (

@@ -52,9 +52,9 @@ export function ReceiptFinancialBreakdown({ receipt }: ReceiptFinancialBreakdown
 
   return (
     <div className="bg-background p-4 space-y-3 shrink-0">
-      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
-        Financial breakdown
+        Breakdown
       </div>
 
       {/* Only show detailed breakdown if there are details */}

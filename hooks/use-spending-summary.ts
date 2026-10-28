@@ -13,6 +13,8 @@ export interface SpendingSummary {
       totalSpent: number;
       currency: string;
       averagePerItem: number;
+      /** Bought in these too, but not in the money figures (there's no conversion). */
+      otherCurrencies?: string[];
     };
     topItems: Array<{
       name: string;

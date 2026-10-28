@@ -106,6 +106,20 @@ The app supports Dynamic Type up to the accessibility sizes: rows reflow rather 
   - receipts are grouped under Today, Yesterday, the weekday, then the date
 - " · " (a middle dot) separates parts of a line. Plurals are written out ("1 receipt", "2 receipts").
 - On a phone, say "tap", not "click". Name the button the person will see.
+- **One name for each thing, on the website and in the app** (settled in the 2026-10-28 review):
+  - **Bills** is the page and the tab; an essential one is a *bill*, the rest are *subscriptions*.
+    Links say "All bills". Only a subscription gets a kind pill.
+  - **Households** (not "Sharing"); your own scope is **Just me**.
+  - **Premium** is the paid plan; **Plan** only ever means the monthly plan.
+  - **Sign out**, not "log out".
+  - A plan's span is a **month** ("for November only"), never "period", even though it runs payday
+    to payday.
+  - Automatic payments **go out** ("Goes out today", in neutral); only a bill paid by hand is **Due**
+    or **Overdue**, in amber or red.
+  - **Bills to file** is the inbox while something waits; with nothing waiting it's **Bring in a bill**.
+- Show a hint once: the Plan's "tap an amount" hint goes with How it works. Don't put a feature in
+  front of people before they can use it (the extension's keys, phone notifications on the website).
+- A first visit shows one thing to do: the Plan shows only "Start with your pay" until there is pay.
 
 ## Icons
 

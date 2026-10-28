@@ -111,12 +111,13 @@ export function BillInbox({ plan, householdId }: BillInboxProps) {
     </>
   );
 
-  // Nothing waiting: one slim row (the plan puts it at the bottom), not a card of its own.
+  // Nothing waiting: one slim row (the plan puts it at the bottom), not a card of its own, and
+  // called what it does: "Bills to file" read like a queue when nothing was in it.
   if (documents.length === 0) {
     return (
       <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Bills to file</span> · Upload a bill (a PDF or a photo) and it&apos;s read into the right month, or{' '}
+          <span className="font-medium text-foreground">Bring in a bill</span> · Upload a bill (a PDF or a photo) and it&apos;s read into the right month, or{' '}
           <Link href="/settings?tab=integrations" className="text-primary underline-offset-2 hover:underline">forward it by email</Link>.
         </p>
         <div className="shrink-0">{uploadButton}</div>

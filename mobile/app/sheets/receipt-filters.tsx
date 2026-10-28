@@ -36,7 +36,7 @@ export default function ReceiptFiltersSheet() {
         <PickerField
           label="Receipts from"
           value={draft.householdId ?? ALL}
-          options={[{ value: ALL, label: 'My receipts' }, ...(households.data ?? []).map((household) => ({ value: household.id, label: household.name }))]}
+          options={[{ value: ALL, label: 'Just me' }, ...(households.data ?? []).map((household) => ({ value: household.id, label: household.name }))]}
           onChange={(value) => set({ householdId: value === ALL ? undefined : value })}
           hint={draft.householdId ? "Everything shared with the household, whoever added it." : 'Everything you added, shared or not.'}
         />
@@ -48,8 +48,8 @@ export default function ReceiptFiltersSheet() {
         onChange={(value) => set({ category: value === ALL ? undefined : value })}
       />
       <Field label="Shop" value={draft.merchant ?? ''} onChangeText={(merchant) => set({ merchant })} placeholder="Any shop" autoCapitalize="words" />
-      <MoneyField label="At least" value={draft.minAmount ?? ''} onChangeText={(minAmount) => set({ minAmount })} placeholder="Any amount" />
-      <MoneyField label="At most" value={draft.maxAmount ?? ''} onChangeText={(maxAmount) => set({ maxAmount })} placeholder="Any amount" />
+      <MoneyField label="Total at least" value={draft.minAmount ?? ''} onChangeText={(minAmount) => set({ minAmount })} placeholder="Any amount" />
+      <MoneyField label="Total at most" value={draft.maxAmount ?? ''} onChangeText={(maxAmount) => set({ maxAmount })} placeholder="Any amount" />
       <DateField label="From" value={draft.startDate ?? null} onChange={(day) => set({ startDate: day ?? undefined })} optional />
       <DateField label="To" value={draft.endDate ?? null} onChange={(day) => set({ endDate: day ?? undefined })} optional />
       <PickerField

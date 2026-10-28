@@ -28,7 +28,7 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <ShoppingBag className="h-4 w-4" />
         Items ({items.length})
       </div>
@@ -83,9 +83,10 @@ export function ReceiptItemsList({ items, currency, onAnalyzeItem }: ReceiptItem
                     size="sm"
                     className="h-7 px-2 text-xs"
                     onClick={() => onAnalyzeItem(item.name)}
+                    aria-label={`Price history of ${item.name}`}
                   >
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    Analyze
+                    <TrendingUp className="h-3 w-3 mr-1" aria-hidden="true" />
+                    Price history
                   </Button>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -19,8 +19,9 @@ export type BillFieldValues = {
 };
 
 // Essential by default: most things added are bills, and one wrongly left a subscription drops
-// out of the plan's "after bills".
-export const DEFAULT_BILL_FIELDS: BillFieldValues = { kind: 'bill', amountType: 'fixed', paymentMethod: '', paidFromAccountId: null };
+// out of the plan's "after bills". Paid by direct debit, as most bills are: "Not sure" counts as
+// paid by hand, which went Overdue a few days after the date (quick add already did this).
+export const DEFAULT_BILL_FIELDS: BillFieldValues = { kind: 'bill', amountType: 'fixed', paymentMethod: 'direct_debit', paidFromAccountId: null };
 
 const MAIN_ACCOUNT = 'main';
 
@@ -30,12 +31,20 @@ const MAIN_ACCOUNT = 'main';
  * paid (direct debits, standing orders and card payments are assumed paid once collected;
  * anything you pay yourself shows as overdue if you don't), and which account it comes out of.
  */
-export function BillFields({ value, onChange }: { value: BillFieldValues; onChange: (value: BillFieldValues) => void }) {
+export function BillFields({ value, onChange, followKind = false }: {
+  value: BillFieldValues;
+  onChange: (value: BillFieldValues) => void;
+  /** A new one: until someone picks how it's paid, it follows Essential (a bill, direct debit). */
+  followKind?: boolean;
+}) {
   const id = useId();
+  const [methodPicked, setMethodPicked] = useState(!followKind);
   const { data: accounts } = useAccounts();
   const liveAccounts = (accounts ?? []).filter((account) => !account.archivedAt);
   // An account that's gone from the list (archived, or someone else's) is kept, not cleared on save.
   const unknownAccount = value.paidFromAccountId && !liveAccounts.some((account) => account.id === value.paidFromAccountId);
+  // Only a choice with two accounts or more: with one, it's that one either way.
+  const showAccount = liveAccounts.length > 1 || !!value.paidFromAccountId;
 
   return (
     <div className="grid gap-4">
@@ -45,7 +54,11 @@ export function BillFields({ value, onChange }: { value: BillFieldValues; onChan
             <Switch
               id={`${id}-kind`}
               checked={value.kind === 'bill'}
-              onCheckedChange={(essential) => onChange({ ...value, kind: essential ? 'bill' : 'subscription' })}
+              onCheckedChange={(essential) => onChange({
+                ...value,
+                kind: essential ? 'bill' : 'subscription',
+                ...(methodPicked ? {} : { paymentMethod: essential ? 'direct_debit' : '' }),
+              })}
             />
             {ESSENTIAL_COPY.label}
           </Label>
@@ -55,7 +68,10 @@ export function BillFields({ value, onChange }: { value: BillFieldValues; onChan
           <Label htmlFor={`${id}-method`}>How it&apos;s paid</Label>
           <Select
             value={value.paymentMethod || 'unset'}
-            onValueChange={(method) => onChange({ ...value, paymentMethod: method === 'unset' ? '' : method as BillFieldValues['paymentMethod'] })}
+            onValueChange={(method) => {
+              setMethodPicked(true);
+              onChange({ ...value, paymentMethod: method === 'unset' ? '' : method as BillFieldValues['paymentMethod'] });
+            }}
           >
             <SelectTrigger id={`${id}-method`}><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -68,7 +84,7 @@ export function BillFields({ value, onChange }: { value: BillFieldValues; onChan
           </Select>
         </div>
       </div>
-      {(liveAccounts.length > 0 || unknownAccount) && (
+      {showAccount && (
         <div className="grid gap-2">
           <Label htmlFor={`${id}-account`}>Paid from</Label>
           <Select
@@ -77,7 +93,8 @@ export function BillFields({ value, onChange }: { value: BillFieldValues; onChan
           >
             <SelectTrigger id={`${id}-account`}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={MAIN_ACCOUNT}>Main account</SelectItem>
+              {/* No account picked means the one the pay goes into (shared/plan/compute-plan.ts). */}
+              <SelectItem value={MAIN_ACCOUNT}>The one your pay goes into</SelectItem>
               {liveAccounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>
               ))}

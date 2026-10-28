@@ -72,7 +72,7 @@ export function EntryDialog({ line, onOpenChange }: EntryDialogProps) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Edit {line?.label}</DialogTitle>
-          <DialogDescription>A one-off line. Its date decides which period it&apos;s in.</DialogDescription>
+          <DialogDescription>A one-off line. Its date decides which month it&apos;s in.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4" data-private>
           <div className="space-y-1.5">

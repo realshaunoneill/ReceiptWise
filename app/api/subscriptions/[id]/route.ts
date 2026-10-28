@@ -7,6 +7,7 @@ import { guardFinanceRoute, PRIVATE_NO_STORE } from '@/lib/route-guards';
 import { getAccount } from '@/lib/services/account-service';
 import { canFileFinanceRowUnder, canOwnFinanceRow, canReadFinanceRow } from '@/lib/services/finance-access';
 import { SubscriptionService } from '@/lib/services/subscription-service';
+import { nextAmounts } from '../next-amount';
 import { utcDay } from '@/lib/schedule/billing-schedule';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
 import { parseBody, readJson, updateSubscriptionSchema } from '@/lib/validation/finance';
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json(NOT_FOUND, { status: 404 });
     }
 
-    const [payments, filed] = await Promise.all([
+    const [payments, filed, ownAmounts] = await Promise.all([
       db
         .select()
         .from(subscriptionPayments)
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         .where(and(eq(billDocuments.subscriptionId, id), eq(billDocuments.reviewStatus, 'applied'), isNull(billDocuments.deletedAt)))
         .orderBy(desc(billDocuments.createdAt))
         .limit(24),
+      nextAmounts([subscription]),
     ]);
     // A household member's bill filed against a shared item is only listed to those who can open it.
     const bills = filed
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .map(({ userId: _userId, householdId: _householdId, ...bill }) => bill);
 
     return NextResponse.json(
-      { ...subscription, payments, bills, canEdit: canOwnFinanceRow(subscription, user.id, entitlements) },
+      { ...subscription, nextAmount: ownAmounts.get(subscription.id) ?? null, payments, bills, canEdit: canOwnFinanceRow(subscription, user.id, entitlements) },
       { headers: PRIVATE_NO_STORE },
     );
   } catch (error) {

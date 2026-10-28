@@ -23,8 +23,8 @@ export function NextMonth({ plan, onOpen }: { plan: PlanResponse | undefined; on
     >
       <CalendarClock className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        <span className="block font-medium">Plan {plan.period.label.split(' ')[0]}</span>
-        <span className="amount block text-sm text-muted-foreground">{left} · {money(breakdown.afterBillsCents)} after bills</span>
+        <span className="block font-medium">Next month: {plan.period.label.split(' ')[0]}</span>
+        <span className="amount block text-sm text-muted-foreground">{left} if nothing changes · {money(breakdown.afterBillsCents)} after bills</span>
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>

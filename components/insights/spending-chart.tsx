@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp } from 'lucide-react';
 import { useSpendingTrends } from '@/lib/hooks/use-spending-trends';
 import { useCurrency } from '@/lib/hooks/use-currency';
 
@@ -108,29 +107,9 @@ export function SpendingChart({ period, householdId, personalOnly = false }: Spe
     );
   }
 
-  if (!trendsData || trendsData.chartData.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle role="heading" aria-level={2}>Spending trends</CardTitle>
-          <CardDescription>Your spending patterns over time</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex h-[300px] items-center justify-center">
-            <div className="text-center">
-              <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No spending data</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Upload some receipts to see your spending trends for {periodLabels[period]}.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Nothing in the period: no chart of empty bars. The summary beside it says so, and when the
+  // last receipt was; this card used to say "No spending data. Upload some receipts" as well.
+  if (!trendsData || trendsData.totalSpent === 0) return null;
 
   return (
     <Card>

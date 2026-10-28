@@ -14,7 +14,10 @@ import { type User } from '@/lib/db/schema';
  * would never see the feature.
  */
 
-export const FEATURES = ['bills'] as const;
+// bills: the monthly plan and bills (on for everyone since 2026-10-24).
+// extension: the Chrome extension's settings (API keys), until its Web Store listing is live; then
+// FEATURE_EXTENSION=all. Admins keep it meanwhile, to test the unpacked extension.
+export const FEATURES = ['bills', 'extension'] as const;
 export type Feature = typeof FEATURES[number];
 export type FeatureFlags = Record<Feature, boolean>;
 

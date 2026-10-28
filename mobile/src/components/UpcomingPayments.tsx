@@ -2,8 +2,8 @@ import React from 'react';
 import { useRouter } from 'expo-router';
 import { formatTotals, totalsByCurrency } from '@shared/currency-totals';
 import { daysBetween, localToday } from '@shared/dates/local-date';
-import { getUrgency } from '@shared/urgency';
-import { billDay, dueLabel, type ListedBill } from '../bills/summary';
+import { nextPaymentAmount, nextPaymentLabel } from '@shared/labels/subscriptions';
+import { billDay, type ListedBill } from '../bills/summary';
 import Amount from '../ui/Amount';
 import Row from '../ui/Row';
 import { List, Section } from '../ui/Section';
@@ -22,7 +22,7 @@ export default function UpcomingPayments({ bills, currency, days = 7 }: { bills:
     .filter(({ until }) => until >= 0 && until <= days)
     .sort((a, b) => a.until - b.until);
   if (due.length === 0) return null;
-  const total = formatTotals(totalsByCurrency(due.map(({ bill }) => ({ amount: Number(bill.amount), currency: bill.currency })), currency), currency);
+  const total = formatTotals(totalsByCurrency(due.map(({ bill }) => ({ amount: nextPaymentAmount(bill).amount, currency: bill.currency })), currency), currency);
 
   return (
     <Section
@@ -31,16 +31,18 @@ export default function UpcomingPayments({ bills, currency, days = 7 }: { bills:
       footer={`Next ${days} days · ${due.length === 1 ? '1 payment' : `${due.length} payments`}`}
     >
       <List>
-        {due.map(({ bill, day, until }) => {
-          // Due today in red, within three days in amber (shared/urgency.ts), as on the website.
-          const urgency = getUrgency(until);
+        {due.map(({ bill, day }) => {
+          // Due today in red, within three days in amber, but only for one paid by hand: a direct
+          // debit just goes out (shared/labels/subscriptions.ts), as on the website.
+          const { label, urgency } = nextPaymentLabel(day, today, bill.paymentMethod);
           const ink = urgency === 'due' ? 'bad' : urgency === 'soon' ? 'warn' : undefined;
+          const { amount, estimated } = nextPaymentAmount(bill);
           return (
             <Row
               key={bill.id}
               label={bill.name}
-              detail={dueLabel(day, today)}
-              value={<Amount value={Number(bill.amount)} currency={bill.currency} ink={ink} />}
+              detail={label}
+              value={<Amount value={amount} currency={bill.currency} ink={ink} prefix={estimated ? '~' : ''} />}
               onPress={() => router.push({ pathname: '/bills/[id]', params: { id: bill.id } })}
             />
           );

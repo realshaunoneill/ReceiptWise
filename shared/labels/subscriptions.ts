@@ -3,6 +3,10 @@
  * "active" or "pending" as they are kept in the database.
  */
 
+import { daysBetween, formatLocalDate, type LocalDate } from '../dates/local-date';
+import { isAutoPaid } from '../schedule/billing-schedule';
+import { getUrgency, type Urgency } from '../urgency';
+
 /**
  * One category list for bills and subscriptions. The add and edit dialogs had different lists,
  * and neither had the bill categories (Housing, Transport, Credit card), so editing such a bill
@@ -54,7 +58,9 @@ export function statusLabel(status: string): string {
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
   pending: 'Due',
   paid: 'Paid',
-  missed: 'Not marked paid',
+  // The plan's word. For one paid by hand it's past its date and not ticked; for a direct debit,
+  // marked as not gone out. Either way it's still owed.
+  missed: 'Overdue',
   skipped: 'Skipped',
   cancelled: 'Cancelled',
 };
@@ -77,4 +83,40 @@ export function paymentMethodLabel(paymentMethod: string | null | undefined): st
 /** "bill" or "subscription", for wording about one item; always "subscription" without the bills feature. */
 export function itemNoun(kind: string | null | undefined, billsEnabled: boolean): 'bill' | 'subscription' {
   return billsEnabled && kind === 'bill' ? 'bill' : 'subscription';
+}
+
+/**
+ * What the next payment is: that cycle's own amount when one is set (read off a filed bill, or
+ * typed in for that month), else the usual one. A variable bill on its usual amount is an
+ * estimate. Megan's card is usually €0 with €809 set for November, so the list showed ~€0.
+ */
+export function nextPaymentAmount(bill: { amount: string; amountType?: string | null; nextAmount?: string | null }): { amount: number; estimated: boolean } {
+  const own = bill.nextAmount != null ? Number(bill.nextAmount) : NaN;
+  if (!Number.isNaN(own)) return { amount: own, estimated: false };
+  const usual = Number(bill.amount);
+  return { amount: Number.isNaN(usual) ? 0 : usual, estimated: bill.amountType === 'variable' };
+}
+
+/**
+ * When the next payment is, worded by how it's paid. A direct debit, standing order or card
+ * payment goes out by itself, so it "goes out" on its day and is never urgent; one paid by hand
+ * is "due", and turns amber, then red, as the day comes. Days are YYYY-MM-DD.
+ */
+export function nextPaymentLabel(day: LocalDate, today: LocalDate, paymentMethod: string | null | undefined): { label: string; urgency: Urgency } {
+  const days = daysBetween(today, day);
+  const date = formatLocalDate(day, { day: 'numeric', month: 'short' }, 'en-IE');
+  if (isAutoPaid(paymentMethod)) {
+    const label = days < 0 ? `Went out ${date}`
+      : days === 0 ? 'Goes out today'
+        : days === 1 ? 'Goes out tomorrow'
+          : days < 7 ? `Goes out in ${days} days`
+            : `Goes out ${date}`;
+    return { label, urgency: 'later' };
+  }
+  const label = days < 0 ? `Was due ${date}`
+    : days === 0 ? 'Due today'
+      : days === 1 ? 'Due tomorrow'
+        : days < 7 ? `Due in ${days} days`
+          : `Due ${date}`;
+  return { label, urgency: getUrgency(days) };
 }

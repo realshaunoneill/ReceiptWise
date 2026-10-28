@@ -23,7 +23,7 @@ type Context = { plan: WirePlan; offset: number; viewerId: string; householdName
 
 const sum = (lines: Line[]) => lines.filter((line) => line.counted).reduce((total, line) => total + line.amountCents, 0);
 
-/** The amount sheet (app/sheets/plan-amount.tsx) for this line, this period only. */
+/** The amount sheet (app/sheets/plan-amount.tsx) for this line, this month only. */
 function useAmountSheet() {
   const router = useRouter();
   return (line: Line, extra: Record<string, string>) => router.push({
@@ -32,13 +32,21 @@ function useAmountSheet() {
   });
 }
 
-/** The plan's lines, grouped as on the website: in, bills, savings, then the month's one-offs. */
-export default function PlanLines({ plan, offset, viewerId, householdNames }: Context) {
+/**
+ * The plan's lines, grouped as on the website: in, bills, subscriptions, savings, then the month's
+ * one-offs. `hints` is true until How it works has been read: the bills' "tap an amount" hint says
+ * the same as it, so it goes when the card does.
+ */
+export default function PlanLines({ plan, offset, viewerId, householdNames, hints }: Context & { hints: boolean }) {
   const incoming = plan.lines.filter((line) => line.direction === 'in');
   const recurring = plan.lines.filter((line) => line.direction === 'out' && line.source === 'recurring');
+  // The same split as the summary (shared/plan/breakdown.ts): bills come off before "After bills",
+  // subscriptions after it, so each section's total is a row of the summary.
+  const bills = recurring.filter((line) => line.kind === 'bill');
+  const subscriptions = recurring.filter((line) => line.kind !== 'bill');
   const goals = plan.lines.filter((line) => line.source === 'goal');
   const oneOffs = plan.lines.filter((line) => line.direction === 'out' && line.source === 'entry');
-  // Goals with a target but nothing to put aside this period still show their progress.
+  // Goals with a target but nothing to put aside this month still show their progress.
   const progressOnly = plan.goals.filter((goal) => goal.targetCents && !goals.some((line) => line.sourceId === goal.id));
   const context = { plan, offset, viewerId, householdNames };
   const total = (lines: Line[]) => <Text variant="callout" ink="muted" tabular>{formatCents(sum(lines), plan.currency)}</Text>;
@@ -46,11 +54,7 @@ export default function PlanLines({ plan, offset, viewerId, householdNames }: Co
   return (
     <>
       {incoming.length > 0 && (
-        <Section
-          title="Coming in"
-          accessory={total(incoming)}
-          footer={incoming.some((line) => line.source === 'income' && line.ownerUserId === viewerId) ? `Tap your pay to change it for ${monthOf(plan)} only.` : undefined}
-        >
+        <Section title="Coming in" accessory={total(incoming)}>
           <List inset={60}>
             {incoming.map((line) => (line.source === 'entry'
               ? <EntryRow key={line.key} line={line} context={context} />
@@ -58,17 +62,22 @@ export default function PlanLines({ plan, offset, viewerId, householdNames }: Co
           </List>
         </Section>
       )}
-      {recurring.length > 0 && (
-        <Section title="Bills & subscriptions" accessory={total(recurring)} footer={`Tap an amount to change it for ${monthOf(plan)} only: a bigger credit card bill, an electricity bill that came in.`}>
-          <List inset={60}>{recurring.map((line) => <RecurringRow key={line.key} line={line} context={context} />)}</List>
+      {bills.length > 0 && (
+        <Section
+          title="Bills"
+          accessory={total(bills)}
+          footer={hints ? `Tap an amount to change it for ${monthOf(plan)} only: a bigger credit card bill, an electricity bill that came in.` : undefined}
+        >
+          <List inset={60}>{bills.map((line) => <RecurringRow key={line.key} line={line} context={context} />)}</List>
+        </Section>
+      )}
+      {subscriptions.length > 0 && (
+        <Section title="Subscriptions" accessory={total(subscriptions)}>
+          <List inset={60}>{subscriptions.map((line) => <RecurringRow key={line.key} line={line} context={context} />)}</List>
         </Section>
       )}
       {(goals.length > 0 || progressOnly.length > 0) && (
-        <Section
-          title="Savings"
-          accessory={total(goals)}
-          footer={goals.some((line) => line.ownerUserId === viewerId && line.status !== 'done') ? `Tap an amount to put aside more or less in ${monthOf(plan)} only.` : undefined}
-        >
+        <Section title="Savings" accessory={total(goals)}>
           <List inset={60}>
             {goals.map((line) => <GoalRow key={line.key} line={line} context={context} />)}
             {progressOnly.map((goal) => <GoalOnly key={goal.id} goal={goal} currency={plan.currency} />)}
@@ -148,7 +157,7 @@ function RecurringRow({ line, context }: { line: Line; context: Context }) {
   const skipped = saving?.status ? saving.status === 'skipped' : line.status === 'skipped';
   const method = line.paymentMethod ? PAYMENT_METHOD_LABEL[line.paymentMethod] : undefined;
   const change = (data: Parameters<typeof update.mutate>[0]['data']) => update.mutate({ expectedDate: line.cycleDate!, data });
-  const amount = () => openAmount(line, { kind: 'occurrence', id: line.sourceId, cycleDate: line.cycleDate!, paid: paid ? '1' : '' });
+  const amount = () => openAmount(line, { kind: 'occurrence', id: line.sourceId, cycleDate: line.cycleDate!, paid: paid ? '1' : '', month: monthOf(context.plan) });
 
   const menu = async () => {
     const options = [
@@ -273,7 +282,7 @@ function GoalRow({ line, context }: { line: Line; context: Context }) {
         ? add.mutate({ goalId: line.sourceId, amount: fromCents(line.amountCents), contributedOn: settleDay(context.plan) })
         : remove.mutate({ goalId: line.sourceId, contributionIds: line.contributionIds ?? [] }))}
       checkLabel={done ? `Undo putting aside for ${line.label}` : `Mark ${line.label} put aside`}
-      detail="Savings"
+      detail={done ? 'Put aside' : undefined}
       badges={done ? undefined : justThisMonth(line, context)}
       onPress={() => void menu()}
       onAmountPress={canChange ? amount.open : undefined}
@@ -407,7 +416,7 @@ function Shell({ line, context, checked, disabled, onToggle, checkLabel, detail,
         disabled={!onAmountPress}
         hitSlop={8}
         accessibilityRole={onAmountPress ? 'button' : undefined}
-        accessibilityLabel={onAmountPress ? `${amount}. Change the amount for this period` : undefined}
+        accessibilityLabel={onAmountPress ? `${amount}. Change the amount for ${monthOf(context.plan)} only` : undefined}
         style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', paddingHorizontal: 6, marginRight: -6, borderRadius: radius.md, backgroundColor: pressed ? colors.field : 'transparent' })}
       >
         <Text variant="callout" weight="semibold" ink={amountInk ?? (estimated || struck ? 'muted' : 'primary')} tabular>{amount}</Text>
