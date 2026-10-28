@@ -68,8 +68,8 @@ function describeOriginal(original: ClientBillDocument | undefined): string {
  * against the bill it belongs to, which sets that month's amount and due date in the plan. A bill
  * from a provider already filed once goes straight in and shows here as done.
  *
- * Titled "Bill inbox": it is where uploaded and emailed bills wait to be filed, and "Bills" was
- * easily taken for the Bills page in the menu.
+ * Titled "Bills to file" (it was "Bill inbox", and before that "Bills", both easily taken for the
+ * Bills page in the menu): where uploaded and emailed bills wait to be filed.
  */
 export function BillInbox({ plan, householdId }: BillInboxProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,40 +93,52 @@ export function BillInbox({ plan, householdId }: BillInboxProps) {
     if (inputRef.current) inputRef.current.value = '';
   };
 
+  const uploadButton = (
+    <>
+      <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
+        {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
+        Upload a bill
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => onFiles(e.target.files)}
+        aria-label="Upload a bill"
+      />
+    </>
+  );
+
+  // Nothing waiting: one slim row (the plan puts it at the bottom), not a card of its own.
+  if (documents.length === 0) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Bills to file</span> · Upload a bill (a PDF or a photo) and it&apos;s read into the right month, or{' '}
+          <Link href="/settings?tab=integrations" className="text-primary underline-offset-2 hover:underline">forward it by email</Link>.
+        </p>
+        <div className="shrink-0">{uploadButton}</div>
+      </div>
+    );
+  }
+
   return (
     <Card data-private>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base">Bill inbox</CardTitle>
-        <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
-          {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
-          Upload a bill
-        </Button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT}
-          multiple
-          className="hidden"
-          onChange={(e) => onFiles(e.target.files)}
-          aria-label="Upload a bill"
-        />
+        <CardTitle className="text-base">Bills to file</CardTitle>
+        {uploadButton}
       </CardHeader>
       <CardContent className="space-y-3">
-        {documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Upload a bill or statement (PDF or a photo) and it&apos;s read for you: the amount and due date go into the right month.
-            Or <Link href="/settings?tab=integrations" className="text-primary underline-offset-2 hover:underline">forward them by email</Link>.
-          </p>
-        ) : (
-          documents.map((document) => (
-            <BillDocumentCard
-              key={document.id}
-              document={document}
-              plan={plan}
-              duplicateOf={document.duplicateOfId ? describeOriginal(findOriginal(document.duplicateOfId)) : null}
-            />
-          ))
-        )}
+        {documents.map((document) => (
+          <BillDocumentCard
+            key={document.id}
+            document={document}
+            plan={plan}
+            duplicateOf={document.duplicateOfId ? describeOriginal(findOriginal(document.duplicateOfId)) : null}
+          />
+        ))}
       </CardContent>
     </Card>
   );

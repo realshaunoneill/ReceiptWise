@@ -1,11 +1,11 @@
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AlertTriangle, Landmark } from 'lucide-react-native';
 import { type WirePlan } from '@shared/api/plan';
 import { formatCents } from '@shared/currency';
 import { useTheme } from '../contexts/ThemeContext';
-import { radius, space } from '../theme';
+import { space } from '../theme';
 import Button from '../ui/Button';
 import { Card, Section } from '../ui/Section';
 import Text from '../ui/Text';
@@ -22,20 +22,8 @@ export default function BankCheck({ plan }: { plan: WirePlan }) {
   const view = plan.balance;
   const update = () => router.push({ pathname: '/sheets/plan-balances', params: { currency: plan.currency } });
 
-  if (!view) {
-    return (
-      <Section>
-        <Pressable
-          onPress={update}
-          accessibilityRole="button"
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: pressed ? colors.cardPressed : 'transparent' })}
-        >
-          <Landmark size={20} color={colors.textSecondary} />
-          <Text variant="callout" ink="secondary" style={{ flex: 1 }}>Check it against your bank: add today's balance to see what's actually left until payday.</Text>
-        </Pressable>
-      </Section>
-    );
-  }
+  // Until a balance is added, it's one row at the bottom of the plan (app/(tabs)/plan/index.tsx).
+  if (!view) return null;
 
   const short = view.availableCents < 0;
   const days = `${view.daysLeft} day${view.daysLeft === 1 ? '' : 's'} left`;

@@ -112,7 +112,7 @@ export default function Bills() {
             <EmptyState
               icon={Repeat}
               title={billsOn ? 'No bills yet' : 'No subscriptions yet'}
-              body="Add anything that comes round again, like rent, electricity, your phone or Netflix, and see when each is due."
+              body={billsOn ? "Add your rent, electricity and phone, and the plan shows what's left after them." : 'Add anything that comes round again, like Netflix or your phone, and see when each is due.'}
               action={{ label: billsOn ? 'Add a bill' : 'Add a subscription', onPress: add }}
             />
           )}

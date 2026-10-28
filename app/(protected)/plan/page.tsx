@@ -7,6 +7,7 @@ import { PiggyBank, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HouseholdSelector } from '@/components/households/household-selector';
 import { BankCheck } from '@/components/plan/bank-check';
@@ -18,11 +19,13 @@ import { IncomeDialog } from '@/components/plan/income-dialog';
 import { NextMonth } from '@/components/plan/next-month';
 import { PeriodSwitcher } from '@/components/plan/period-switcher';
 import { PlanLines } from '@/components/plan/plan-lines';
+import { PlanSetup } from '@/components/plan/plan-setup';
 import { PlanSummary } from '@/components/plan/plan-summary';
 import { QuickAdd } from '@/components/plan/quick-add';
 import { SubscriptionDetailModal } from '@/components/subscriptions/subscription-detail-modal';
 import { SubscriptionUpsell } from '@/components/subscriptions/subscription-upsell';
 import { type IncomeSource, type SavingsGoal } from '@/lib/db/schema';
+import { useBillInbox } from '@/lib/hooks/use-bill-documents';
 import { useHouseholds } from '@/lib/hooks/use-households';
 import { useGoals, useIncome, usePlan, useSaveIncome } from '@/lib/hooks/use-plan';
 import { useFeature, useUser } from '@/lib/hooks/use-user';
@@ -53,11 +56,13 @@ function PlanPageContent() {
   const { data: incomes = [] } = useIncome(householdId, ready);
   const { data: goals = [] } = useGoals(householdId, ready);
   const { data: households = [] } = useHouseholds();
+  const { data: inbox = [] } = useBillInbox(householdId, ready);
 
   const [incomeDialog, setIncomeDialog] = useState<{ open: boolean; income: IncomeSource | null }>({ open: false, income: null });
   const [goalDialog, setGoalDialog] = useState<{ open: boolean; goal: SavingsGoal | null }>({ open: false, goal: null });
   const [entryLine, setEntryLine] = useState<PlanLine | null>(null);
   const [billId, setBillId] = useState<string | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
   const { mutate: saveIncome, isPending: sharing } = useSaveIncome();
 
   if (userLoading) {
@@ -145,10 +150,10 @@ function PlanPageContent() {
                   <Wallet className="mt-0.5 h-5 w-5 text-primary" />
                   <div>
                     <p className="font-medium">Start with your pay</p>
-                    <p className="text-sm text-muted-foreground">Add what comes in and when, and the plan runs payday to payday.</p>
+                    <p className="text-sm text-muted-foreground">Your pay and your main bills take a minute, and then the plan shows what&apos;s left after them.</p>
                   </div>
                 </div>
-                <Button onClick={() => setIncomeDialog({ open: true, income: null })}>Add your pay</Button>
+                <Button onClick={() => setSetupOpen(true)}>Set up your plan</Button>
               </CardContent>
             </Card>
           )}
@@ -179,9 +184,10 @@ function PlanPageContent() {
           <HowItWorks />
           <PlanSummary plan={plan} />
           <NextMonth plan={nextIsStale ? undefined : nextPlan} onOpen={() => setOffset(offset + 1)} />
-          <BankCheck plan={plan} householdId={householdId} />
-          <QuickAdd plan={plan} householdId={householdId} />
-          <BillInbox plan={plan} householdId={householdId} />
+          {/* The bills near the top: the bank check and bills to file come first only once used,
+              and adding a one-off or a list follows the lines (the app keeps it in its + menu). */}
+          {plan.balance && <BankCheck plan={plan} householdId={householdId} />}
+          {inbox.length > 0 && <BillInbox plan={plan} householdId={householdId} />}
 
           <PlanLines
             plan={plan}
@@ -192,6 +198,10 @@ function PlanPageContent() {
             onEditGoal={(id) => setGoalDialog({ open: true, goal: editingGoal(id) })}
             onOpenBill={setBillId}
           />
+
+          <QuickAdd plan={plan} householdId={householdId} />
+          {!plan.balance && <BankCheck plan={plan} householdId={householdId} />}
+          {inbox.length === 0 && <BillInbox plan={plan} householdId={householdId} />}
 
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setIncomeDialog({ open: true, income: null })}>
@@ -222,6 +232,12 @@ function PlanPageContent() {
         householdId={householdId}
       />
       <EntryDialog line={entryLine} onOpenChange={(open) => !open && setEntryLine(null)} />
+      <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogTitle className="sr-only">Set up your plan</DialogTitle>
+          <PlanSetup currency={plan?.currency ?? user?.currency ?? 'EUR'} householdId={householdId} onDone={() => setSetupOpen(false)} onSkip={() => setSetupOpen(false)} />
+        </DialogContent>
+      </Dialog>
       <SubscriptionDetailModal subscriptionId={billId} open={Boolean(billId)} onOpenChange={(open) => !open && setBillId(null)} />
     </main>
   );

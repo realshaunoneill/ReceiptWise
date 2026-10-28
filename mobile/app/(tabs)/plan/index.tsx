@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
-import { CalendarClock, ChevronLeft, ChevronRight, ClipboardPaste, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
+import { CalendarClock, ChevronLeft, ChevronRight, FileText, Landmark, PiggyBank, Plus, Receipt, Users, Wallet } from 'lucide-react-native';
 import { formatCents } from '@shared/currency';
 import { type WirePlan } from '@shared/api/plan';
 import { addDays } from '@shared/dates/local-date';
@@ -12,6 +12,7 @@ import { scopePickerPlacement } from '../../../src/components/ScopePicker';
 import { choose } from '../../../src/confirm';
 import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useHouseholds } from '../../../src/hooks/useHouseholds';
+import { useBillInbox } from '../../../src/hooks/useBills';
 import { useMe } from '../../../src/hooks/useMe';
 import { usePlan, useSaveIncome } from '../../../src/hooks/usePlan';
 import BankCheck from '../../../src/plan/BankCheck';
@@ -41,6 +42,7 @@ export default function Plan() {
   // The month after, for the "Plan December" row (and so stepping forward is instant).
   const next = usePlan(offset + 1, householdId);
   const households = useHouseholds();
+  const inboxCount = useBillInbox(householdId).data?.length ?? 0;
   const householdNames = Object.fromEntries((households.data ?? []).map((household) => [household.id, household.name]));
 
   if (me.data && !me.data.subscribed && me.data.entitlements.householdIds.length === 0) {
@@ -94,16 +96,17 @@ export default function Plan() {
             <Summary plan={data} />
             <NextMonth plan={next.isPlaceholderData ? undefined : next.data} onOpen={() => setOffset(offset + 1)} />
             <BankCheck plan={data} />
-            <Section>
-              <List>
-                <Row icon={Plus} label={`Add to ${monthOf(data)}`} accent onPress={() => router.push({ pathname: '/sheets/plan-entry', params })} />
-                <Row icon={ClipboardPaste} label="Paste a list" accent onPress={() => router.push({ pathname: '/sheets/plan-paste', params })} />
-              </List>
-            </Section>
             <BillInbox plan={data} householdId={householdId} />
             <PlanLines plan={data} offset={offset} viewerId={me.data?.id ?? ''} householdNames={householdNames} />
+            {/* The rest, one row each, so the bills are near the top: adding a one-off or a list is
+                in the + menu, the bank check and bills to file only take space once used. */}
             <Section>
               <List>
+                <Row icon={Plus} label={`Add to ${monthOf(data)}`} detail="A one-off, or a list pasted in" onPress={() => void add()} />
+                {data.daysLeft !== null && !data.balance && (
+                  <Row icon={Landmark} label="Check it against your bank" detail="Today's balance, for what's actually left until payday" onPress={() => router.push({ pathname: '/sheets/plan-balances', params: { currency: data.currency } })} />
+                )}
+                {!inboxCount && <Row icon={FileText} label="Bring in a bill" detail="Scan it or choose a PDF; its amount goes into the right month" onPress={() => router.push({ pathname: '/capture', params: { mode: 'bill' } })} />}
                 <Row icon={Wallet} label={data.viewerIncomeCount === 0 ? 'Add your pay' : 'Add income'} onPress={() => router.push('/sheets/plan-income')} />
                 <Row icon={PiggyBank} label="Add savings" onPress={() => router.push('/sheets/plan-goal')} />
                 <Row icon={Receipt} label="All bills & subscriptions" onPress={() => router.navigate('/bills')} />
@@ -132,8 +135,8 @@ function StartHere({ plan, householdNames }: { plan: WirePlan; householdNames: R
   if (plan.flags.includes('no_income') && !primary && plan.viewerIncomeCount === 0) {
     return (
       <Section>
-        <Notice tone="neutral" title="Start with your pay">Add what comes in and when, and the plan runs payday to payday.</Notice>
-        <Button label="Add your pay" icon={Wallet} onPress={() => router.push('/sheets/plan-income')} style={{ marginTop: space.md }} />
+        <Notice tone="neutral" title="Start with your pay">Your pay and your main bills take a minute, and then the plan shows what's left after them.</Notice>
+        <Button label="Set up your plan" icon={Wallet} onPress={() => router.push('/plan-setup')} style={{ marginTop: space.md }} />
       </Section>
     );
   }

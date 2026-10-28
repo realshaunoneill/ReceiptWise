@@ -12,24 +12,24 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Upload,
   BarChart3,
   CreditCard,
   Users,
   ArrowRight,
-  CheckCircle2,
   ScanLine,
-  Layers,
   Shield,
   ChevronLeft,
   Receipt,
   Check,
   Globe,
   Wallet,
-  Mail,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFeature, useUser } from '@/lib/hooks/use-user';
+import { usePlan } from '@/lib/hooks/use-plan';
+import { PlanSetup } from '@/components/plan/plan-setup';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from '@/lib/utils/currency';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
@@ -61,19 +61,23 @@ type OnboardingStep = {
   id: number;
   title: string;
   description: string;
-  icon: typeof Upload;
+  icon: LucideIcon;
   color: string;
   bgColor: string;
-  features?: Array<{ icon: typeof Upload; text: string }>;
+  features?: Array<{ icon: LucideIcon; text: string }>;
   pricing?: boolean;
   cta?: boolean;
   currencySelect?: boolean;
   /** Only shown to accounts with the monthly plan (lib/features.ts 'bills'). */
   requiresBills?: boolean;
+  /** The guided plan setup (components/plan/plan-setup.tsx), for an account with Premium and no pay yet. */
+  planSetup?: boolean;
 };
 
 /*
- * The steps of the tour (seven, or eight with the monthly plan).
+ * The first run: welcome, currency, then for an account with Premium and no pay yet the guided
+ * plan setup (it teaches by doing; five slides on households, receipts, subscriptions, the plan
+ * and insights went, being skipped rather than read), and the trial for anyone without Premium.
  *
  * Four of the titles ended in ✨, one in 🎉 and one in 🎁 — a decoration applied
  * to whichever headings happened to be about features, in a dialog that is the
@@ -109,74 +113,14 @@ const onboardingSteps: OnboardingStep[] = [
     currencySelect: true,
   },
   {
-    id: 3,
-    title: 'Households',
-    description: 'A household is a shared receipt pile. Anyone in it can add to it, and everyone sees the same picture.',
-    icon: Users,
-    color: 'text-primary',
-    bgColor: 'bg-primary/10',
-    features: [
-      { icon: Users, text: 'As many members as you need' },
-      { icon: Upload, text: 'Everyone can add receipts' },
-      { icon: BarChart3, text: 'Combined spending, and who spent it' },
-      { icon: Layers, text: 'Keep personal receipts separate if you want' },
-    ],
-  },
-  {
-    id: 4,
-    title: 'Adding receipts',
-    description: 'Photograph the paper, or upload a photo or a screenshot of one.',
-    icon: Upload,
-    color: 'text-primary',
-    bgColor: 'bg-primary/10',
-    features: [
-      { icon: Upload, text: 'Camera or file upload, a whole stack at once' },
-      { icon: ScanLine, text: 'Merchant, date, total, tax and line items' },
-      { icon: CheckCircle2, text: 'Sorted into a category automatically' },
-    ],
-  },
-  {
-    id: 5,
-    title: 'Subscriptions',
-    description: 'The recurring payments that are easy to forget about, tracked next to the receipts that prove them.',
-    icon: CreditCard,
-    color: 'text-primary',
-    bgColor: 'bg-primary/10',
-    features: [
-      { icon: CreditCard, text: 'Every recurring payment in one list' },
-      { icon: Users, text: 'Shared with the household, if you like' },
-      { icon: CheckCircle2, text: 'Link a receipt to the payment it covers' },
-      { icon: BarChart3, text: 'See what is due next' },
-    ],
-  },
-  {
-    id: 6,
-    title: 'Your month, planned',
-    description: 'Your pay, the bills on the way and what is left for each week, from one payday to the next.',
+    id: 9,
+    title: 'Your plan',
+    description: 'Your pay and your main bills: a minute, and the plan shows what is left after them.',
     icon: Wallet,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
-    features: [
-      { icon: Wallet, text: 'Add your pay and the plan runs payday to payday' },
-      { icon: CreditCard, text: 'Bills fill themselves in each month' },
-      { icon: Upload, text: 'Upload a bill and it is read and filed' },
-      { icon: Mail, text: 'Or forward bills to your own address' },
-    ],
+    planSetup: true,
     requiresBills: true,
-  },
-  {
-    id: 7,
-    title: 'Insights',
-    description: 'Where the money went, over the week, the month or the year.',
-    icon: BarChart3,
-    color: 'text-primary',
-    bgColor: 'bg-primary/10',
-    features: [
-      { icon: BarChart3, text: 'Trends over the period you choose' },
-      { icon: Users, text: 'Who in the household spent what' },
-      { icon: ScanLine, text: 'A written summary of the period' },
-      { icon: CheckCircle2, text: 'Item history down to the line' },
-    ],
   },
   {
     id: 8,
@@ -190,18 +134,6 @@ const onboardingSteps: OnboardingStep[] = [
   },
 ];
 
-/** Step 5 with the bills feature on: the same page, which tracks bills as well as subscriptions. */
-const BILLS_STEP: OnboardingStep = {
-  ...onboardingSteps.find((candidate) => candidate.id === 5)!,
-  title: 'Bills & subscriptions',
-  description: 'Rent, the car, the phone, Netflix: everything that goes out each month, and whether it has.',
-  features: [
-    { icon: CreditCard, text: 'Every bill and subscription in one list' },
-    { icon: Users, text: 'Shared with the household, if you like' },
-    { icon: CheckCircle2, text: 'Direct debits marked paid when they go out' },
-    { icon: BarChart3, text: 'See what is due next' },
-  ],
-};
 
 type OnboardingTourProps = {
   open: boolean;
@@ -215,7 +147,8 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
   const [pricingDetails, setPricingDetails] = useState<PricingDetails | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
   const [selectedCurrency, setSelectedCurrency] = useState<string>(DEFAULT_CURRENCY);
-  const { user, isSubscribed } = useUser();
+  const { user, isSubscribed, hasFinanceAccess } = useUser();
+  const router = useRouter();
 
   // Start the picker on the account's own currency.
   useEffect(() => {
@@ -256,10 +189,19 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
   // The plan step only for accounts that have the plan (FEATURE_BILLS); the pricing step only for
   // people who aren't subscribed. A subscriber restarting the tour from Settings was offered a trial.
   const billsEnabled = useFeature('bills');
+  // The plan setup only for an account that can have a plan and has no pay in it yet. Decided once
+  // as the tour opens: saving the pay ends "no pay yet", and the step vanished from under its own
+  // last screen.
+  const { data: plan } = usePlan({ offset: 0, enabled: open && billsEnabled && hasFinanceAccess });
+  const [needsPlan, setNeedsPlan] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!open) setNeedsPlan(null);
+    else if (needsPlan === null && plan) setNeedsPlan(hasFinanceAccess && billsEnabled && !plan.primaryIncome && plan.viewerIncomeCount === 0);
+  }, [open, plan, needsPlan, hasFinanceAccess, billsEnabled]);
   const steps = onboardingSteps
     .filter((candidate) => !candidate.requiresBills || billsEnabled)
-    .filter((candidate) => !candidate.pricing || !isSubscribed)
-    .map((candidate) => (billsEnabled && candidate.id === 5 ? BILLS_STEP : candidate));
+    .filter((candidate) => !candidate.planSetup || needsPlan === true)
+    .filter((candidate) => !candidate.pricing || !isSubscribed);
   const step = steps[Math.min(currentStep, steps.length - 1)];
   const Icon = step.icon;
   const isLastStep = currentStep === steps.length - 1;
@@ -404,16 +346,30 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                {/* Icon */}
-                <div className={cn('w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center', step.bgColor)}>
-                  <Icon className={cn('w-6 h-6 sm:w-8 sm:h-8', step.color)} />
-                </div>
+                {/* The plan setup has its own headings and buttons. */}
+                {step.planSetup ? (
+                  <PlanSetup
+                    currency={selectedCurrency}
+                    onDone={async () => {
+                      await onComplete();
+                      router.push('/plan');
+                    }}
+                    onSkip={() => void handleNext()}
+                  />
+                ) : (
+                  <>
+                    {/* Icon */}
+                    <div className={cn('w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center', step.bgColor)}>
+                      <Icon className={cn('w-6 h-6 sm:w-8 sm:h-8', step.color)} />
+                    </div>
 
-                {/* Title and Description */}
-                <div className="space-y-2">
-                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{step.title}</h2>
-                  <p className="text-muted-foreground text-base sm:text-lg">{step.description}</p>
-                </div>
+                    {/* Title and Description */}
+                    <div className="space-y-2">
+                      <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{step.title}</h2>
+                      <p className="text-muted-foreground text-base sm:text-lg">{step.description}</p>
+                    </div>
+                  </>
+                )}
 
                 {/* Features */}
                 {step.features && (
@@ -642,8 +598,8 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                         <span className="hidden sm:inline">Back</span>
                       </Button>
                     )}
-                    {/* The pricing step has its own "Maybe later". */}
-                    {!step.pricing && (
+                    {/* The pricing step has its own "Maybe later", the plan setup its "Skip for now". */}
+                    {!step.pricing && !step.planSetup && (
                       <Button
                         variant="ghost"
                         onClick={() => handleSkip()}
@@ -654,7 +610,7 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                       </Button>
                     )}
                   </div>
-                  {!step.pricing && (
+                  {!step.pricing && !step.planSetup && (
                     <Button
                       onClick={handleNext}
                       size="sm"

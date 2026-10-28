@@ -809,7 +809,7 @@ export default function SettingsPage() {
                   <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
                     <li>Install ReceiptWise Clipper from the Chrome Web Store once it is listed</li>
                     <li>In the extension, click <span className="font-medium text-foreground">Connect to ReceiptWise</span>; it gets its own key, listed below</li>
-                    <li>Drag over a receipt or bill on any page; bills go to your Bill inbox</li>
+                    <li>Drag over a receipt or bill on any page; bills go to Bills to file, on the Plan</li>
                   </ol>
                 </div>
 

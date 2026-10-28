@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CheckCircle2, FileText } from 'lucide-react-native';
+import { CheckCircle2 } from 'lucide-react-native';
 import { type WireInboxDocument } from '@shared/api/bills';
 import { type WirePlan } from '@shared/api/plan';
 import { formatCents } from '@shared/currency';
@@ -12,7 +12,6 @@ import { type ApplyBillAction, useApplyBill, useBillInbox, useDeleteBillDocument
 import { space } from '../theme';
 import Button, { success } from '../ui/Button';
 import { Pill } from '../ui/Feedback';
-import Row from '../ui/Row';
 import { List, Section } from '../ui/Section';
 import Text from '../ui/Text';
 import { shortDay } from './days';
@@ -23,7 +22,8 @@ const money = (amount: string | null, currency: string | null, fallback: string)
 };
 
 /**
- * Bills brought in, by a scan here, the website or email: each is read, then filed against the
+ * Bills to file (it was "Bill inbox", easily taken for the Bills tab): bills brought in by a scan
+ * here, the website or email. Each is read, then filed against the
  * bill it belongs to, which sets that month's amount and due date. One from a provider filed
  * before goes straight in and shows here as done for a few days.
  */
@@ -33,19 +33,12 @@ export default function BillInbox({ plan, householdId }: { plan: WirePlan; house
   const documents = inbox.data ?? [];
   const add = () => router.push({ pathname: '/capture', params: { mode: 'bill' } });
 
-  if (documents.length === 0) {
-    return (
-      <Section title="Bill inbox">
-        <List>
-          <Row icon={FileText} label="Bring in a bill" detail="Scan it or choose a PDF, and the amount and due date go into the right month. Or forward it by email." onPress={add} />
-        </List>
-      </Section>
-    );
-  }
+  // Nothing to file: one row at the bottom of the plan instead (app/(tabs)/plan/index.tsx).
+  if (documents.length === 0) return null;
 
   const findOriginal = (id: string) => documents.find((other) => other.id === id);
   return (
-    <Section title="Bill inbox" accessory={<Button label="Add" variant="plain" size="sm" onPress={add} />}>
+    <Section title="Bills to file" accessory={<Button label="Add" variant="plain" size="sm" onPress={add} />}>
       <List>
         {documents.map((document) => (
           <InboxItem key={document.id} document={document} plan={plan} duplicateOf={document.duplicateOfId ? describe(findOriginal(document.duplicateOfId)) : null} />

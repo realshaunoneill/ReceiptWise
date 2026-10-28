@@ -117,7 +117,7 @@ function ReceiptsPageContent() {
     }).catch((error: unknown) => {
       // A clip from the extension that was a bill went to the bill inbox, which is on the Plan.
       if (error instanceof Error && error.message === 'moved-to-bills') {
-        toast.info('That was a bill, so it’s in your Bill inbox on the Plan.');
+        toast.info('That was a bill, so it’s in Bills to file, on the Plan.');
         router.push('/plan');
         return;
       }

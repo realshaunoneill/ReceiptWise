@@ -98,8 +98,9 @@ export function SubscriptionEmptyState({ status, kind = 'all' }: SubscriptionEmp
           {/* Title & Description */}
           <h3 className="mb-2 text-xl font-semibold text-foreground">{billsEnabled ? 'No bills or subscriptions yet' : 'No subscriptions yet'}</h3>
           <p className="mb-8 text-muted-foreground">
-            Add the recurring payments you already have — {billsEnabled ? 'rent, electricity, phone, streaming' : 'streaming, phone, insurance'} — and
-            they get totalled and tracked alongside your receipts.
+            {billsEnabled
+              ? 'Add your rent, electricity and phone, and the plan shows what’s left after them.'
+              : 'Add the recurring payments you already have, like streaming, phone and insurance, and they get totalled and tracked alongside your receipts.'}
           </p>
 
           {/* Benefits */}

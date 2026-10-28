@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Switch } from '@/components/ui/switch';
 import { useAccounts } from '@/lib/hooks/use-plan';
 import type { HouseholdWithMembers } from '@/lib/types/api-responses';
+import { ESSENTIAL_COPY } from '@/shared/labels/plan';
 import { categoryOptions } from './labels';
 
 export type BillFieldValues = {
@@ -17,7 +18,9 @@ export type BillFieldValues = {
   paidFromAccountId: string | null;
 };
 
-export const DEFAULT_BILL_FIELDS: BillFieldValues = { kind: 'subscription', amountType: 'fixed', paymentMethod: '', paidFromAccountId: null };
+// Essential by default: most things added are bills, and one wrongly left a subscription drops
+// out of the plan's "after bills".
+export const DEFAULT_BILL_FIELDS: BillFieldValues = { kind: 'bill', amountType: 'fixed', paymentMethod: '', paidFromAccountId: null };
 
 const MAIN_ACCOUNT = 'main';
 
@@ -38,14 +41,15 @@ export function BillFields({ value, onChange }: { value: BillFieldValues; onChan
     <div className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label htmlFor={`${id}-kind`}>Type</Label>
-          <Select value={value.kind} onValueChange={(kind) => onChange({ ...value, kind: kind as BillFieldValues['kind'] })}>
-            <SelectTrigger id={`${id}-kind`}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="subscription">Subscription</SelectItem>
-              <SelectItem value="bill">Bill</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor={`${id}-kind`} className="flex min-h-11 cursor-pointer items-center gap-2">
+            <Switch
+              id={`${id}-kind`}
+              checked={value.kind === 'bill'}
+              onCheckedChange={(essential) => onChange({ ...value, kind: essential ? 'bill' : 'subscription' })}
+            />
+            {ESSENTIAL_COPY.label}
+          </Label>
+          <p className="text-xs text-muted-foreground">{value.kind === 'bill' ? ESSENTIAL_COPY.on : ESSENTIAL_COPY.off}</p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${id}-method`}>How it&apos;s paid</Label>

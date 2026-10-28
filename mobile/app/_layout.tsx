@@ -97,6 +97,7 @@ function Navigator() {
           <Stack.Screen name="sheets/plan-income" options={modal} />
           <Stack.Screen name="sheets/plan-goal" options={modal} />
           <Stack.Screen name="sheets/plan-balances" options={modal} />
+          <Stack.Screen name="plan-setup" options={{ presentation: 'fullScreenModal' }} />
 
           {/* Receipts */}
           <Stack.Screen name="sheets/receipt-filters" options={sheet} />

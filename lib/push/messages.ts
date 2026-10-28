@@ -92,7 +92,7 @@ export function billFiled(document: BillDocumentLike, prefs: NotificationPrefs):
 }
 
 export function billFailed(document: { fileName: string | null }): PushMessage {
-  return { kind: 'bill_failed', title: "Couldn't read a bill", body: `${document.fileName ? `${document.fileName}: open` : 'Open'} the bill inbox to try again.`, url: '/plan' };
+  return { kind: 'bill_failed', title: "Couldn't read a bill", body: `${document.fileName ? `${document.fileName}: open` : 'Open'} Bills to file, on the Plan, to try again.`, url: '/plan' };
 }
 
 export function billDue(bill: { id: string; name: string; amount: string | null; currency: string }, prefs: NotificationPrefs): PushMessage {

@@ -6,9 +6,10 @@ import { invalidateFinanceQueries } from '@shared/query/refresh';
 import { api } from '../api/client';
 
 /** One period of the plan (offset 0 is the current one), computed on the server. */
-export function usePlan(offset = 0, householdId?: string) {
+export function usePlan(offset = 0, householdId?: string, enabled = true) {
   return useQuery({
     queryKey: ['plan', offset, householdId ?? null],
+    enabled,
     queryFn: () => {
       // The phone's own today: the server accepts it within a day of its UTC date.
       const params = new URLSearchParams({ offset: String(offset), today: localToday() });

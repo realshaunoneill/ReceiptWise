@@ -23,7 +23,7 @@ const QUESTIONS = [
   ...(BILLS_LAUNCHED
     ? [{
       q: 'How do I forward bills by email?',
-      a: 'Settings → Integrations has your own forwarding address. Forward a bill to it, or set up a rule in your email to do it for you; it appears in the Bills card on your Plan.',
+      a: 'Settings → Integrations has your own forwarding address. Forward a bill to it, or set up a rule in your email to do it for you; it appears in Bills to file, on your Plan.',
     }]
     : []),
   {

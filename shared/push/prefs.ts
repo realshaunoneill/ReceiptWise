@@ -6,7 +6,7 @@
 
 export const NOTIFICATION_GROUPS = [
   { key: 'receipts', label: 'Receipts read', detail: "When a receipt from the app, the extension or email has been read, or couldn't be", default: true },
-  { key: 'billInbox', label: 'Bill inbox', detail: "A bill read and ready to file, filed for you, or that couldn't be read", default: true },
+  { key: 'billInbox', label: 'Bills to file', detail: "A bill read and ready to file, filed for you, or that couldn't be read", default: true },
   { key: 'billsDue', label: 'Bills to pay', detail: 'A bill you pay by hand due tomorrow, and once if it goes overdue', default: true },
   { key: 'payday', label: 'Payday', detail: "The new month's plan, on the morning you're paid", default: true },
   { key: 'household', label: 'Households', detail: 'An invitation to a household, and someone joining yours', default: true },

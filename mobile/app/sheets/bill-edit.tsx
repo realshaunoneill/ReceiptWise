@@ -4,6 +4,7 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { type WireBillDetail } from '@shared/api/bills';
 import { SUPPORTED_CURRENCIES } from '@shared/currency';
 import { localToday } from '@shared/dates/local-date';
+import { ESSENTIAL_COPY } from '@shared/labels/plan';
 import { categoryOptions, itemNoun } from '@shared/labels/subscriptions';
 import { toCents } from '@shared/money';
 import { billDay } from '../../src/bills/summary';
@@ -135,7 +136,9 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
     isBusinessExpense: false,
     website: '',
     notes: '',
-    kind: initialKind ?? 'subscription',
+    // Essential by default: most things set up here are bills, and one wrongly left a subscription
+    // drops out of the plan's "after bills".
+    kind: initialKind ?? 'bill',
     amountType: 'fixed',
     paymentMethod: NONE,
     paidFromAccountId: null,
@@ -265,11 +268,11 @@ function BillForm({ bill, initialKind }: { bill?: WireBillDetail; initialKind?: 
         error={errors.name}
       />
       {billsOn && (
-        <InlinePicker<'bill' | 'subscription'>
-          label="Type"
-          value={form.kind}
-          groups={[{ options: [{ value: 'bill', label: 'Bill' }, { value: 'subscription', label: 'Subscription' }] }]}
-          onChange={(value) => set('kind', value)}
+        <SwitchField
+          label={ESSENTIAL_COPY.label}
+          detail={form.kind === 'bill' ? ESSENTIAL_COPY.on : ESSENTIAL_COPY.off}
+          value={form.kind === 'bill'}
+          onChange={(essential) => set('kind', essential ? 'bill' : 'subscription')}
         />
       )}
       <InlinePicker label="Category" value={form.category} groups={categoryGroups} onChange={(value) => set('category', value)} placeholder="None" />

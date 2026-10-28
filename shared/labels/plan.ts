@@ -16,3 +16,14 @@ export const ACCOUNT_KIND_LABEL: Record<string, string> = {
   savings: 'Savings',
   cash: 'Cash',
 };
+
+/**
+ * The bill-or-subscription choice, asked the way it matters: is it essential? An essential one is a
+ * bill and comes off first, before the plan's "After bills" (shared/plan/breakdown.ts); the rest are
+ * subscriptions. Car finance marked as a subscription left "After bills" at the whole pay.
+ */
+export const ESSENTIAL_COPY = {
+  label: 'Essential',
+  on: "A bill: rent, loans, energy, insurance, a credit card. It comes off first, before what's left after bills.",
+  off: 'A subscription: a nice-to-have like Netflix or the gym, counted after the bills.',
+} as const;
