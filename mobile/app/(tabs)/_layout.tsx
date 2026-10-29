@@ -11,6 +11,9 @@ import { useReceivedInvitations } from '../../src/hooks/useInvitations';
  *
  * Capturing a receipt is an action, not a place, so it's a button on Home and Receipts (and the
  * share sheet, the widget and the app icon's quick actions), not a tab.
+ *
+ * On an iPad the same five tabs sit at the top, and can open out into the system sidebar
+ * (sidebarAdaptable); the iPhone's bar is unchanged.
  */
 export default function TabLayout() {
   const { colors } = useTheme();
@@ -18,7 +21,7 @@ export default function TabLayout() {
   // Invitations waiting for an answer, as a badge on Settings (where Households is).
   const invitations = useReceivedInvitations().data?.length ?? 0;
   return (
-    <NativeTabs tintColor={colors.accent}>
+    <NativeTabs tintColor={colors.accent} sidebarAdaptable>
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>

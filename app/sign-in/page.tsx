@@ -24,7 +24,10 @@ export default async function SignInPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // proxy.ts sends signed-out visitors here with ?redirect_url=<the page they wanted>.
-  const next = safeNext((await searchParams).redirect_url);
+  const params = await searchParams;
+  const next = safeNext(params.redirect_url);
+  // "Add another account" in the account menu: someone else signs in beside the current account.
+  const adding = params.add === '1';
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -130,10 +133,12 @@ export default async function SignInPage({
                       above the sign-in form, which explains itself. */}
                   <div className="mb-8">
                     <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                      Sign in
+                      {adding ? 'Add another account' : 'Sign in'}
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      With your Google account. New here? The same button creates your account.
+                      {adding
+                        ? 'Sign in as someone else in your household. You stay signed in too, and can switch between you from the account menu.'
+                        : 'With your Google account. New here? The same button creates your account.'}
                     </p>
                   </div>
 

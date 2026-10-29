@@ -29,6 +29,11 @@ describe('mergeSetCookie', () => {
     expect(Object.keys(jar).some((k) => k.includes('session_data'))).toBe(false);
   });
 
+  it("ignores the website's cookie for each account in a browser", () => {
+    const header = `${SIGN_IN}, __Secure-better-auth.session_token_multi-tok123=tok123.c2ln; Max-Age=604800; Path=/; HttpOnly; Secure`;
+    expect(Object.keys(mergeSetCookie({}, header, NOW))).toEqual(['__Secure-better-auth.session_token']);
+  });
+
   it('removes the token when sign-out sends it already expired', () => {
     const signedIn = mergeSetCookie({}, SIGN_IN, NOW);
     const signedOut = mergeSetCookie(signedIn, '__Secure-better-auth.session_token=; Max-Age=0; Path=/', NOW);

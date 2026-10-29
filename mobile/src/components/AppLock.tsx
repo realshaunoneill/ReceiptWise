@@ -19,6 +19,14 @@ const ScreenCapture = requireOptionalNativeModule('ExpoScreenCapture') ? (requir
 const RELOCK_AFTER_MS = 5 * 60 * 1000;
 
 /**
+ * Locked at launch only once. This mounts again whenever the account on screen changes
+ * (app/_layout.tsx): switching to someone else in the household doesn't ask for Face ID, and a
+ * lock still showing (a notification for someone else tapped on the lock screen) carries over.
+ */
+let launchLockDone = false;
+let lockedBeforeRemount = false;
+
+/**
  * App lock (src/privacy.ts): Face ID or the fingerprint on a cold start and after five minutes
  * away. And, whether or not the lock is on, a cover while the app is in the background, so the
  * app switcher's preview shows the logo rather than someone's money; with the lock on, Android
@@ -27,7 +35,14 @@ const RELOCK_AFTER_MS = 5 * 60 * 1000;
  */
 export default function AppLock() {
   const { appLock } = usePrivacy();
-  const [locked, setLocked] = useState(() => appLock && privacyLoaded() && !!LocalAuthentication);
+  const [locked, setLocked] = useState(() => {
+    const cold = !launchLockDone;
+    launchLockDone = true;
+    return (cold || lockedBeforeRemount) && appLock && privacyLoaded() && !!LocalAuthentication;
+  });
+  useEffect(() => {
+    lockedBeforeRemount = locked;
+  }, [locked]);
   const [covered, setCovered] = useState(false);
   const away = useRef<number | null>(null);
 

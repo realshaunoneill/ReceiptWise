@@ -1,7 +1,7 @@
 import React from 'react';
 import { Platform, RefreshControl, ScrollView, type ScrollViewProps } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-import { space } from '../theme';
+import { readableColumn, space } from '../theme';
 import { usePullToRefresh } from './usePullToRefresh';
 
 type Props = ScrollViewProps & {
@@ -13,7 +13,8 @@ type Props = ScrollViewProps & {
  * The scrolling body of a screen in a tab's stack, under a large title. iOS insets the first
  * ScrollView for the header and the tab bar itself (contentInsetAdjustmentBehavior), so content
  * scrolls on under the glass; the stack header covers the top on Android. Don't wrap this in a
- * SafeAreaView as well, or iOS insets the top twice.
+ * SafeAreaView as well, or iOS insets the top twice. On an iPad the content keeps to the readable
+ * column in the middle (src/theme readableColumn), while it scrolls and refreshes edge to edge.
  */
 export default function TabScreen({ contentContainerStyle, children, onRefresh, ...rest }: Props) {
   const { colors } = useTheme();
@@ -26,6 +27,7 @@ export default function TabScreen({ contentContainerStyle, children, onRefresh, 
       {...rest}
       style={[{ flex: 1, backgroundColor: colors.background }, rest.style]}
       contentContainerStyle={[
+        readableColumn,
         // The web preview draws native tabs as a bar across the top, so leave room under it.
         { paddingTop: Platform.OS === 'web' ? 64 : space.sm, paddingBottom: space.xxxl * 2 },
         contentContainerStyle,

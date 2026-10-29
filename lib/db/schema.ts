@@ -249,8 +249,10 @@ export const revenuecatEvents = pgTable('revenuecat_events', {
   error: text('error'),
 });
 
-// Phones that receive push notifications: one row per Expo push token. A token the push service
-// says is dead is disabled rather than deleted, so a stray re-registration doesn't revive it.
+// Phones that receive push notifications: one row per Expo push token and account, since a phone
+// or iPad shared by a household can be signed in to several accounts and each gets its own. A
+// token the push service says is dead is disabled rather than deleted, so a stray
+// re-registration doesn't revive it.
 export const pushDevices = pgTable('push_devices', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -263,7 +265,7 @@ export const pushDevices = pgTable('push_devices', {
   disabledAt: timestamp('disabled_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (table) => ({
-  tokenUnique: uniqueIndex('push_devices_expo_token_uidx').on(table.expoToken),
+  tokenUserUnique: uniqueIndex('push_devices_token_user_uidx').on(table.expoToken, table.userId),
   userIdIdx: index('push_devices_user_id_idx').on(table.userId),
 }));
 

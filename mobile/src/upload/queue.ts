@@ -5,6 +5,8 @@
  * many tries it takes (POST /api/receipts/capture or /api/bills/documents/capture, Idempotency-Key).
  */
 
+import { LEGACY_SLOT } from '../auth/account-list';
+
 export type QueueStatus = 'waiting' | 'uploading' | 'done' | 'failed';
 
 /** One file on the phone: the app's own copy, compressed if it's a photo. */
@@ -20,6 +22,11 @@ export type QueueItem = {
   kind: 'receipt' | 'auto';
   /** A household, null for personal, undefined for the default household. */
   householdId?: string | null;
+  /**
+   * Whose capture it is (an account's slot, src/auth/accounts.ts): it uploads to that account even
+   * if someone else is on screen by then. Missing from before there were several: the first account.
+   */
+  account?: string;
   createdAt: number;
   status: QueueStatus;
   attempts: number;
@@ -86,6 +93,11 @@ export function nextToUpload(items: QueueItem[], now: number): QueueItem | undef
 export function nextWakeAt(items: QueueItem[]): number | null {
   const waiting = items.filter((item) => item.status === 'waiting').map((item) => item.notBefore);
   return waiting.length ? Math.min(...waiting) : null;
+}
+
+/** One account's captures, for what's shown: the queue holds every account's. */
+export function itemsFor(items: QueueItem[], account: string | null): QueueItem[] {
+  return items.filter((item) => (item.account ?? LEGACY_SLOT) === account);
 }
 
 /** "1 receipt", "3 bills", or "2 uploads" for a mix. */

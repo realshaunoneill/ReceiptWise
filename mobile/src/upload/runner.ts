@@ -7,6 +7,8 @@ import { type WireBillDocument } from '@shared/api/bills';
 import { type WireCaptureResult } from '@shared/api/receipts';
 import { invalidateFinanceQueries, invalidateReceiptQueries } from '@shared/query/refresh';
 import { api, ApiError } from '../api/client';
+import { LEGACY_SLOT } from '../auth/account-list';
+import { activeSlot, getAccounts, loadAccounts } from '../auth/accounts';
 import { queryClient } from '../query/client';
 import { nextToUpload, nextWakeAt, reduce, type QueueEvent, type QueueFile, type QueueItem } from './queue';
 
@@ -15,6 +17,9 @@ import { nextToUpload, nextWakeAt, reduce, type QueueEvent, type QueueFile, type
  * /api/receipts/capture, bills to POST /api/bills/documents/capture. The queue
  * (src/upload/queue.ts) and its files live in the app's documents, so a capture survives the app
  * being closed, the phone restarting, or no signal: it goes when it can.
+ *
+ * Each capture belongs to whoever was on screen when it was taken, and uploads with that account's
+ * session, so on a household's shared iPad a receipt never lands in the next person's account.
  *
  * Photos are re-encoded first: JPEG, at most 2400 px on the long side, which also turns HEIC
  * photos into something the server reads, and keeps each one well under Vercel's 4.5 MB limit. A
@@ -59,6 +64,7 @@ function persist() {
 async function load() {
   if (loaded) return;
   loaded = true;
+  await loadAccounts();
   if (!IS_WEB && stateFile().exists) {
     try {
       const stored = JSON.parse(await stateFile().text()) as QueueItem[];
@@ -69,6 +75,10 @@ async function load() {
     } catch {
       items = [];
     }
+    // An account no longer signed in here can't upload; its captures went when it signed out.
+    const here = new Set(getAccounts().accounts.map((account) => account.slot));
+    for (const item of items.filter((entry) => !here.has(entry.account ?? LEGACY_SLOT))) item.files.forEach((file) => removeFile(file.uri));
+    items = items.filter((item) => here.has(item.account ?? LEGACY_SLOT));
   }
   emit({ type: 'restore' });
 }
@@ -121,8 +131,10 @@ async function prepare(capture: CaptureInput, longEdge = LONG_EDGE, compress = 0
 
 export type CaptureInput = { uri: string; width?: number; height?: number };
 
-function add(item: Omit<QueueItem, 'id' | 'createdAt' | 'status' | 'attempts' | 'notBefore'>) {
-  emit({ type: 'add', item: { ...item, id: Crypto.randomUUID(), createdAt: Date.now(), status: 'waiting', attempts: 0, notBefore: 0 } });
+/** A capture of whoever is on screen. */
+function add(item: Omit<QueueItem, 'id' | 'createdAt' | 'status' | 'attempts' | 'notBefore' | 'account'>) {
+  const account = activeSlot() ?? undefined;
+  emit({ type: 'add', item: { ...item, account, id: Crypto.randomUUID(), createdAt: Date.now(), status: 'waiting', attempts: 0, notBefore: 0 } });
 }
 
 /** Queue receipts to upload, one per photo; they go at once if there's a connection. */
@@ -216,9 +228,9 @@ async function formFor(item: QueueItem): Promise<FormData> {
   return form;
 }
 
-/** Send one capture; the id of what it made. */
+/** Send one capture, as the account it belongs to; the id of what it made. */
 async function send(item: QueueItem): Promise<string> {
-  const request = { method: 'POST' as const, form: await formFor(item), headers: { 'Idempotency-Key': item.id } };
+  const request = { method: 'POST' as const, form: await formFor(item), headers: { 'Idempotency-Key': item.id }, account: item.account ?? LEGACY_SLOT };
   if (item.target === 'bill') return (await api<WireBillDocument>('/api/bills/documents/capture', request)).id;
   return (await api<WireCaptureResult>('/api/receipts/capture', request)).receiptId;
 }
@@ -235,6 +247,8 @@ export async function run(): Promise<void> {
         const resultId = await send(item);
         emit({ type: 'uploaded', id: item.id, resultId });
         item.files.forEach((file) => removeFile(file.uri));
+        // Someone else's on screen now: their figures haven't changed.
+        if ((item.account ?? LEGACY_SLOT) !== activeSlot()) continue;
         if (item.target === 'bill') {
           void queryClient.invalidateQueries({ queryKey: ['bill-documents'] });
           void invalidateFinanceQueries(queryClient);
@@ -288,10 +302,11 @@ export function startUploads(): () => void {
   };
 }
 
-/** Forget every waiting capture (signing out): the next account mustn't upload them. */
-export function clearQueue() {
-  for (const item of items) item.files.forEach((file) => removeFile(file.uri));
-  items = [];
+/** Forget an account's waiting captures (it signed out), or everyone's: nobody else may upload them. */
+export function clearQueue(account?: string) {
+  const going = account === undefined ? items : items.filter((item) => (item.account ?? LEGACY_SLOT) === account);
+  for (const item of going) item.files.forEach((file) => removeFile(file.uri));
+  items = items.filter((item) => !going.includes(item));
   persist();
   for (const listener of listeners) listener();
 }

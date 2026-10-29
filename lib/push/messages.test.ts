@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PREFS, applyPrefs, readPrefs } from '@/shared/push/prefs';
-import { billDue, billFiled, billRead, inQuietHours, isMorningRound, localClock, payday, quietHoursEnd, receiptRead, validTimeZone } from './messages';
+import { billDue, billFiled, billRead, inQuietHours, isMorningRound, localClock, payday, quietHoursEnd, receiptRead, titleForSharedPhone, validTimeZone } from './messages';
 
 const hidden = { ...DEFAULT_PREFS, hideAmounts: true };
 
@@ -15,6 +15,12 @@ describe('push messages', () => {
     const document = { provider: 'Electric Ireland', fileName: null, amountDue: '84.20', currency: 'EUR', dueDate: '2026-11-12' };
     expect(billRead(document, DEFAULT_PREFS).body).toBe('Electric Ireland · €84.20 due 12 Nov');
     expect(billFiled(document, hidden).body).toBe("Electric Ireland · due 12 Nov. It's in the plan.");
+  });
+
+  it('names the person on a phone shared by more than one account', () => {
+    expect(titleForSharedPhone('Receipt read', { name: 'Megan Kavanagh', email: 'megan@example.com' })).toBe('Receipt read · Megan');
+    expect(titleForSharedPhone('Receipt read', { name: '  ', email: 'shaun@example.com' })).toBe('Receipt read · shaun');
+    expect(titleForSharedPhone('Receipt read', { name: null, email: 'shaun@example.com' })).toBe('Receipt read · shaun');
   });
 
   it('opens the bill a reminder is about', () => {

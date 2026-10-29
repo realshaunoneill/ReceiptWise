@@ -5,11 +5,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FileText, Images, ScanLine, X } from 'lucide-react-native';
+import { activeAccount, firstName } from '../src/auth/account-list';
+import { useAccounts } from '../src/auth/accounts';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { useHouseholds } from '../src/hooks/useHouseholds';
 import { useMe } from '../src/hooks/useMe';
 import { useScope } from '../src/scope';
-import { GUTTER, radius, space } from '../src/theme';
+import { GUTTER, radius, readableColumn, space } from '../src/theme';
 import Button, { success } from '../src/ui/Button';
 import { Segmented } from '../src/ui/Controls';
 import { Notice } from '../src/ui/Feedback';
@@ -121,9 +123,12 @@ export default function Capture() {
   const canBills = householdId ? !!entitlements?.householdIds.includes(householdId) : !!entitlements?.personal;
   const allowed = mode === 'bill' ? canBills : canReceipts;
   const into = householdId ? households.data?.find((household) => household.id === householdId)?.name : null;
+  // On a household's shared iPad, whose it'll be: the person on screen's, even if they switch after.
+  const accounts = useAccounts();
+  const owner = accounts.accounts.length > 1 ? activeAccount(accounts) : undefined;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.xl, paddingHorizontal: GUTTER }}>
+    <View style={{ flex: 1, ...readableColumn, backgroundColor: colors.background, paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.xl, paddingHorizontal: GUTTER }}>
       <Pressable
         onPress={() => router.back()}
         hitSlop={12}
@@ -141,6 +146,7 @@ export default function Capture() {
             ? `It's read, then waits in Bills to file on the Plan, where its amount and due date go into ${into ? `${into}'s` : 'your'} month.`
             : "It's read for you: the shop, the date, every item and the total."}
         </Text>
+        {!!owner && <Text variant="footnote" ink="muted">{`Saved to ${firstName(owner)}'s account.`}</Text>}
       </View>
 
       {me.data?.features.bills !== false && (

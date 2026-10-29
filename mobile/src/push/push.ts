@@ -6,13 +6,17 @@ import { Platform } from 'react-native';
 import { FINANCE_QUERY_KEYS } from '@shared/query/keys';
 import { invalidateReceiptQueries, refreshQueries } from '@shared/query/refresh';
 import { api } from '../api/client';
+import { accountForUser } from '../auth/account-list';
+import { activeSlot, getAccounts, updateAccount } from '../auth/accounts';
 import { queryClient } from '../query/client';
 import { Device, Notifications } from './native';
 
 /**
  * The phone's side of push notifications (the server's is lib/push): permission, the Expo push
  * token registered with POST /api/devices on every launch (with the time zone, so the 9 am round
- * and quiet hours are the person's own), and forgotten again on sign-out.
+ * and quiet hours are the person's own), and forgotten again on sign-out. A phone or iPad signed in
+ * to several accounts (a household's) registers for each, so everyone gets their own; each
+ * notification says whose it is (data.userId), and src/push/PushEffects.tsx opens it as them.
  *
  * What's sent, and the copy, is the server's (lib/push/messages.ts). Every notification carries a
  * website path in data.url, which src/links.ts turns into a screen.
@@ -33,9 +37,15 @@ const CHANNELS = [
 
 const RECEIPT_KINDS = new Set(['receipt_read', 'receipt_failed']);
 
-/** What a notification is about is probably on screen somewhere: refresh it. */
-function refreshFor(kind: unknown) {
-  if (typeof kind !== 'string') return;
+/** Whether a notification is for someone other than the person on screen. */
+export function isForAnotherAccount(userId: unknown): boolean {
+  if (typeof userId !== 'string') return false;
+  return accountForUser(getAccounts(), userId)?.slot !== activeSlot();
+}
+
+/** What a notification is about is probably on screen somewhere: refresh it (unless it's someone else's). */
+function refreshFor(kind: unknown, userId: unknown) {
+  if (typeof kind !== 'string' || isForAnotherAccount(userId)) return;
   if (RECEIPT_KINDS.has(kind)) void invalidateReceiptQueries(queryClient);
   else if (kind.startsWith('bill') || kind === 'payday') void refreshQueries(queryClient, ['bill-documents', ...FINANCE_QUERY_KEYS]);
   else if (kind === 'invite_received' || kind === 'member_joined') void refreshQueries(queryClient, ['invitations', 'households']);
@@ -53,8 +63,8 @@ export async function configurePush(): Promise<void> {
   configured = true;
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
-      const kind = notification.request.content.data?.kind;
-      refreshFor(kind);
+      const { kind, userId } = notification.request.content.data ?? {};
+      refreshFor(kind, userId);
       const quiet = typeof kind === 'string' && RECEIPT_KINDS.has(kind);
       return { shouldShowBanner: !quiet, shouldShowList: !quiet, shouldPlaySound: !quiet, shouldSetBadge: false };
     },
@@ -90,26 +100,36 @@ export async function registerPush({ ask }: { ask: boolean }): Promise<PushPermi
   if (Device && !Device.isDevice) return 'granted';
   await configurePush();
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: projectId() });
-  await api('/api/devices', {
-    method: 'POST',
-    json: {
-      token,
-      platform: Platform.OS === 'android' ? 'android' : 'ios',
-      appVersion: Application.nativeApplicationVersion ?? undefined,
-      locale: Localization.getLocales()[0]?.languageTag,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    },
-  });
+  const device = {
+    token,
+    platform: Platform.OS === 'android' ? 'android' : 'ios',
+    appVersion: Application.nativeApplicationVersion ?? undefined,
+    locale: Localization.getLocales()[0]?.languageTag,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+  // The person on screen first, whose failure is worth showing; then everyone else signed in here.
+  const register = async (slot: string) => {
+    const { userId } = await api<{ userId?: string }>('/api/devices', { method: 'POST', json: device, account: slot });
+    if (userId) updateAccount(slot, { userId });
+  };
+  const active = activeSlot();
+  if (active) await register(active);
+  for (const account of getAccounts().accounts) {
+    if (account.slot !== active) await register(account.slot).catch(() => undefined);
+  }
   await AsyncStorage.setItem(TOKEN_KEY, token);
   return 'granted';
 }
 
-/** Signing out: this phone stops getting the account's notifications. Best effort. */
-export async function unregisterPush(): Promise<void> {
+/**
+ * Signing out of an account: this phone stops getting its notifications, while any other account
+ * signed in here keeps getting theirs. Best effort; called while the account's session still works.
+ */
+export async function unregisterPush(slot: string, lastAccount: boolean): Promise<void> {
   const token = await AsyncStorage.getItem(TOKEN_KEY).catch(() => null);
   if (!token) return;
-  await api(`/api/devices/${encodeURIComponent(token)}`, { method: 'DELETE' }).catch(() => undefined);
-  await AsyncStorage.removeItem(TOKEN_KEY).catch(() => undefined);
+  await api(`/api/devices/${encodeURIComponent(token)}`, { method: 'DELETE', account: slot }).catch(() => undefined);
+  if (lastAccount) await AsyncStorage.removeItem(TOKEN_KEY).catch(() => undefined);
 }
 
 /**

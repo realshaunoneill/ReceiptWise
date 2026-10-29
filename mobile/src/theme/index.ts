@@ -104,3 +104,13 @@ export const radius = { sm: 6, md: 8, lg: 12, xl: 16, pill: 999 };
 
 /** Horizontal inset for screen content, so every edge lines up. */
 export const GUTTER = 16;
+
+/**
+ * On a wide window (an iPad, an Android tablet, or a phone app stretched across one), the content
+ * keeps to a column this wide in the middle, as iOS's own apps keep to their readable width: the
+ * same screens as on a phone, never a line of text or a row of figures across a whole iPad.
+ */
+export const READABLE_WIDTH = 720;
+
+/** For a ScrollView's content (or any full-width column): the readable column, centred. */
+export const readableColumn = { width: '100%', maxWidth: READABLE_WIDTH, alignSelf: 'center' } as const;

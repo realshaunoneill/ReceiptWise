@@ -12,7 +12,7 @@ import { useMe, useUpdateCurrency } from '../src/hooks/useMe';
 import { usePlan } from '../src/hooks/usePlan';
 import PlanSetup from '../src/plan/PlanSetup';
 import { purchasesAvailable } from '../src/purchases';
-import { GUTTER, radius, space } from '../src/theme';
+import { GUTTER, radius, readableColumn, space } from '../src/theme';
 import Button, { selectionTick, success } from '../src/ui/Button';
 import { Notice } from '../src/ui/Feedback';
 import { SwitchField } from '../src/ui/Form';
@@ -90,7 +90,7 @@ export default function Onboarding() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + space.xxl, paddingBottom: insets.bottom + space.lg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: GUTTER, gap: space.lg, paddingBottom: space.xxl }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ ...readableColumn, paddingHorizontal: GUTTER, gap: space.lg, paddingBottom: space.xxl }}>
         {step === 'plan' ? (
           <PlanSetup currency={chosen} onDone={() => void finish('/plan')} onSkip={() => void finish()} />
         ) : step === 'welcome' ? (

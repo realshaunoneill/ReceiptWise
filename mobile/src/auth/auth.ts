@@ -14,6 +14,11 @@
  *    Set-Cookie header as `?cookie=`.
  * 4. Keep the session token in SecureStore and send it as a Cookie header (src/api/client.ts).
  *
+ * Each account signed in on the device keeps its own session (src/auth/accounts.ts: a household
+ * sharing an iPad signs each person in), and a request carries the active account's unless it
+ * names another, as an upload captured by someone else does. Signing in adds an account; it goes
+ * on screen with setActiveAccount once the sign-in screen has nothing left to ask.
+ *
  * Apple skips the browser: the system sheet returns an identity token, which Better Auth checks
  * against Apple's keys and the bundle id, and the session cookie comes back on that response.
  *
@@ -24,19 +29,15 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as Linking from 'expo-linking';
-import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { CONSENT_COOKIE, getConsent } from '../analytics';
 import { SITE_URL } from '../config';
-import { cookieHeader, mergeSetCookie, parseJar, type CookieJar } from './cookies';
+import { activeSlot, addAccount, getAccounts, newSlot, removeAccount, saveSessionJar, sessionJar, updateAccount } from './accounts';
+import { cookieHeader, mergeSetCookie } from './cookies';
 
 const AUTH_URL = `${SITE_URL}/api/auth`;
-const JAR_KEY = 'receiptwise_auth_cookies';
 const IS_WEB = Platform.OS === 'web';
-
-/** Readable after the first unlock, so a background upload can still send the session. */
-const STORE_OPTIONS: SecureStore.SecureStoreOptions = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
 
 export type SessionUser = {
   id: string;
@@ -51,50 +52,72 @@ export type SessionUser = {
  */
 export const signInUnavailable = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-async function loadJar(): Promise<CookieJar> {
-  if (IS_WEB) return {};
-  try {
-    return parseJar(await SecureStore.getItemAsync(JAR_KEY, STORE_OPTIONS));
-  } catch {
-    return {};
-  }
-}
-
-async function saveJar(jar: CookieJar): Promise<void> {
-  if (IS_WEB) return;
-  if (Object.keys(jar).length === 0) await SecureStore.deleteItemAsync(JAR_KEY, STORE_OPTIONS);
-  else await SecureStore.setItemAsync(JAR_KEY, JSON.stringify(jar), STORE_OPTIONS);
-}
-
 /** How requests carry the session: a Cookie header the app sets, or the browser's own on the web. */
 export const credentials: RequestCredentials = IS_WEB ? 'include' : 'omit';
 
 /**
- * Headers that identify this app and carry the session, for any call to the server, with the
- * analytics choice as the website's consent cookie once one is made (src/analytics.ts).
+ * Headers that identify this app and carry an account's session (the active one's unless `slot`
+ * names another), for any call to the server, with the analytics choice as the website's consent
+ * cookie once one is made (src/analytics.ts).
  */
-export async function authHeaders(): Promise<Record<string, string>> {
+export async function authHeaders(slot: string | null = activeSlot()): Promise<Record<string, string>> {
   const consent = getConsent();
-  const cookie = [cookieHeader(await loadJar()), consent && !IS_WEB ? `${CONSENT_COOKIE}=${consent}` : ''].filter(Boolean).join('; ');
+  const cookie = [slot ? cookieHeader(sessionJar(slot)) : '', consent && !IS_WEB ? `${CONSENT_COOKIE}=${consent}` : ''].filter(Boolean).join('; ');
   return {
     'expo-origin': Linking.createURL(''),
     ...(cookie ? { cookie } : {}),
   };
 }
 
-/** Whether a session is stored at all (the web preview can't tell, so it asks the server). */
-export async function hasStoredSession(): Promise<boolean> {
-  return IS_WEB || Boolean(cookieHeader(await loadJar()));
+/** Whether an account has a session stored at all (the web preview can't tell, so it asks the server). */
+export function hasStoredSession(slot: string | null = activeSlot()): boolean {
+  if (!slot) return false;
+  return IS_WEB || Boolean(cookieHeader(sessionJar(slot)));
 }
 
 /** Picks up a refreshed or cleared session cookie, where the platform exposes Set-Cookie. */
-export async function absorbSetCookie(res: Response): Promise<void> {
+export async function absorbSetCookie(res: Response, slot: string | null = activeSlot()): Promise<void> {
   const setCookie = res.headers.get('set-cookie');
-  if (setCookie) await saveJar(mergeSetCookie(await loadJar(), setCookie));
+  if (setCookie && slot) saveSessionJar(slot, mergeSetCookie(sessionJar(slot), setCookie));
 }
 
-/** Resolves true once signed in; false if the person backed out. */
-export async function signInWithGoogle(): Promise<boolean> {
+/** Whose session a slot holds, or null if the server says it has ended. Throws if it couldn't ask. */
+async function sessionUserFor(slot: string): Promise<SessionUser | null> {
+  const res = await fetch(`${AUTH_URL}/get-session`, { credentials, headers: await authHeaders(slot) });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`Couldn't check the session (${res.status})`);
+  await absorbSetCookie(res, slot);
+  const body = (await res.json()) as { user?: SessionUser } | null;
+  return body?.user ?? null;
+}
+
+/**
+ * A sign-in's session arrived (its Set-Cookie header; the web preview's browser keeps its own):
+ * keep it in a slot of its own, ask the server whose it is, and add the account. Someone already
+ * on the device signing in again stays in their own slot, and their old session there is ended.
+ */
+async function finishSignIn(setCookie: string | null): Promise<string> {
+  const slot = newSlot();
+  if (!IS_WEB) {
+    if (!setCookie) throw new Error("Signing in didn't return a session");
+    saveSessionJar(slot, mergeSetCookie({}, setCookie));
+  }
+  const user = await sessionUserFor(slot).catch(() => null);
+  if (!user) {
+    saveSessionJar(slot, {});
+    throw new Error("Signing in didn't return a session");
+  }
+  const previous = IS_WEB ? undefined : getAccounts().accounts.find((account) => account.authUserId === user.id);
+  const previousHeaders = previous ? await authHeaders(previous.slot) : null;
+  const added = addAccount({ slot, authUserId: user.id, name: user.name, email: user.email, image: user.image ?? null });
+  if (previousHeaders) {
+    void fetch(`${AUTH_URL}/sign-out`, { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json', ...previousHeaders }, body: '{}' }).catch(() => undefined);
+  }
+  return added;
+}
+
+/** Resolves to the account's slot once signed in; false if the person backed out. */
+export async function signInWithGoogle(): Promise<string | false> {
   const callbackURL = Linking.createURL('/');
   const res = await fetch(`${AUTH_URL}/sign-in/social`, {
     method: 'POST',
@@ -112,8 +135,7 @@ export async function signInWithGoogle(): Promise<boolean> {
 
   const cookie = Linking.parse(result.url).queryParams?.cookie;
   if (typeof cookie !== 'string' || !cookie) throw new Error("Signing in didn't return a session");
-  await saveJar(mergeSetCookie(await loadJar(), cookie));
-  return true;
+  return finishSignIn(cookie);
 }
 
 /** Sign in with Apple is an iOS feature: the button only shows where the sheet can open. */
@@ -121,8 +143,11 @@ export async function appleSignInAvailable(): Promise<boolean> {
   return Platform.OS === 'ios' && !signInUnavailable && AppleAuthentication.isAvailableAsync();
 }
 
-/** Resolves true once signed in; false if the person cancelled the sheet. */
-export async function signInWithApple(): Promise<boolean> {
+/**
+ * Resolves to the account's slot once signed in; false if the person cancelled the sheet. Apple
+ * signs in the device's own Apple Account, so on a shared iPad the others sign in with Google.
+ */
+export async function signInWithApple(): Promise<string | false> {
   // Bound into the identity token by Apple and checked by Better Auth, so a token lifted from
   // elsewhere can't be replayed here.
   const nonce = Crypto.randomUUID();
@@ -145,30 +170,29 @@ export async function signInWithApple(): Promise<boolean> {
     body: JSON.stringify({ provider: 'apple', idToken: { token: credential.identityToken, nonce } }),
   });
   if (!res.ok) throw new Error(`Couldn't sign in with Apple (${res.status})`);
-  const setCookie = res.headers.get('set-cookie');
-  if (!setCookie) throw new Error("Signing in didn't return a session");
-  await saveJar(mergeSetCookie(await loadJar(), setCookie));
+  const slot = await finishSignIn(res.headers.get('set-cookie'));
 
   // Apple shares the name once, on the first sign-in, and never in the token, so a new account
   // starts nameless and is named from the sheet's answer.
   const { user } = (await res.json()) as { user?: { name?: string } };
   const name = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ');
   if (user && !user.name && name) {
-    await fetch(`${AUTH_URL}/update-user`, {
+    const named = await fetch(`${AUTH_URL}/update-user`, {
       method: 'POST',
       credentials: 'omit',
-      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders(slot)) },
       body: JSON.stringify({ name }),
-    }).catch(() => undefined);
+    }).catch(() => null);
+    if (named?.ok) updateAccount(slot, { name });
   }
-  return true;
+  return slot;
 }
 
 /**
  * Password sign-in, for test accounts (@receiptwise.test) where the server allows it: locally and
  * on staging (lib/dev-login.ts). Used by the web preview and the e2e build only.
  */
-export async function signInWithPassword(email: string, password: string): Promise<void> {
+export async function signInWithPassword(email: string, password: string): Promise<string> {
   const res = await fetch(`${AUTH_URL}/sign-in/email`, {
     method: 'POST',
     credentials,
@@ -179,30 +203,52 @@ export async function signInWithPassword(email: string, password: string): Promi
     const body = (await res.json().catch(() => null)) as { message?: string } | null;
     throw new Error(body?.message || `Couldn't sign in (${res.status})`);
   }
-  await absorbSetCookie(res);
+  return finishSignIn(res.headers.get('set-cookie'));
 }
 
-/** The signed-in person, or null. */
+/**
+ * The person on screen, or null if they're signed out (their session ended). Throws if the server
+ * couldn't be asked. Their name, email and picture are kept with the account, for the switcher.
+ */
 export async function getSessionUser(): Promise<SessionUser | null> {
-  if (!(await hasStoredSession())) return null;
-  const res = await fetch(`${AUTH_URL}/get-session`, { credentials, headers: await authHeaders() });
-  if (!res.ok) return null;
-  await absorbSetCookie(res);
-  const body = (await res.json()) as { user?: SessionUser } | null;
-  return body?.user ?? null;
+  const slot = activeSlot();
+  if (!slot || !hasStoredSession(slot)) return null;
+  const user = await sessionUserFor(slot);
+  if (user) updateAccount(slot, { authUserId: user.id, name: user.name, email: user.email, image: user.image ?? null });
+  return user;
 }
 
-export async function signOut(): Promise<void> {
+/**
+ * Keep every other account's session alive: a session lasts 30 days from when it was last used,
+ * and on a shared iPad someone may not open their account for longer than that. Asking whose it
+ * is refreshes it, at most once a day (the server's updateAge). Returns the slots whose sessions
+ * have ended, to forget.
+ */
+export async function refreshOtherSessions(): Promise<string[]> {
+  if (IS_WEB) return [];
+  const ended: string[] = [];
+  for (const account of getAccounts().accounts) {
+    if (account.slot === activeSlot()) continue;
+    const user = await sessionUserFor(account.slot).catch(() => undefined);
+    if (user === null) ended.push(account.slot);
+    else if (user) updateAccount(account.slot, { name: user.name, email: user.email, image: user.image ?? null });
+  }
+  return ended;
+}
+
+/** Sign one account out here and on the server (the active one unless `slot` says). */
+export async function signOut(slot: string | null = activeSlot()): Promise<void> {
+  if (!slot) return;
   try {
     await fetch(`${AUTH_URL}/sign-out`, {
       method: 'POST',
       credentials,
-      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders(slot)) },
       body: '{}',
     });
   } finally {
     // Signed out here whatever the server said.
-    await saveJar({});
+    removeAccount(slot);
   }
 }
 
@@ -273,7 +319,7 @@ export async function unlinkAccount(account: Pick<LinkedAccount, 'providerId' | 
   await authCall('/unlink-account', { method: 'POST', body: { providerId: account.providerId, accountId: account.accountId } });
 }
 
-/** Forget the session on this phone, without telling the server (after an account is discarded). */
-export async function forgetSession(): Promise<void> {
-  await saveJar({});
+/** Forget an account's session on this phone, without telling the server (after it's discarded). */
+export function forgetSession(slot: string): void {
+  removeAccount(slot);
 }

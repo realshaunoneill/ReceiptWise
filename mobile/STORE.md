@@ -35,6 +35,8 @@ English (UK), SKU `receiptwise`), created 2026-10-29 with the web session. Fille
 Still owed: availability (which countries), the App Review contact phone, screenshots, review
 notes, and the demo account. Export compliance: `ITSAppUsesNonExemptEncryption: false` is set.
 Screenshots: 6.9" iPhone (1320 × 2868) of Home, Plan, a receipt, capture and Bills, with persona data.
+With iPad support on (`supportsTablet`, from the build after 1.0.0 (3)), 13" iPad screenshots
+(2064 × 2752) are required too. The app's web build at 1032 × 1376 shows the iPad layout.
 Review notes: how to sign in (the demo account), that the camera is for scanning, how to delete the
 account, and a sandbox purchase.
 

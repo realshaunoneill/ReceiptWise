@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { GUTTER, radius, space } from '../theme';
@@ -43,10 +43,13 @@ export default function ChooseHost() {
   const current = useSyncExternalStore(subscribe, read, read);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const side = Math.max(0, (width - 520) / 2);
   return (
     <Modal visible={!!current} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => settle(null)}>
       <Pressable style={{ flex: 1, backgroundColor: colors.scrim }} onPress={() => settle(null)} accessibilityLabel="Cancel" />
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: GUTTER, paddingBottom: insets.bottom + space.md, gap: space.sm }}>
+      {/* A tablet's sheet keeps to a phone's width, in the middle of the bottom edge. */}
+      <View style={{ position: 'absolute', left: side, right: side, bottom: 0, paddingHorizontal: GUTTER, paddingBottom: insets.bottom + space.md, gap: space.sm }}>
         <View style={{ backgroundColor: colors.card, borderRadius: radius.xl, overflow: 'hidden', maxHeight: 520 }}>
           {!!current?.title && (
             <Text variant="footnote" ink="muted" align="center" style={{ paddingHorizontal: space.lg, paddingVertical: space.md }} accessibilityRole="header">{current.title}</Text>

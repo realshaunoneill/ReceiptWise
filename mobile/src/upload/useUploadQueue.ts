@@ -1,10 +1,16 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import { useAccounts } from '../auth/accounts';
 import { getQueue, isOnline, subscribe } from './runner';
-import { queueSummary } from './queue';
+import { itemsFor, queueSummary } from './queue';
 
-/** The captures waiting, uploading or stuck, and a line saying so ("Uploading 2 of 5"). */
+/**
+ * The captures of the account on screen waiting, uploading or stuck, and a line saying so
+ * ("Uploading 2 of 5"). Another account's carry on uploading without showing here.
+ */
 export function useUploadQueue() {
-  const items = useSyncExternalStore(subscribe, getQueue, getQueue);
+  const all = useSyncExternalStore(subscribe, getQueue, getQueue);
   const online = useSyncExternalStore(subscribe, isOnline, isOnline);
+  const { active } = useAccounts();
+  const items = useMemo(() => itemsFor(all, active), [all, active]);
   return { items, online, summary: queueSummary(items, online) };
 }

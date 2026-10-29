@@ -3,7 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { GUTTER, space } from '../theme';
+import { GUTTER, readableColumn, space } from '../theme';
 import { tap } from './Button';
 import Text from './Text';
 
@@ -37,7 +37,7 @@ export default function SheetScreen({ title, action, closeLabel = 'Cancel', full
     <ScrollView
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
-      contentContainerStyle={{ paddingHorizontal: GUTTER, paddingTop: space.sm, paddingBottom: insets.bottom + space.xxl, gap: space.lg }}
+      contentContainerStyle={{ ...readableColumn, paddingHorizontal: GUTTER, paddingTop: space.sm, paddingBottom: insets.bottom + space.xxl, gap: space.lg }}
     >
       {children}
     </ScrollView>

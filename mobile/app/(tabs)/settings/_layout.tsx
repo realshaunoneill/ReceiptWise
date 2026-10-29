@@ -11,6 +11,7 @@ export default function SettingsStack() {
       <Stack.Screen name="households/[id]" options={{ title: '' }} />
       <Stack.Screen name="forwarding" options={{ title: 'Email forwarding' }} />
       <Stack.Screen name="sign-in-methods" options={{ title: 'Sign-in methods' }} />
+      <Stack.Screen name="accounts" options={{ title: 'Accounts' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Stack.Screen name="subscription" options={{ title: 'Premium' }} />
 

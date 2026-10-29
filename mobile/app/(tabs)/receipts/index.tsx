@@ -12,7 +12,7 @@ import { useMe } from '../../../src/hooks/useMe';
 import { useReceipts } from '../../../src/hooks/useReceipts';
 import { activeFilterCount, setReceiptFilters, useReceiptFilters } from '../../../src/receipts/filters';
 import { groupByDay, type ReceiptRow as Row } from '../../../src/receipts/group';
-import { GUTTER, radius, space } from '../../../src/theme';
+import { GUTTER, radius, readableColumn, space } from '../../../src/theme';
 import Button from '../../../src/ui/Button';
 import { EmptyState, LoadError, Skeleton } from '../../../src/ui/Feedback';
 import { headerActions } from '../../../src/ui/HeaderButton';
@@ -104,7 +104,8 @@ export default function Receipts() {
         keyboardDismissMode="on-drag"
         // Another search, filter or household on its way: the last list stays, dimmed.
         style={{ backgroundColor: colors.background, opacity: query.isPlaceholderData ? 0.5 : 1 }}
-        contentContainerStyle={{ paddingBottom: space.xxxl * 2 }}
+        // The readable column on an iPad (FlashList sizes rows from inside its content container).
+        contentContainerStyle={{ ...readableColumn, paddingBottom: space.xxxl * 2 }}
         ListHeaderComponent={header}
         ListEmptyComponent={empty}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.textMuted} />}

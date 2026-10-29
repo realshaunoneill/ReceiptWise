@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Switch } from 'react-native';
+import { Platform, Switch } from 'react-native';
 import * as Application from 'expo-application';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { BarChart3, Bell, CircleHelp, Coins, Download, FileText, Home, KeyRound, Lock, LogOut, Mail, Shield, Trash2, Crown, Users } from 'lucide-react-native';
+import { BarChart3, Bell, CircleHelp, Coins, Download, FileText, Home, KeyRound, Lock, LogOut, Mail, Shield, Trash2, Crown, UserRound, Users } from 'lucide-react-native';
 import { getCurrencyDetails, SUPPORTED_CURRENCIES } from '@shared/currency';
 import { formatDisplayDate } from '@shared/receipts/format';
 import { setConsent, useConsent } from '../../../src/analytics';
+import { firstName } from '../../../src/auth/account-list';
+import { useAccounts } from '../../../src/auth/accounts';
 import { SITE_URL } from '../../../src/config';
 import { choose, confirm } from '../../../src/confirm';
 import { useTheme, type ThemeMode } from '../../../src/contexts/ThemeContext';
@@ -47,6 +49,8 @@ export default function Settings() {
   const schedule = useScheduleDeletion();
   const cancel = useCancelDeletion();
   const { items } = useUploadQueue();
+  const accounts = useAccounts();
+  const others = accounts.accounts.filter((account) => account.slot !== accounts.active).map(firstName);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const open = (path: string) => void WebBrowser.openBrowserAsync(`${SITE_URL}${path}`);
@@ -85,7 +89,9 @@ export default function Settings() {
     const waiting = items.filter((item) => item.status !== 'done').length;
     const message = waiting > 0
       ? `${waiting === 1 ? "1 receipt hasn't" : `${waiting} receipts haven't`} uploaded yet and will be lost.`
-      : 'You can sign in again any time.';
+      : others.length > 0
+        ? `${others.join(' and ')} ${others.length === 1 ? 'stays' : 'stay'} signed in on this device.`
+        : 'You can sign in again any time.';
     if (await confirm('Sign out?', message, 'Sign out')) signOut.mutate();
   };
 
@@ -122,6 +128,10 @@ export default function Settings() {
           <Row label={session.data?.name || 'Signed in'} detail={me.data?.email ?? session.data?.email} />
           <Row icon={Crown} label="Premium" value={premiumLabel} onPress={() => router.push('/settings/subscription')} />
           <Row icon={KeyRound} label="Sign-in methods" onPress={() => router.push('/settings/sign-in-methods')} />
+          {/* Everyone in the household signed in on one device. The web preview holds the browser's one session. */}
+          {Platform.OS !== 'web' && (
+            <Row icon={UserRound} label="Accounts on this device" value={String(accounts.accounts.length)} onPress={() => router.push('/settings/accounts')} />
+          )}
           {/* The forwarding address is the account's own, so it sits with the account. */}
           {canForward && <Row icon={Mail} label="Email forwarding" detail="Forward bills and receipts to ReceiptWise" onPress={() => router.push('/settings/forwarding')} />}
         </List>

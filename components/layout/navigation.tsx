@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Receipt, Users, Settings, LogOut, TrendingUp, Menu, ShieldCheck, Repeat, Wallet } from 'lucide-react';
+import { LayoutDashboard, Receipt, Users, Settings, LogOut, TrendingUp, Menu, ShieldCheck, Repeat, Wallet, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { signOutAndLeave, useSession } from '@/lib/auth-client';
+import { addAccount, listBrowserAccounts, signOutAndLeave, signOutCurrentAccount, switchAccount, useSession, type BrowserAccount } from '@/lib/auth-client';
 import { useFeature } from '@/lib/hooks/use-user';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { InvitationNotifications } from '@/components/households/invitation-notifications';
@@ -75,7 +75,23 @@ export function Navigation() {
     displayNavItems.push({ href: '/admin', label: 'Admin', icon: ShieldCheck });
   }
 
-  const handleLogout = () => signOutAndLeave();
+  // Everyone signed in to this browser (a household sharing a computer), for the account menu.
+  const [accounts, setAccounts] = useState<BrowserAccount[]>([]);
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    void listBrowserAccounts().then((list) => {
+      if (live) setAccounts(list);
+    }).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+  const others = accounts.filter((account) => account.userId !== userId);
+  const currentToken = session?.session.token;
+
+  // With other accounts signed in here, signing out leaves them signed in and the next one takes over.
+  const handleLogout = () => (others.length > 0 && currentToken ? signOutCurrentAccount(currentToken, true) : signOutAndLeave());
 
   // Show loading skeleton while checking auth state
   if (!isLoaded) {
@@ -203,12 +219,35 @@ export function Navigation() {
                 <p className="text-sm font-medium">{user?.name || 'User'}</p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
-              {/* Settings is in the navigation itself, so the account menu only signs out. */}
+              {/* Settings is in the navigation itself, so the account menu holds only the accounts. */}
+              <DropdownMenuSeparator />
+              {others.map((account) => (
+                <DropdownMenuItem key={account.sessionToken} onClick={() => void switchAccount(account.sessionToken)} className="min-h-11">
+                  <span className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary" aria-hidden="true">
+                    {(account.name || account.email)[0]?.toUpperCase()}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="sr-only">Switch to </span>
+                    <span className="block truncate text-sm">{account.name || account.email}</span>
+                    {account.name && <span className="block truncate text-xs text-muted-foreground">{account.email}</span>}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onClick={() => void addAccount()}>
+                <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add another account
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-                Sign out
+                {others.length > 0 ? `Sign out of ${user?.name?.split(' ')[0] || 'this account'}` : 'Sign out'}
               </DropdownMenuItem>
+              {others.length > 0 && (
+                <DropdownMenuItem onClick={() => void signOutAndLeave()} className="text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Sign out of all accounts
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 

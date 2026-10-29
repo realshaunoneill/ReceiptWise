@@ -20,8 +20,10 @@ const body = z.object({
 /**
  * POST /api/devices: the app registers its push token on every launch once notifications are
  * allowed, with the phone's time zone (notifications go out at the person's own 9 am, and keep
- * their quiet hours). A token moves to whoever is signed in on the phone now, and a disabled one
- * (the push service said it was gone) comes back if the phone sends it again.
+ * their quiet hours). It registers once for each account signed in on the phone (a household's
+ * shared iPad), so each of them gets their own notifications; a disabled token (the push service
+ * said it was gone) comes back if the phone sends it again. The answer carries the account's id,
+ * which notifications carry too, so the app can tell whose a tapped one is.
  */
 export async function POST(req: NextRequest) {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
@@ -36,12 +38,12 @@ export async function POST(req: NextRequest) {
     .insert(pushDevices)
     .values({ userId: auth.user.id, expoToken: token, platform, appVersion, locale, timeZone })
     .onConflictDoUpdate({
-      target: pushDevices.expoToken,
+      target: [pushDevices.expoToken, pushDevices.userId],
       set: { userId: auth.user.id, platform, appVersion, locale, timeZone, lastSeenAt: new Date(), disabledAt: null },
     });
   if (timeZone && timeZone !== auth.user.timeZone) {
     await db.update(users).set({ timeZone, updatedAt: new Date() }).where(eq(users.id, auth.user.id));
   }
   submitLogEvent('push', 'Device registered', correlationId, { userId: auth.user.id, platform, appVersion });
-  return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'private, no-store' } });
+  return NextResponse.json({ ok: true, userId: auth.user.id }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

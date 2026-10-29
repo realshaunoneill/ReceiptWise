@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SUPPORT_EMAIL } from '../config';
 import { reportError } from '../crashes';
 import { useTheme } from '../contexts/ThemeContext';
-import { GUTTER, radius, space } from '../theme';
+import { GUTTER, radius, readableColumn, space } from '../theme';
 import Button from '../ui/Button';
 import Text from '../ui/Text';
 import Logo from './Logo';
@@ -29,7 +29,7 @@ export default function ErrorScreen({ error, retry, underHeader }: ErrorBoundary
   }, [error, path]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: (underHeader ? 0 : insets.top) + space.xxxl, paddingBottom: insets.bottom + space.xl, paddingHorizontal: GUTTER + space.xs, gap: space.lg }}>
+    <View style={{ flex: 1, ...readableColumn, backgroundColor: colors.background, paddingTop: (underHeader ? 0 : insets.top) + space.xxxl, paddingBottom: insets.bottom + space.xl, paddingHorizontal: GUTTER + space.xs, gap: space.lg }}>
       <Logo size={40} dark={theme === 'dark'} />
       <Text variant="title" accessibilityRole="header">Something went wrong</Text>
       <Text variant="callout" ink="secondary">{`That's on us, not you, and we've been told. Try again, and if it keeps happening, tell us at ${SUPPORT_EMAIL}.`}</Text>

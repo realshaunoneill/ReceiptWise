@@ -8,14 +8,14 @@ repository root.
 ## Layout
 
 - `app/`: the screens (Expo Router):
-  - `sign-in`, `capture` (receipts and bills), `onboarding` and `invite/[token]`
+  - `sign-in`, `add-account`, `capture` (receipts and bills), `onboarding` and `invite/[token]`
   - five tabs, Home, Receipts, Plan, Bills and Settings, each with its own stack (Insights is
-    pushed from Home; households, forwarding and sign-in methods from Settings)
+    pushed from Home; households, forwarding, sign-in methods and accounts from Settings)
   - `sheets/`: the sheets and modals, registered in `app/_layout.tsx` with their presentation
     (`src/ui/stack.ts`), each drawn in `src/ui/Sheet.tsx`
 - `src/`:
-  - `auth/` signs in with Google, Apple, or a password for test accounts, and keeps the session
-    token in SecureStore
+  - `auth/` signs in with Google, Apple, or a password for test accounts, and keeps each
+    account's session token in SecureStore (see "Several accounts" below)
   - `api/` holds the fetch client and its errors
   - `hooks/` holds the queries and mutations
   - `upload/` is the capture queue (receipts and bills) and the document scanner
@@ -95,6 +95,35 @@ receipt grouping, links, and the bills and insights maths. Screens aren't unit-t
 `STORE.md` is the checklist for the App Store and Google Play: guidelines, the privacy label,
 Play's forms, and what has to happen before the first store build.
 
+## Several accounts, and the iPad
+
+A household sharing one iPad (or phone) signs each person in, and switches between them from
+Home's header or Settings › Accounts on this device, with no passcode (Shaun, 2026-10-29).
+- **Each account keeps its own session** (`src/auth/accounts.ts`, pure rules in
+  `account-list.ts`): the list in SecureStore under `receiptwise_accounts`, and one session per
+  key. The account from before there were several keeps the original keys (`LEGACY_SLOT`), so
+  updating keeps everyone signed in with their cached data.
+- **Switching remounts the app** (`app/_layout.tsx` `AccountApp`). It empties the query cache and
+  mounts again on the new account's saved data, from Home, as the website does with a full page
+  load. App lock asks at launch and after five minutes away, not on a switch.
+- **What belongs to an account:**
+  - Its saved queries (`src/query/client.ts`) and its household in view (`src/scope.ts`).
+  - Its captures (`src/upload/`): each uploads with its own session even if someone else is on
+    screen by then.
+  - Its notifications: the phone registers for every account, and a notification carries its
+    `userId`, so tapping one for someone else switches to them first.
+- **Signing out is per account** (`src/hooks/useSession.ts`). An account whose session ended
+  elsewhere is forgotten and the next one takes over. The others' sessions are refreshed at
+  launch, so a rarely used account doesn't expire after 30 days.
+- **Sign in with Apple uses the device's Apple Account,** so a second person on the same iPad
+  adds their account with Google.
+- **The web preview holds the browser's one cookie,** so it has one account at most. Switching is
+  checked on a device.
+- **The iPad app is the iPhone app,** every screen the same. Content keeps to a readable column
+  in the middle (`src/theme` `readableColumn`, 720 pt) while it scrolls edge to edge. The tabs can
+  open out into the system sidebar. iOS 27 resizes iPad windows freely, so every screen works at
+  any width. Once a release has shipped with iPad support, an update can't drop it.
+
 ## Things learned the hard way (from Behind The Badge)
 
 - **Deploy the server before any build that needs it.** App sign-in from Behind The Badge's app
@@ -105,7 +134,8 @@ Play's forms, and what has to happen before the first store build.
 - **Render string conditions with `!!`, never `&&`.** An empty string inside a `View` crashes React
   Native.
 - **Validate anything read from the phone's storage,** because it outlives app versions.
-- **Keep only the session token in SecureStore.** Some Android versions refuse values over 2 KB.
+- **Keep only the session token in SecureStore,** one key per account. Some Android versions
+  refuse values over 2 KB.
 - **Never put a button inside a button.** VoiceOver then can't reach the inner one, and the web
   preview warns. A row with a tick and an amount has three controls side by side.
 - **Menus go through `choose()` (src/confirm.ts).** On Android it's a bottom sheet

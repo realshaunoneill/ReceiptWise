@@ -8,6 +8,7 @@ import { headerActions } from '../../../src/ui/HeaderButton';
 import PlanCard from '../../../src/components/PlanCard';
 import ReceiptRow from '../../../src/components/ReceiptRow';
 import { useScopeHeader } from '../../../src/components/ScopePicker';
+import { useAccountAction } from '../../../src/components/AccountSwitcher';
 import UpcomingPayments from '../../../src/components/UpcomingPayments';
 import UploadStatus from '../../../src/components/UploadStatus';
 import { useBills } from '../../../src/hooks/useBills';
@@ -59,12 +60,13 @@ export default function Home() {
   const switching = plan.isPlaceholderData || stats.isPlaceholderData || bills.isPlaceholderData || recent.isPlaceholderData;
   const scope = useScopeHeader(switching);
   const capture = useCaptureAction();
+  const account = useAccountAction();
 
   const refresh = () => Promise.all([me.refetch(), plan.refetch(), stats.refetch(), thisMonth.refetch(), bills.refetch(), recent.refetch()]);
 
   return (
     <>
-      <Stack.Screen options={{ ...scope.options, ...headerActions([capture]) }} />
+      <Stack.Screen options={{ ...scope.options, ...headerActions(account ? [account, capture] : [capture]) }} />
       <TabScreen onRefresh={refresh}>
         {scope.inline}
         <Stale stale={switching}>

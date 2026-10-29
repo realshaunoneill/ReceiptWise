@@ -1,7 +1,10 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from 'better-auth/api';
+import { setSessionCookie } from 'better-auth/cookies';
 import { nextCookies } from 'better-auth/next-js';
+import { multiSession } from 'better-auth/plugins';
+import type { BetterAuthPlugin } from 'better-auth/types';
 import { expo } from '@better-auth/expo';
 import { db } from '@/lib/db';
 import { authAccount, authSession, authUser, authVerification } from '@/lib/db/schema';
@@ -32,6 +35,23 @@ const APP_BUNDLE_ID = 'io.receiptwise.app';
 const DEV_APP_SCHEME = 'receiptwise-dev://';
 const DEV_APP_BUNDLE_ID = 'io.receiptwise.app.dev';
 const TRUST_DEV_APP = process.env.VERCEL_ENV !== 'production';
+
+/**
+ * The website's account switcher keeps each account signed in to this browser in a cookie of its
+ * own, which multiSession() sets on every new session. Sessions from before it was added have no
+ * such cookie, so POST /multi-session/adopt gives the current one its cookie before "Add another
+ * account" signs someone else in; without it, that first account would drop out of the switcher.
+ */
+const adoptSession = {
+  id: 'adopt-session',
+  endpoints: {
+    adoptSession: createAuthEndpoint('/multi-session/adopt', { method: 'POST', use: [sessionMiddleware] }, async (ctx) => {
+      // Sets the session cookie again, which multiSession()'s after-hook answers with the account's own cookie.
+      await setSessionCookie(ctx, ctx.context.session);
+      return ctx.json({ ok: true });
+    }),
+  },
+} satisfies BetterAuthPlugin;
 
 /** Where OAuth comes back to: BETTER_AUTH_URL (www in production, staging on Preview), else this deployment. */
 function baseURL(): string {
@@ -129,6 +149,11 @@ function createAuth() {
       // Browsers always send Origin and the website's callbacks are https, so the site is
       // untouched. The origin copy itself is lib/expo-origin.ts, in the auth route.
       expo({ disableOriginOverride: true }),
+      // Several accounts signed in to one browser, as a household sharing a computer is: switch
+      // between them from the account menu (components/layout/navigation.tsx). The app keeps its
+      // own sessions, one per account (mobile/src/auth/accounts.ts), and sends only the active one.
+      multiSession({ maximumSessions: 5 }),
+      adoptSession,
       // Must be last: lets route handlers and server actions set cookies.
       nextCookies(),
     ],

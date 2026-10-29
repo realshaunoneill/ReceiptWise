@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { backoffMs, MAX_ATTEMPTS, nextToUpload, nextWakeAt, queueSummary, reduce, type QueueItem } from './queue';
+import { LEGACY_SLOT } from '../auth/account-list';
+import { backoffMs, itemsFor, MAX_ATTEMPTS, nextToUpload, nextWakeAt, queueSummary, reduce, type QueueItem } from './queue';
 
 const item = (id: string, createdAt: number, overrides: Partial<QueueItem> = {}): QueueItem => ({
   id, target: 'receipt', files: [{ uri: `file:///${id}.jpg`, mimeType: 'image/jpeg', name: `${id}.jpg` }], kind: 'receipt', createdAt, status: 'waiting', attempts: 0, notBefore: 0, ...overrides,
 });
 
 describe('upload queue', () => {
+  it("shows each account its own captures, the first account's including those from before accounts", () => {
+    const items = [item('a', 1), item('b', 2, { account: LEGACY_SLOT }), item('c', 3, { account: 'm3g' })];
+    expect(itemsFor(items, LEGACY_SLOT).map((i) => i.id)).toEqual(['a', 'b']);
+    expect(itemsFor(items, 'm3g').map((i) => i.id)).toEqual(['c']);
+    expect(itemsFor(items, null)).toEqual([]);
+  });
+
   it('sends one at a time, oldest first', () => {
     const items = [item('b', 2), item('a', 1)];
     expect(nextToUpload(items, 10)?.id).toBe('a');

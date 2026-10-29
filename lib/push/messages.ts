@@ -47,6 +47,16 @@ export const KIND_CHANNEL: Record<NotificationKind, 'receipts' | 'bills' | 'hous
 
 export type PushMessage = { kind: NotificationKind; title: string; body: string; url: string };
 
+/**
+ * A phone signed in to more than one account (a household's shared iPad) gets each person's
+ * notifications, so there the title says whose it is: "Receipt read · Megan". The first name, or
+ * the start of the email address for an account without a name.
+ */
+export function titleForSharedPhone(title: string, person: { name?: string | null; email: string }): string {
+  const first = person.name?.trim().split(/\s+/)[0] || person.email.split('@')[0];
+  return first ? `${title} · ${first}` : title;
+}
+
 const day = (value: LocalDate) => formatLocalDate(value, { day: 'numeric', month: 'short' }, 'en-IE');
 const money = (amount: string | number | null | undefined, currency: string | null | undefined) => {
   const cents = toCents(amount ?? null);

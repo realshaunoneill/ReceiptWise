@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Users, X } from 'lucide-react-native';
@@ -7,9 +7,12 @@ import { formatDisplayDate } from '@shared/receipts/format';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useInvitePreview, useRespondToInvite } from '../../src/hooks/useInvitations';
 import { useMe } from '../../src/hooks/useMe';
-import { useSession } from '../../src/hooks/useSession';
+import { switchAccount, useSession } from '../../src/hooks/useSession';
+import { activeAccount, firstName } from '../../src/auth/account-list';
+import { useAccounts } from '../../src/auth/accounts';
+import { choose } from '../../src/confirm';
 import { INVITE_TOKEN, rememberInvite } from '../../src/invites';
-import { GUTTER, radius, space } from '../../src/theme';
+import { GUTTER, radius, readableColumn, space } from '../../src/theme';
 import Button, { success } from '../../src/ui/Button';
 import { Notice, Skeleton } from '../../src/ui/Feedback';
 import Text from '../../src/ui/Text';
@@ -25,7 +28,9 @@ const CLOSED: Record<string, string> = {
 /**
  * An invitation link, opened in the app: reachable signed in or out (app/_layout.tsx). Signed out,
  * it shows the household and keeps the link while you sign in, then opens again
- * (src/components/SignedInEffects.tsx). Signed in, join or decline.
+ * (src/components/SignedInEffects.tsx). Signed in, join or decline, as the person on screen or,
+ * on a household's shared iPad, as someone else signed in there (or about to be): the link is kept
+ * the same way and opens again once the app is theirs.
  */
 export default function Invite() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -55,12 +60,23 @@ export default function Invite() {
     router.replace('/sign-in');
   };
 
+  const accounts = useAccounts();
+  const current = activeAccount(accounts);
+  const joinAsSomeoneElse = async () => {
+    const others = accounts.accounts.filter((account) => account.slot !== accounts.active);
+    const index = await choose('Join as', [...others.map((account) => ({ label: account.name || account.email || 'Account' })), { label: 'Add an account' }]);
+    if (index === null) return;
+    await rememberInvite(token!);
+    if (index < others.length) switchAccount(others[index].slot);
+    else router.push('/add-account');
+  };
+
   const invitation = preview.data;
   const open = invitation?.status === 'pending';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.xl }}>
-      <View style={{ paddingHorizontal: GUTTER }}>
+      <View style={{ ...readableColumn, paddingHorizontal: GUTTER }}>
         <Pressable
           onPress={close}
           hitSlop={12}
@@ -72,7 +88,7 @@ export default function Invite() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingTop: space.xxl, gap: space.lg }}>
+      <ScrollView contentContainerStyle={{ ...readableColumn, paddingHorizontal: GUTTER, paddingTop: space.xxl, gap: space.lg }}>
         {!valid || preview.isError ? (
           <>
             <Text variant="largeTitle" accessibilityRole="header">This link isn't valid</Text>
@@ -106,6 +122,12 @@ export default function Invite() {
               <View style={{ gap: space.md, marginTop: space.md }}>
                 <Button label="Join household" loading={respond.isPending && respond.variables === 'accept'} disabled={respond.isPending} onPress={() => answer('accept')} />
                 <Button label="Decline" variant="secondary" loading={respond.isPending && respond.variables === 'decline'} disabled={respond.isPending} onPress={() => answer('decline')} />
+                {Platform.OS !== 'web' && !!current && (
+                  <>
+                    <Text variant="footnote" ink="muted" align="center">{`Joining as ${firstName(current)}${current.email ? ` (${current.email})` : ''}.`}</Text>
+                    <Button label="Join as someone else" variant="plain" disabled={respond.isPending} onPress={() => void joinAsSomeoneElse()} />
+                  </>
+                )}
               </View>
             ) : (
               <View style={{ gap: space.sm, marginTop: space.md }}>

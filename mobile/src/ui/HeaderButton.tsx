@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { type LucideIcon } from 'lucide-react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
+import { choose } from '../confirm';
 import { useTheme } from '../contexts/ThemeContext';
 import { space } from '../theme';
 import { tap } from './Button';
@@ -34,7 +35,12 @@ export type HeaderAction = {
   icon?: LucideIcon;
   /** A count on the button (filters on): iOS 26's badge, and the label elsewhere. */
   badge?: number;
-  onPress: () => void;
+  /**
+   * A menu instead of one action (the account switcher): iOS's native menu, and elsewhere the
+   * same choices as a sheet (src/confirm.ts choose), the one on screen ticked.
+   */
+  menu?: { title: string; items: { label: string; selected?: boolean; onPress: () => void }[] };
+  onPress?: () => void;
 };
 
 /**
@@ -44,27 +50,54 @@ export type HeaderAction = {
  * button items, which iOS draws itself in the bar's glass; Android and the web keep HeaderButton.
  */
 export function headerActions(actions: HeaderAction[]) {
+  const run = (action: HeaderAction) => () => {
+    if (action.onPress) {
+      action.onPress();
+      return;
+    }
+    const { menu } = action;
+    if (!menu) return;
+    void choose(menu.title, menu.items.map((item) => ({ label: item.selected ? `${item.label} ✓` : item.label }))).then((index) => {
+      if (index !== null) menu.items[index].onPress();
+    });
+  };
   const press = (action: HeaderAction) => () => {
     tap();
-    action.onPress();
+    run(action)();
   };
   if (Platform.OS === 'ios') {
     return {
-      unstable_headerRightItems: () => actions.map((action) => ({
-        type: 'button' as const,
-        label: action.label,
-        accessibilityLabel: action.badge ? `${action.label}, ${action.badge} on` : action.label,
-        ...(action.sfSymbol ? { icon: { type: 'sfSymbol' as const, name: action.sfSymbol } } : {}),
-        ...(action.badge ? { badge: { value: action.badge } } : {}),
-        onPress: press(action),
-      })),
+      unstable_headerRightItems: () => actions.map((action) => (action.menu
+        ? {
+          type: 'menu' as const,
+          label: action.label,
+          accessibilityLabel: action.label,
+          ...(action.sfSymbol ? { icon: { type: 'sfSymbol' as const, name: action.sfSymbol } } : {}),
+          menu: {
+            title: action.menu.title,
+            items: action.menu.items.map((item) => ({
+              type: 'action' as const,
+              label: item.label,
+              state: item.selected ? 'on' as const : 'off' as const,
+              onPress: item.onPress,
+            })),
+          },
+        }
+        : {
+          type: 'button' as const,
+          label: action.label,
+          accessibilityLabel: action.badge ? `${action.label}, ${action.badge} on` : action.label,
+          ...(action.sfSymbol ? { icon: { type: 'sfSymbol' as const, name: action.sfSymbol } } : {}),
+          ...(action.badge ? { badge: { value: action.badge } } : {}),
+          onPress: press(action),
+        })),
     };
   }
   return {
     headerRight: () => (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
         {actions.map((action) => (action.icon
-          ? <HeaderButton key={action.label} icon={action.icon} label={action.badge ? `${action.label}, ${action.badge} on` : action.label} onPress={action.onPress} />
+          ? <HeaderButton key={action.label} icon={action.icon} label={action.badge ? `${action.label}, ${action.badge} on` : action.label} onPress={run(action)} />
           : <TextAction key={action.label} label={action.label} onPress={press(action)} />))}
       </View>
     ),
