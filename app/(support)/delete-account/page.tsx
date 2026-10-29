@@ -49,7 +49,7 @@ export default function DeleteAccountPage() {
               <li>Then your account and everything in it is deleted: receipts and their images, bills and their files, your plan, income, savings goals and balances, and forwarded emails.</li>
               <li>A household you own passes to its longest-standing other member, or is deleted if you were its only member.</li>
               <li>A subscription paid on the website is cancelled for you. One bought in the app through the App Store or Google Play isn&apos;t: cancel it in your phone&apos;s settings, or it keeps renewing.</li>
-              <li>Invoices are kept by Stripe for as long as tax law requires. Application logs are deleted on our providers&apos; schedules. The <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link> has the detail.</li>
+              <li>Invoices are kept by our payment provider for as long as tax law requires. Error logs are deleted automatically after a limited time. The <Link href="/privacy" className="text-primary hover:underline">privacy policy</Link> has the detail.</li>
             </ul>
             <p>Want a copy first? Export your data from the same place in Settings.</p>
           </CardContent>

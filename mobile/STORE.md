@@ -14,7 +14,7 @@ Tick an item when it's true in the store's console, not when the code merely exi
 | 3.1.2 Subscriptions | The paywall states price, length, trial and auto-renewal, with Terms (EULA) and Privacy links, and offers Restore | In the paywall (phase 3) |
 | 4.8 Sign in with Apple | Offered alongside Google | Done; Apple's private relay addresses get the "new or existing?" step |
 | 5.1.1(v) Account deletion | Deleting the account from inside the app | Settings → Delete account; it warns that a store subscription isn't cancelled by deleting |
-| 5.1.2 Data use | The privacy label matches what's collected | Privacy policy updated 2026-10-27 for the app; the label is to fill in (below) |
+| 5.1.2 Data use | The privacy label matches what's collected | Privacy policy covers the app (high level since 2026-10-29: kinds of data and of company); the label is to fill in (below) |
 
 **Also for App Store Connect:**
 - Screenshots: 6.9" iPhone (1320 × 2868) of Home, Plan, a receipt, capture and Bills, with persona data.
@@ -44,6 +44,6 @@ Tick an item when it's true in the store's console, not when the code merely exi
 
 - **Apple step on cevo:** the App ID needs the Push Notifications capability and an APNs key. Later, it also needs an app group for the widget and the share extension. Never do this from the work Mac: see the memory note `eas-cli-keychain-alert`.
 - **Firebase:** a project for FCM v1, its `google-services.json` as an EAS file env, and a service account.
-- **RevenueCat:** the project, the `premium` entitlement, the store products, the webhook secret (`REVENUECAT_WEBHOOK_AUTH` on Vercel) and its DPA. Then add RevenueCat and store billing to the privacy policy.
+- **RevenueCat:** the project, the `premium` entitlement, the store products, the webhook secret (`REVENUECAT_WEBHOOK_AUTH` on Vercel) and its DPA. The privacy policy names no suppliers, so it needs only "app store billing" added under Payments.
 - **EAS:** a production build (`autoIncrement`), then a submission. Builds are scarce on the free plan, so batch native changes.
-- **Legal:** the privacy policy names the controller and its processors. Add RevenueCat, Apple and Google as billing processors when in-app purchase goes live.
+- **Legal:** the privacy policy names the controller and describes processors by kind, never by name (`app/(support)/legal-pages.test.ts` enforces it). When in-app purchase goes live, say that Apple or Google bill a subscription bought in the app.

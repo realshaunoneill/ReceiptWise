@@ -105,7 +105,8 @@ function createAuth() {
       // database read each time (Clerk used to cost a network call to fetch the email instead).
       cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
-    // Sessions don't record the IP address they came from (the privacy policy says so). That also
+    // Sessions don't record the IP address they came from (one less thing for the privacy policy to
+    // list: it says only that sessions are kept 30 days). That also
     // turns off better-auth's per-IP rate limiting, which on serverless is per instance anyway.
     advanced: { ipAddress: { disableIpTracking: true } },
     plugins: [

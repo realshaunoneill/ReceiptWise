@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = pageMetadata({
-  title: 'Terms of Service - ReceiptWise',
+  title: 'Terms of service - ReceiptWise',
   description: 'The terms for using ReceiptWise, the household receipt tracker.',
   path: '/terms',
 });

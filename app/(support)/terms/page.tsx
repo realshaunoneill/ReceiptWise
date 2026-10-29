@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/navigation';
 
 // Same derivation as createCheckoutSession in lib/stripe.ts, so the terms never describe a trial
-// that checkout would not grant.
+// that checkout would not grant. The page itself stays high level, like the privacy policy: no
+// supplier names or how the service is built (app/(support)/legal-pages.test.ts).
 const TRIAL_DAYS = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
   ? parseInt(process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS, 10)
   : 0;
@@ -16,15 +17,15 @@ export default function TermsPage() {
       <Navigation />
       <main className="container mx-auto max-w-4xl space-y-6 p-4 sm:p-6 pb-12" aria-labelledby="terms-title">
         <div>
-          <h1 id="terms-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Terms of Service</h1>
+          <h1 id="terms-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Terms of service</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: 24 October 2026
+            Last updated: 29 October 2026
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>1. Acceptance of Terms</CardTitle>
+            <CardTitle>1. Accepting these terms</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -36,14 +37,13 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>2. Description of Service</CardTitle>
+            <CardTitle>2. What the Service is</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              ReceiptWise provides receipt management and expense tracking services, including AI-powered OCR
-              (Optical Character Recognition) for extracting data from receipt images, spending analytics,
-              household sharing features, and a monthly plan of your income, bills and savings, with bills read
-              from documents you upload or forward by email.
+              ReceiptWise keeps your receipts and reads them for you, shows where your money goes, lets you share
+              with your household, and keeps a monthly plan of your pay, bills and savings, with bills read from
+              documents you add or forward by email.
             </p>
             <p>
               <strong>The plan is an estimate, not financial advice.</strong> It is worked out from what you enter
@@ -55,7 +55,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>3. User Accounts</CardTitle>
+            <CardTitle>3. Your account</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -71,7 +71,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>4. Subscription and Payment</CardTitle>
+            <CardTitle>4. Subscription and payment</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -92,17 +92,17 @@ export default function TermsPage() {
               you cancel.
             </p>
             <p>
-              <strong>Payment Processing:</strong> All payments are processed securely through Stripe. We do not
-              store your credit card information.
+              <strong>Payment:</strong> Payments are handled by our payment provider. We never see or store your
+              full card details.
             </p>
             <p>
-              <strong>Cancellation:</strong> You may cancel at any time through the billing portal in Settings.
+              <strong>Cancellation:</strong> You may cancel at any time from Settings &rarr; Premium.
               Cancellation takes effect at the end of the current billing period (or the trial), and you keep access
               until then.
             </p>
             <p>
               <strong>Refunds and your right to withdraw:</strong> see our{' '}
-              <a href="/refund" className="text-primary hover:underline">Refund Policy</a>, which includes the
+              <a href="/refund" className="text-primary hover:underline">refund policy</a>, which includes the
               14-day right of withdrawal that consumers in the EU and UK have.
             </p>
           </CardContent>
@@ -110,7 +110,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>5. User Content</CardTitle>
+            <CardTitle>5. Your content</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -127,7 +127,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>6. Acceptable Use</CardTitle>
+            <CardTitle>6. Acceptable use</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>You agree not to:</p>
@@ -138,7 +138,7 @@ export default function TermsPage() {
               <li>Use automated systems to access the Service without our permission</li>
               <li>Interfere with or disrupt the Service or servers</li>
               <li>Impersonate any person or entity</li>
-              <li>Upload in bulk or by script beyond normal personal and household use; receipt processing is rate-limited to keep the service available to everyone</li>
+              <li>Upload in bulk or by script beyond normal personal and household use. We may limit how many receipts and bills can be read in a short time, to keep the Service available to everyone</li>
             </ul>
           </CardContent>
         </Card>
@@ -158,12 +158,12 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>8. Data Privacy and Security</CardTitle>
+            <CardTitle>8. Privacy and security</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              We take data privacy and security seriously. Please review our Privacy Policy to understand how we
-              collect, use, and protect your personal information.
+              Our <a href="/privacy" className="text-primary hover:underline">privacy policy</a> explains what we
+              collect, how we use it and how we protect it.
             </p>
             <p>
               While we implement industry-standard security measures, no method of transmission or storage is 100%
@@ -174,7 +174,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>9. Household Sharing</CardTitle>
+            <CardTitle>9. Household sharing</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -190,7 +190,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>10. Intellectual Property</CardTitle>
+            <CardTitle>10. Intellectual property</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -202,7 +202,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>11. Disclaimer of Warranties</CardTitle>
+            <CardTitle>11. No warranties</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -214,7 +214,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>12. Limitation of Liability</CardTitle>
+            <CardTitle>12. Limits on our liability</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -249,7 +249,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>14. Changes to Terms</CardTitle>
+            <CardTitle>14. Changes to these terms</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -262,7 +262,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>15. Governing Law</CardTitle>
+            <CardTitle>15. Governing law</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
@@ -275,7 +275,7 @@ export default function TermsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>16. Contact Information</CardTitle>
+            <CardTitle>16. Contact</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
