@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Camera } from 'lucide-react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { tap } from '../ui/Button';
+import { type HeaderAction } from '../ui/HeaderButton';
 
 /** The header's camera: add a receipt from anywhere it shows. */
 export default function CaptureButton() {
@@ -23,4 +24,10 @@ export default function CaptureButton() {
       <Camera size={24} color={colors.accent} strokeWidth={2} />
     </Pressable>
   );
+}
+
+/** The same camera as a header action (src/ui/HeaderButton.tsx headerActions): native on iOS. */
+export function useCaptureAction(): HeaderAction {
+  const router = useRouter();
+  return { label: 'Add a receipt', sfSymbol: 'camera', icon: Camera, onPress: () => router.push('/capture') };
 }

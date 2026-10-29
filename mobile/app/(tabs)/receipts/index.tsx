@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { ReceiptText, SearchX, SlidersHorizontal } from 'lucide-react-native';
 import { localToday } from '@shared/dates/local-date';
-import CaptureButton from '../../../src/components/CaptureButton';
+import { useCaptureAction } from '../../../src/components/CaptureButton';
 import ReceiptRow from '../../../src/components/ReceiptRow';
 import UploadStatus from '../../../src/components/UploadStatus';
 import { useTheme } from '../../../src/contexts/ThemeContext';
@@ -15,7 +15,7 @@ import { groupByDay, type ReceiptRow as Row } from '../../../src/receipts/group'
 import { GUTTER, radius, space } from '../../../src/theme';
 import Button from '../../../src/ui/Button';
 import { EmptyState, LoadError, Skeleton } from '../../../src/ui/Feedback';
-import HeaderButton from '../../../src/ui/HeaderButton';
+import { headerActions } from '../../../src/ui/HeaderButton';
 import { usePullToRefresh } from '../../../src/ui/usePullToRefresh';
 import Text from '../../../src/ui/Text';
 
@@ -26,6 +26,7 @@ import Text from '../../../src/ui/Text';
 export default function Receipts() {
   const { colors } = useTheme();
   const router = useRouter();
+  const capture = useCaptureAction();
   const me = useMe();
   const filters = useReceiptFilters();
   const [search, setSearch] = useState('');
@@ -83,12 +84,10 @@ export default function Receipts() {
     <>
       <Stack.Screen
         options={{
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
-              <HeaderButton icon={SlidersHorizontal} label={narrowed ? `Filters, ${narrowed} on` : 'Filters'} onPress={() => router.push('/sheets/receipt-filters')} />
-              <CaptureButton />
-            </View>
-          ),
+          ...headerActions([
+            { label: 'Filters', sfSymbol: 'line.3.horizontal.decrease.circle', icon: SlidersHorizontal, badge: narrowed || undefined, onPress: () => router.push('/sheets/receipt-filters') },
+            capture,
+          ]),
           headerSearchBarOptions: {
             placeholder: 'Search receipts',
             onChangeText: (event) => setSearch(event.nativeEvent.text),

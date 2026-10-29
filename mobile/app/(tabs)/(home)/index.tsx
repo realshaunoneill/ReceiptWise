@@ -3,10 +3,11 @@ import { Stack, useRouter } from 'expo-router';
 import { ChartLine, ReceiptText } from 'lucide-react-native';
 import { localToday } from '@shared/dates/local-date';
 import { latestReceiptDay, monthStart } from '@shared/insights/quick-stats';
-import CaptureButton from '../../../src/components/CaptureButton';
+import { useCaptureAction } from '../../../src/components/CaptureButton';
+import { headerActions } from '../../../src/ui/HeaderButton';
 import PlanCard from '../../../src/components/PlanCard';
 import ReceiptRow from '../../../src/components/ReceiptRow';
-import { scopePickerPlacement } from '../../../src/components/ScopePicker';
+import { useScopeHeader } from '../../../src/components/ScopePicker';
 import UpcomingPayments from '../../../src/components/UpcomingPayments';
 import UploadStatus from '../../../src/components/UploadStatus';
 import { useBills } from '../../../src/hooks/useBills';
@@ -56,13 +57,14 @@ export default function Home() {
   const hasReceipts = (stats.data?.totalReceipts ?? 0) > 0;
   // The other scope's figures on their way: the last ones stay, dimmed, with a spinner in the picker.
   const switching = plan.isPlaceholderData || stats.isPlaceholderData || bills.isPlaceholderData || recent.isPlaceholderData;
-  const scope = scopePickerPlacement(switching);
+  const scope = useScopeHeader(switching);
+  const capture = useCaptureAction();
 
   const refresh = () => Promise.all([me.refetch(), plan.refetch(), stats.refetch(), thisMonth.refetch(), bills.refetch(), recent.refetch()]);
 
   return (
     <>
-      <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <CaptureButton /> }} />
+      <Stack.Screen options={{ ...scope.options, ...headerActions([capture]) }} />
       <TabScreen onRefresh={refresh}>
         {scope.inline}
         <Stale stale={switching}>

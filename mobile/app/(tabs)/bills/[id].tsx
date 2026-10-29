@@ -20,6 +20,7 @@ import { useAccounts } from '../../../src/hooks/usePlan';
 import { GUTTER, radius, space, type Tone } from '../../../src/theme';
 import { selectionTick, success } from '../../../src/ui/Button';
 import { LoadError, Notice, Pill, Skeleton } from '../../../src/ui/Feedback';
+import { headerActions } from '../../../src/ui/HeaderButton';
 import Row from '../../../src/ui/Row';
 import { List, Section } from '../../../src/ui/Section';
 import TabScreen from '../../../src/ui/TabScreen';
@@ -102,13 +103,7 @@ export default function BillScreen() {
         options={{
           // The name is the screen's own heading, so the bar doesn't repeat it.
           title: '',
-          headerRight: bill.canEdit
-            ? () => (
-              <Pressable onPress={() => router.push({ pathname: '/sheets/bill-edit', params: { id: bill.id } })} hitSlop={12} accessibilityRole="button" style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
-                <Text variant="body" ink="accent">Edit</Text>
-              </Pressable>
-            )
-            : undefined,
+          ...(bill.canEdit ? headerActions([{ label: 'Edit', onPress: () => router.push({ pathname: '/sheets/bill-edit', params: { id: bill.id } }) }]) : {}),
         }}
       />
       <TabScreen onRefresh={() => query.refetch()}>

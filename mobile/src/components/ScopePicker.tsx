@@ -62,14 +62,43 @@ export default function ScopePicker({ loading, compact, inline }: Props) {
 }
 
 /**
- * Where the picker goes on a tab's first screen. On iOS it sits in the header's top row, which a
- * large title otherwise leaves empty on the left (it had a row of its own above the content);
- * elsewhere it's the first thing in the content.
+ * Where the picker goes on a tab's first screen. On iOS it's a native menu in the header's top row,
+ * which a large title otherwise leaves empty on the left (a React view there sat in iOS 26's glass
+ * as an empty circle that couldn't be tapped, as the right-hand buttons did). Elsewhere it's the
+ * first thing in the content.
  */
-export function scopePickerPlacement(loading: boolean) {
-  const inHeader = Platform.OS === 'ios';
+export function useScopeHeader(loading: boolean) {
+  const me = useMe();
+  const households = useHouseholds();
+  const { householdId, setScope } = useScope();
+  if (Platform.OS !== 'ios') return { options: {}, inline: <ScopePicker loading={loading} inline /> };
+
+  const shared = (households.data ?? []).filter((household) => me.data?.entitlements.householdIds.includes(household.id));
+  if (shared.length === 0) return { options: {}, inline: null };
+  const options = [{ id: null as string | null, name: 'Just me' }, ...shared.map((household) => ({ id: household.id as string | null, name: household.name }))];
+  const current = options.find((option) => option.id === (householdId ?? null)) ?? options[0];
   return {
-    headerLeft: inHeader ? () => <ScopePicker compact loading={loading} /> : undefined,
-    inline: inHeader ? null : <ScopePicker loading={loading} inline />,
+    options: {
+      unstable_headerLeftItems: () => [{
+        type: 'menu' as const,
+        label: loading ? `${current.name}…` : current.name,
+        accessibilityLabel: loading ? `Loading ${current.name}` : `Showing ${current.name}. Change`,
+        icon: { type: 'sfSymbol' as const, name: 'person.2' as const },
+        menu: {
+          title: 'Show',
+          items: options.map((option) => ({
+            type: 'action' as const,
+            label: option.name,
+            state: option.id === current.id ? 'on' as const : 'off' as const,
+            onPress: () => {
+              if (option.id === current.id) return;
+              selectionTick();
+              setScope(option.id);
+            },
+          })),
+        },
+      }],
+    },
+    inline: null,
   };
 }

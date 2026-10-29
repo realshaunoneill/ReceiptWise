@@ -11,12 +11,13 @@ import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useAllBills, useBills, type BillStatus } from '../../../src/hooks/useBills';
 import { useMe } from '../../../src/hooks/useMe';
 import { GUTTER, radius, space } from '../../../src/theme';
-import Button, { tap } from '../../../src/ui/Button';
+import Button from '../../../src/ui/Button';
 import { Segmented } from '../../../src/ui/Controls';
 import { EmptyState, LoadError, Notice, Pill, Skeleton } from '../../../src/ui/Feedback';
 import { Card, List, Section } from '../../../src/ui/Section';
 import Stale from '../../../src/ui/Stale';
 import TabScreen from '../../../src/ui/TabScreen';
+import { headerActions } from '../../../src/ui/HeaderButton';
 import Text from '../../../src/ui/Text';
 
 /** The All, Bills and Subscriptions switch only earns its place on a longer list. */
@@ -75,7 +76,7 @@ export default function Bills() {
     <TabScreen
       onRefresh={() => Promise.all([list.refetch(), active.refetch(), all.refetch()])}
     >
-      <Stack.Screen options={{ headerRight: () => <AddButton onPress={add} label={billsOn ? 'Add a bill or subscription' : 'Add a subscription'} /> }} />
+      <Stack.Screen options={headerActions([{ label: billsOn ? 'Add a bill or subscription' : 'Add a subscription', sfSymbol: 'plus', icon: Plus, onPress: add }])} />
       {list.isPending ? (
         <View style={{ marginHorizontal: GUTTER, gap: space.md }}>
           <Skeleton height={96} round={radius.lg} />
@@ -225,20 +226,3 @@ function BillRow({ bill, today, billsOn }: { bill: ListedBill; today: string; bi
   );
 }
 
-function AddButton({ onPress, label }: { onPress: () => void; label: string }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      onPress={() => {
-        tap();
-        onPress();
-      }}
-      hitSlop={12}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}
-    >
-      <Plus size={26} color={colors.accent} strokeWidth={2} />
-    </Pressable>
-  );
-}

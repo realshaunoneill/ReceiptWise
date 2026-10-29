@@ -8,7 +8,7 @@ import { type WirePlan } from '@shared/api/plan';
 import { addDays } from '@shared/dates/local-date';
 import { planBreakdown } from '@shared/plan/breakdown';
 import { planNotes } from '@shared/plan/plan-notes';
-import { scopePickerPlacement } from '../../../src/components/ScopePicker';
+import { useScopeHeader } from '../../../src/components/ScopePicker';
 import { useTheme } from '../../../src/contexts/ThemeContext';
 import { useHouseholds } from '../../../src/hooks/useHouseholds';
 import { useBillInbox } from '../../../src/hooks/useBills';
@@ -22,7 +22,7 @@ import { useScope } from '../../../src/scope';
 import { GUTTER, radius, space } from '../../../src/theme';
 import Button, { selectionTick, success } from '../../../src/ui/Button';
 import { LoadError, Notice, Skeleton } from '../../../src/ui/Feedback';
-import HeaderButton from '../../../src/ui/HeaderButton';
+import { headerActions } from '../../../src/ui/HeaderButton';
 import Row from '../../../src/ui/Row';
 import { Card, List, Section } from '../../../src/ui/Section';
 import Stale from '../../../src/ui/Stale';
@@ -60,7 +60,7 @@ export default function Plan() {
   const data = plan.data;
   // Another household's plan or another month on its way: the last one stays, dimmed.
   const switching = plan.isPlaceholderData;
-  const scope = scopePickerPlacement(switching);
+  const scope = useScopeHeader(switching);
   // The + adds a line to the month, straight away (pasting a list is inside that sheet); bills,
   // income and savings each have their row below.
   const add = () => router.push({ pathname: '/sheets/plan-entry', params: { offset: String(offset) } });
@@ -71,7 +71,7 @@ export default function Plan() {
 
   return (
     <>
-      <Stack.Screen options={{ headerLeft: scope.headerLeft, headerRight: () => <HeaderButton icon={Plus} label={data ? `Add to ${monthOf(data)}` : 'Add to the plan'} onPress={add} /> }} />
+      <Stack.Screen options={{ ...scope.options, ...headerActions([{ label: data ? `Add to ${monthOf(data)}` : 'Add to the plan', sfSymbol: 'plus', icon: Plus, onPress: add }]) }} />
       <TabScreen onRefresh={() => plan.refetch()}>
         {scope.inline}
         {!firstRun && <PeriodSwitcher plan={data} offset={offset} onChange={setOffset} loading={switching} />}
