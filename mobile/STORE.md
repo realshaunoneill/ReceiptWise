@@ -16,20 +16,33 @@ Tick an item when it's true in the store's console, not when the code merely exi
 | 5.1.1(v) Account deletion | Deleting the account from inside the app | Settings → Delete account; it warns that a store subscription isn't cancelled by deleting |
 | 5.1.2 Data use | The privacy label matches what's collected | Privacy policy covers the app (high level since 2026-10-29: kinds of data and of company); the label is to fill in (below) |
 
-**Also for App Store Connect:**
-- Screenshots: 6.9" iPhone (1320 × 2868) of Home, Plan, a receipt, capture and Bills, with persona data.
-- The age rating questionnaire.
-- Export compliance: `ITSAppUsesNonExemptEncryption: false` is set.
-- Review notes: how to sign in (the demo account), that the camera is for scanning, how to delete the account, and a sandbox purchase.
+**App Store Connect: app 6828428892 "ReceiptWise"** (`io.receiptwise.app`, primary language
+English (UK), SKU `receiptwise`), created 2026-10-29 with the web session. Filled in that day:
 
-**Privacy label (data linked to the user):**
-- Contact info: email.
-- Financial info: purchase history, other financial info.
-- User content: photos, other user content.
-- Identifiers: user ID.
-- Diagnostics: crash data.
-- Usage data: product interaction, only with analytics consent.
-- No tracking.
+| Field | Value |
+| --- | --- |
+| Subtitle | Receipts, bills and your month |
+| Description, promotional text, keywords | in App Store Connect (keywords 94 of 100 bytes) |
+| URLs | support /support, marketing www.receiptwise.io, privacy /privacy |
+| Copyright | 2026 Shaun O'Neill |
+| Categories | Finance, then Productivity |
+| Price | Free (base country Ireland); Premium comes as an in-app purchase later |
+| Content rights | Doesn't use third-party content |
+| Age rating | Nothing objectionable, no user-generated content (households share privately), 4+ |
+| App Privacy | Published, below |
+| TestFlight | Test information in; internal group "Team" (every build) with Shaun |
+
+Still owed: availability (which countries), the App Review contact phone, screenshots, review
+notes, and the demo account. Export compliance: `ITSAppUsesNonExemptEncryption: false` is set.
+Screenshots: 6.9" iPhone (1320 × 2868) of Home, Plan, a receipt, capture and Bills, with persona data.
+Review notes: how to sign in (the demo account), that the camera is for scanning, how to delete the
+account, and a sandbox purchase.
+
+**Privacy label, as published (all linked to the user, no tracking):**
+- App functionality: email address, name, user ID, device ID (notifications), photos (receipts),
+  other user content, purchase history (receipts), other financial info (bills, balances, pay),
+  crash data.
+- Analytics: product interaction, only with analytics consent (recorded by the server).
 
 ## Google Play
 
@@ -42,7 +55,7 @@ Tick an item when it's true in the store's console, not when the code merely exi
 
 ## Before the first store build
 
-- **Apple step on cevo:** the App ID needs the Push Notifications capability and an APNs key. Later, it also needs an app group for the widget and the share extension. Never do this from the work Mac: see the memory note `eas-cli-keychain-alert`.
+- **Apple step on cevo:** done 2026-10-29 for the first production build: Push Notifications on the App ID, an App Store provisioning profile, and a new APNs key assigned on EAS. Later the widget and the share extension need an app group. Never do this from the work Mac: see the memory note `eas-cli-keychain-alert`.
 - **Firebase:** a project for FCM v1, its `google-services.json` as an EAS file env, and a service account.
 - **RevenueCat:** the project, the `premium` entitlement, the store products, the webhook secret (`REVENUECAT_WEBHOOK_AUTH` on Vercel) and its DPA. The privacy policy names no suppliers, so it needs only "app store billing" added under Payments.
 - **EAS:** a production build (`autoIncrement`), then a submission. Builds are scarce on the free plan, so batch native changes.
