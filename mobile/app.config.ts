@@ -38,11 +38,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: DEV ? 'io.receiptwise.app.dev' : 'io.receiptwise.app',
     // iOS 18's light, dark and tinted home-screen icons.
     icon: { light: './assets/icon.png', dark: './assets/icon-dark.png', tinted: './assets/icon-tinted.png' },
-    // The development app ("ReceiptWise Dev") runs on an iPad as well, to work on the iPad layout
-    // (Shaun, 2026-10-29). Store builds stay iPhone-only until iPad support ships with their next
-    // build (feature/accounts-and-ipad), so their native fingerprint, and TestFlight's updates,
-    // don't change.
-    supportsTablet: DEV,
+    // The iPad app is the iPhone app, every screen the same, its content in a readable column in the
+    // middle (src/theme readableColumn), for a household sharing one iPad (Shaun, 2026-10-29). Expo
+    // then declares all four iPad orientations, which the App Store requires (iOS 27 resizes an
+    // iPad window whatever an app asks); `orientation` above still keeps the iPhone upright. Native:
+    // a new build. Once a release has shipped with iPad support, an update can't drop it again.
+    supportsTablet: true,
     usesAppleSignIn: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
