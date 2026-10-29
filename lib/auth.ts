@@ -23,6 +23,15 @@ const PRODUCTION_URL = 'https://www.receiptwise.io';
 /** The app's deep-link scheme (`scheme` in mobile/app.config.ts) and its bundle id on both stores. */
 const APP_SCHEME = 'receiptwise://';
 const APP_BUNDLE_ID = 'io.receiptwise.app';
+/**
+ * The development build is an app of its own (APP_VARIANT=development in mobile/app.config.ts), so
+ * it can sit beside the TestFlight or store app on one phone. Trusted everywhere but production:
+ * nothing real signs in from it there, and in production its scheme would be one nobody's phone
+ * claims, so another app could register it and catch a sign-in's redirect.
+ */
+const DEV_APP_SCHEME = 'receiptwise-dev://';
+const DEV_APP_BUNDLE_ID = 'io.receiptwise.app.dev';
+const TRUST_DEV_APP = process.env.VERCEL_ENV !== 'production';
 
 /** Where OAuth comes back to: BETTER_AUTH_URL (www in production, staging on Preview), else this deployment. */
 function baseURL(): string {
@@ -51,6 +60,7 @@ function createAuth() {
       // The app. Expo Go's exp:// is trusted by the expo() plugin only under `next dev`, so signing
       // in needs a development or store build.
       APP_SCHEME,
+      ...(TRUST_DEV_APP ? [DEV_APP_SCHEME] : []),
       // Apple's web flow posts its callback from here.
       'https://appleid.apple.com',
       // The app's web preview (`expo start --web`), for checking screens in a browser; development only.
@@ -72,7 +82,11 @@ function createAuth() {
         clientId: process.env.APPLE_CLIENT_ID || APP_BUNDLE_ID,
         clientSecret: process.env.APPLE_CLIENT_SECRET ?? '',
         appBundleIdentifier: APP_BUNDLE_ID,
-        audience: process.env.APPLE_CLIENT_ID ? [APP_BUNDLE_ID, process.env.APPLE_CLIENT_ID] : APP_BUNDLE_ID,
+        audience: [
+          APP_BUNDLE_ID,
+          ...(TRUST_DEV_APP ? [DEV_APP_BUNDLE_ID] : []),
+          ...(process.env.APPLE_CLIENT_ID ? [process.env.APPLE_CLIENT_ID] : []),
+        ],
       },
     },
     account: {

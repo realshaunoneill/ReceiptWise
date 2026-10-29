@@ -8,16 +8,26 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * Icons and the splash image are drawn from brand/mark.svg by scripts/brand-assets.py (approved
  * 2026-10-27); an icon change is native, so it needs a new build, not an update.
  */
+/**
+ * The development build is its own app, "ReceiptWise Dev", so it fits beside the TestFlight or store
+ * app on one phone (a phone holds one app per bundle id). eas.json's development profile sets
+ * APP_VARIANT, and so must `expo start` for it (`APP_VARIANT=development npx expo start`), so the
+ * scheme the running JS uses matches the app's. Not an npm script: package.json scripts are part of
+ * the native fingerprint, and one would have cut the store builds off from their updates. The server
+ * trusts the dev identity everywhere but production (lib/auth.ts).
+ */
+const DEV = process.env.APP_VARIANT === 'development';
+
 const CAMERA_PERMISSION = "ReceiptWise uses the camera to scan receipts and bills. They're uploaded to your account so they can be read.";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'ReceiptWise',
+  name: DEV ? 'ReceiptWise Dev' : 'ReceiptWise',
   slug: 'receiptwise',
   owner: 'realshaunoneill',
   version: '1.0.0',
   orientation: 'portrait',
-  scheme: 'receiptwise',
+  scheme: DEV ? 'receiptwise-dev' : 'receiptwise',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
   runtimeVersion: { policy: 'fingerprint' },
@@ -25,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // The fingerprint runtime means an update only goes to builds with the same native code.
   updates: { url: 'https://u.expo.dev/db151b22-b7bd-4259-9a69-a4e2767741f3' },
   ios: {
-    bundleIdentifier: 'io.receiptwise.app',
+    bundleIdentifier: DEV ? 'io.receiptwise.app.dev' : 'io.receiptwise.app',
     // iOS 18's light, dark and tinted home-screen icons.
     icon: { light: './assets/icon.png', dark: './assets/icon-dark.png', tinted: './assets/icon-tinted.png' },
     supportsTablet: false,
@@ -42,7 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    package: 'io.receiptwise.app',
+    package: DEV ? 'io.receiptwise.app.dev' : 'io.receiptwise.app',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       monochromeImage: './assets/adaptive-icon-monochrome.png',

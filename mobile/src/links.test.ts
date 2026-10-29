@@ -9,6 +9,8 @@ describe('links into the app', () => {
     expect(routeForLink(`https://www.receiptwise.io/invite/${TOKEN}`)).toBe(`/invite/${TOKEN}`);
     expect(routeForLink(`receiptwise:///invite/${TOKEN}`)).toBe(`/invite/${TOKEN}`);
     expect(routeForLink(`receiptwise://invite/${TOKEN}`)).toBe(`/invite/${TOKEN}`);
+    // The development build's scheme maps the same way.
+    expect(routeForLink(`receiptwise-dev:///invite/${TOKEN}`)).toBe(`/invite/${TOKEN}`);
     expect(routeForLink(`/invite/${TOKEN}`)).toBe(`/invite/${TOKEN}`);
   });
 

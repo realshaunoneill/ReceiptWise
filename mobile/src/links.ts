@@ -33,7 +33,8 @@ export function routeForLink(link: string): string | null {
   if (url.protocol === 'https:' || url.protocol === 'http:') {
     if (!HOSTS.has(url.hostname)) return null;
     path = url.pathname;
-  } else if (url.protocol === 'receiptwise:') {
+  } else if (url.protocol === 'receiptwise:' || url.protocol === 'receiptwise-dev:') {
+    // receiptwise-dev:// is the development build's own scheme (app.config.ts).
     // receiptwise://receipts/1 puts "receipts" in the host; receiptwise:///receipts/1 doesn't.
     path = `/${url.hostname}${url.pathname}`.replace(/\/+/g, '/');
   } else {
