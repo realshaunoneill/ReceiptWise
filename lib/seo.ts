@@ -9,16 +9,22 @@ import { BILLS_LAUNCHED } from '@/lib/public-features';
  */
 
 export const SITE_NAME = 'ReceiptWise';
-export const SITE_TITLE = 'ReceiptWise - Family Expense & Receipt Tracker';
+// The plan leads (2026-10-29): it is what people use, and "see where it went" is free in every
+// bank app. Receipts and bills are how the plan fills itself in.
+export const SITE_TITLE = BILLS_LAUNCHED
+  ? 'ReceiptWise - Budget planner, bills and receipts, payday to payday'
+  : 'ReceiptWise - Family Expense & Receipt Tracker';
 export const SITE_DESCRIPTION = BILLS_LAUNCHED
-  ? 'Receipts read for you, the month\'s bills planned payday to payday, and one place for the whole household to share them.'
-  : 'Share expenses with family, housemates or a partner. Receipts read for you by AI, and one place for the whole household.';
+  ? 'Know what\'s left until payday. Your pay, your bills and your spending in one plan you can share with your household, with receipts and bills read for you. Nothing connects to your bank.'
+  : 'Share expenses with family or a partner. Receipts read for you by AI, and one place for the whole household.';
 
 export const OG_IMAGE = {
   url: '/opengraph.jpg',
   width: 1200,
   height: 630,
-  alt: 'ReceiptWise: receipts read for you, shared with your household',
+  alt: BILLS_LAUNCHED
+    ? 'ReceiptWise: know what\'s left until payday, with your pay, bills and receipts in one plan'
+    : 'ReceiptWise: receipts read for you, shared with your household',
 };
 
 export function pageMetadata({

@@ -44,7 +44,8 @@ export const metadata: Metadata = {
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
-  keywords: ['receipt tracker', 'expense tracker', 'family expenses', 'household sharing', 'receipt scanner', 'spending tracker', 'subscription tracker', ...(BILLS_LAUNCHED ? ['bills tracker', 'monthly budget'] : []), 'shared expenses', 'housemate expenses'],
+  // No "shared expenses" or "housemate expenses": there is no splitting or settling up.
+  keywords: [...(BILLS_LAUNCHED ? ['budget planner', 'monthly budget', 'payday budget', 'household budget', 'bills tracker', 'budget app Ireland'] : []), 'receipt scanner', 'receipt tracker', 'expense tracker', 'family expenses', 'household sharing', 'spending tracker', 'subscription tracker'],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
   publisher: SITE_NAME,

@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, ScanLine, Users } from 'lucide-react';
+import { Camera, ScanLine, Users, Wallet } from 'lucide-react';
 import { SectionLabel } from '@/components/layout/section-label';
 import { BILLS_LAUNCHED } from '@/lib/public-features';
 
@@ -12,7 +12,35 @@ import { BILLS_LAUNCHED } from '@/lib/public-features';
  * instead of inventing proof for it. Add real, permissioned testimonials here.
  */
 
-const steps = [
+// With the plan launched, it is the first step (the guided setup: pay, then the main bills, then
+// what is left), and receipts and bills are how it fills itself in.
+const planSteps = [
+  {
+    icon: Wallet,
+    step: '01',
+    title: 'Set up your month',
+    description:
+      'Add your pay and your main bills, or paste them from your budget spreadsheet. You see what is left after the bills, and what that comes to each week until payday.',
+  },
+  {
+    icon: Camera,
+    step: '02',
+    title: 'Snap receipts, forward bills',
+    description:
+      // Receipts are images only (JPG, PNG, WebP): the upload route rejects PDFs. Bills take PDFs.
+      // The extension is not on the Chrome Web Store yet, so it is not offered as a way in here.
+      'Photograph a receipt or upload a screenshot of one, and upload a bill or forward it to your own ReceiptWise address. Each is read for you: the shop, every item and the total, or the bill and its amount.',
+  },
+  {
+    icon: Users,
+    step: '03',
+    title: 'Plan it together',
+    description:
+      'Share the plan and bills with your household, and one Premium covers them for everyone in it. You all see the same month, and what is left of it.',
+  },
+];
+
+const receiptSteps = [
   {
     icon: Camera,
     step: '01',
@@ -20,8 +48,7 @@ const steps = [
     description:
       // Images only (JPG, PNG, WebP) — the upload route rejects PDFs. The extension is not on
       // the Chrome Web Store yet, so it is not offered as a way in here.
-      `Photograph a paper receipt, or upload a photo or a screenshot of one. JPG, PNG and WebP all work.${
-        BILLS_LAUNCHED ? ' Bills too: upload the PDF, or forward the email to your own ReceiptWise address.' : ''}`,
+      'Photograph a paper receipt, or upload a photo or a screenshot of one. JPG, PNG and WebP all work.',
   },
   {
     // Was a Sparkles icon. A scan line says "this is being read" without the
@@ -37,9 +64,11 @@ const steps = [
     step: '03',
     title: 'Everyone sees it',
     description:
-      'Receipts land in your shared household, so a partner, family or housemates all see the same picture of what was spent and by whom.',
+      'Receipts land in your shared household, so a partner or the family see the same picture of what was spent and by whom.',
   },
 ];
+
+const steps = BILLS_LAUNCHED ? planSteps : receiptSteps;
 
 export function HowItWorks() {
   return (
@@ -58,8 +87,9 @@ export function HowItWorks() {
             Three steps, then it&apos;s automatic
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            From a crumpled receipt in your pocket to a shared, searchable spending
-            history — without a spreadsheet in sight.
+            {BILLS_LAUNCHED
+              ? 'From payday to payday, with the bills, the receipts and what is left in one place, and no spreadsheet to keep up.'
+              : 'From a crumpled receipt in your pocket to a shared, searchable spending history — without a spreadsheet in sight.'}
           </p>
         </div>
 

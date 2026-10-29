@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Chrome,
   Cloud,
+  FileText,
   Lock,
   Receipt,
   Scan,
@@ -55,19 +56,34 @@ const HAS_TRIAL = TRIAL_DAYS > 0 && !Number.isNaN(TRIAL_DAYS);
  * hierarchy, and the purple/pink pair in particular is the house style of every
  * generated SaaS page. The cards are now uniform and the copy does the work.
  */
+/*
+ * The plan comes first since 2026-10-29: it is what people use, and "see where it went" is free in
+ * every bank app. Sharing says exactly what one Premium covers (lib/services/finance-access.ts):
+ * the plan and bills shared with a household. Receipts still need Premium of your own, so nothing
+ * here says anyone in a household can add one.
+ */
 const features = [
-  {
-    icon: Users,
-    title: 'Household sharing',
-    description:
-      'Make a household for your family, your partner or your housemates. Anyone in it can add a receipt, and everyone sees the same pile.',
-  },
   ...(BILLS_LAUNCHED ? [{
     icon: Wallet,
     title: 'Your month, planned',
     description:
-      'Your pay, your bills and what is left for each week, payday to payday. Upload a bill or forward it by email: it is read for you, and one tap files it against the right bill and month.',
-  }] : []),
+      'Your pay, your bills and what is left for each week, payday to payday. A bigger card bill this month? Change that month’s amount and the rest of the plan follows.',
+  }, {
+    icon: FileText,
+    title: 'Bills read for you',
+    description:
+      'Upload a bill or forward the email to your own ReceiptWise address. It is read for you, and one tap files it against the right bill and month.',
+  }, {
+    icon: Users,
+    title: 'Planned together',
+    description:
+      'Make a household with your partner or the family. One Premium covers the plan and bills you share with it, so everyone works from the same month.',
+  }] : [{
+    icon: Users,
+    title: 'Household sharing',
+    description:
+      'Make a household for your family or your partner. Share a receipt with it and everyone in it sees the same pile.',
+  }]),
   {
     icon: Scan,
     title: 'Receipts read for you',
@@ -94,9 +110,11 @@ const features = [
   },
   {
     icon: Receipt,
-    title: 'Kept, not lost',
+    title: 'Kept for tax back',
+    // True today without a tax report: receipts are categorised as they arrive, and the Receipts
+    // page filters by category and date. Don't promise totals or an export for Revenue until they exist.
     description:
-      'The image stays with the data. Useful when a warranty claim or an expense audit turns up eighteen months later.',
+      'Doctor, consultant and pharmacy receipts are sorted into Healthcare and Pharmacy as they arrive, image and all. When it is time to claim tax back from Revenue, the year’s are in one place.',
   },
   {
     icon: Chrome,
@@ -112,15 +130,24 @@ const features = [
 // NOTE: no usage/user-count stats here on purpose. Anything claimed on this page has to
 // be independently true. Add real numbers only once they are real and measured.
 
-const benefits = [
-  'Anyone in the household can add a receipt',
-  'Everything categorised as it arrives',
-  'Split view: shared, personal, or both',
-  'Export for an accountant or a tax return',
-  // One line for bills: "shared subscriptions" and "bills, savings and a weekly split" overlapped.
-  BILLS_LAUNCHED ? 'Bills, savings and a weekly split, payday to payday' : 'Shared subscriptions tracked alongside receipts',
-  'Find any receipt by something on it',
-];
+const benefits = BILLS_LAUNCHED
+  ? [
+    'One Premium covers the plan and bills you share',
+    'Bills, savings and a weekly split, payday to payday',
+    // Plan → Paste a list takes lines straight from a spreadsheet (lib/plan/parse-lines.ts).
+    'Paste your budget spreadsheet straight in',
+    'Nothing connects to your bank',
+    'Receipts shared with the household as they arrive',
+    'Split view: shared, personal, or both',
+  ]
+  : [
+    'Receipts shared with the household as they arrive',
+    'Everything categorised as it arrives',
+    'Split view: shared, personal, or both',
+    'Export for an accountant or a tax return',
+    'Shared subscriptions tracked alongside receipts',
+    'Find any receipt by something on it',
+  ];
 
 /**
  * `initialSignedIn` comes from the server (app/page.tsx), so the first HTML already has the right
@@ -185,13 +212,14 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
             id="hero-title"
             className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl"
           >
-            One receipt drawer for the whole household.
+            {BILLS_LAUNCHED ? 'Know what’s left until payday.' : 'One receipt drawer for the whole household.'}
           </h1>
+          {/* No "housemates … tired of asking who paid": there is no splitting or settling up, so
+              that promised a feature the app doesn't have. */}
           <p className="mt-6 max-w-xl text-pretty text-lg text-muted-foreground">
-            Photograph a receipt and it is filed, itemised and searchable — for you and
-            for everyone you share the bills with.{BILLS_LAUNCHED && ' Then plan the month: your pay, your bills, and what is left for each week.'}{' '}
-            Built for families, couples and housemates who are tired of asking who paid
-            for what.
+            {BILLS_LAUNCHED
+              ? 'Your pay, your bills and your spending in one plan, from one payday to the next, and shared with your partner if you like. Photograph receipts and forward bills, and they are read and filed for you. Nothing connects to your bank.'
+              : 'Photograph a receipt and it is filed, itemised and searchable — for you and for your family or partner.'}
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
             {isSignedIn ? (
@@ -309,9 +337,9 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
                 Built for money that is shared
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Most expense trackers assume one person, one wallet. This one assumes a
-                kitchen table. Receipts go into a household, and everyone in it sees the
-                same picture of what was spent and by whom.
+                {BILLS_LAUNCHED
+                  ? 'Most budgeting apps assume one person, one wallet. This one assumes a kitchen table. The pay, the bills and the receipts go into a household, and everyone in it plans the same month.'
+                  : 'Most expense trackers assume one person, one wallet. This one assumes a kitchen table. Receipts go into a household, and everyone in it sees the same picture of what was spent and by whom.'}
               </p>
               <ul className="mt-8 grid gap-3 sm:grid-cols-2">
                 {benefits.map((benefit) => (
@@ -376,6 +404,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
               There is no feature matrix to study and nothing held back for a higher tier.
+              {BILLS_LAUNCHED && ' One Premium covers the plan and bills you share with your household.'}
               {HAS_TRIAL && ` Try all of it free for ${TRIAL_DAYS} days.`}
             </p>
           </div>
@@ -442,12 +471,14 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
           <h2 id="cta-title" className="text-3xl font-semibold tracking-tight text-primary-foreground sm:text-4xl">
             {isSignedIn
               ? 'Your dashboard is waiting.'
-              : 'Start with the receipt in your pocket.'}
+              : BILLS_LAUNCHED ? 'Start with this month’s pay.' : 'Start with the receipt in your pocket.'}
           </h2>
           <p className="mt-4 max-w-xl text-lg text-primary-foreground/85">
             {isSignedIn
               ? 'Pick up where you left off and see where this month has gone.'
-              : `Photograph one receipt and you will see the whole thing work.${
+              : `${BILLS_LAUNCHED
+                ? 'Add your pay and your main bills, and you will see what is left for each week.'
+                : 'Photograph one receipt and you will see the whole thing work.'}${
                 HAS_TRIAL ? ` ${TRIAL_DAYS} days free, cancel any time before it ends.` : ''
               }`}
           </p>

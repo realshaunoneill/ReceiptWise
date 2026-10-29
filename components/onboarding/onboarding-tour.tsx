@@ -93,14 +93,16 @@ const onboardingSteps: OnboardingStep[] = [
     id: 1,
     title: 'Welcome to ReceiptWise',
     // Was "An expense tracker built around receipts", then straight into setting up the plan.
-    description: 'Your receipts read for you, your bills in one list, and a plan for the month, shared with your household if you like.',
+    // Then "Your receipts read for you, your bills in one list, and a plan for the month"; the plan
+    // leads since 2026-10-29, as it does on the landing page.
+    description: 'Know what’s left until payday: your pay and your bills in one plan, with receipts and bills read for you, and shared with your household if you like.',
     icon: Receipt,
     color: 'text-primary',
     bgColor: 'bg-primary/10',
     features: [
       { icon: Wallet, text: 'Your month, planned, payday to payday', requiresBills: true },
       { icon: ScanLine, text: 'Receipts read and itemised for you' },
-      { icon: Users, text: 'Shared with family, a partner or housemates' },
+      { icon: Users, text: 'Shared with your partner or the family' },
       { icon: BarChart3, text: 'Spending broken down by category' },
     ],
   },
@@ -508,10 +510,10 @@ export function OnboardingTour({ open, onComplete, onSkip }: OnboardingTourProps
                           {/* "Subscription tracking & reminders" — there are no
                               reminders, no notification of any kind is sent. */}
                           {[
+                            billsEnabled ? 'Your month planned, with bills read for you' : 'Subscription tracking',
                             'Unlimited receipts, all of them scanned',
                             'Unlimited households',
                             'Spending analytics and insights',
-                            billsEnabled ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
                             'Export everything, any time',
                           ].map((feature) => (
                             <div key={feature} className="flex items-start gap-2">

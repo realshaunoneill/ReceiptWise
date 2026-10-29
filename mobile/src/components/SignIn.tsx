@@ -123,7 +123,7 @@ export default function SignIn({ adding = false }: { adding?: boolean }) {
         <Text variant="callout" ink="secondary" align="center">
           {adding
             ? 'Sign in as someone else in your household. Everyone stays signed in, and you can switch between you from Home or Settings.'
-            : "Receipts read for you, your bills in one list, and a plan that shows what's left each month."}
+            : "Know what's left until payday. Your pay and your bills in one plan, with receipts and bills read for you."}
         </Text>
       </View>
 

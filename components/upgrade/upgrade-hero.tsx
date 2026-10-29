@@ -1,6 +1,7 @@
 'use client';
 
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 /**
  * Was a Crown badge reading "Premium Features" above the heading "Upgrade to
@@ -19,8 +20,9 @@ export function UpgradeHero() {
         One subscription, all of it
       </h1>
       <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-        Unlimited receipts, unlimited households, and every insight the app can produce.
-        There is no higher tier to graduate to.
+        {BILLS_LAUNCHED
+          ? 'Your month planned payday to payday, bills and receipts read for you, and as many households as you like. One Premium also covers the plan and bills you share with them. There is no higher tier to graduate to.'
+          : 'Unlimited receipts, unlimited households, and every insight the app can produce. There is no higher tier to graduate to.'}
       </p>
       {trialDays > 0 && (
         <p className="mt-4 text-sm text-muted-foreground">

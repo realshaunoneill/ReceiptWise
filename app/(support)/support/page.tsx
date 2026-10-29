@@ -30,11 +30,29 @@ const QUESTIONS = [
         q: 'How do I forward bills by email?',
         a: 'Settings → Email forwarding has your own forwarding address. Forward a bill to it, or set up a rule in your email to do it for you; it appears in Bills to file, on your Plan.',
       },
+      {
+        q: 'Does it connect to my bank?',
+        a: 'No, nothing connects to your bank. Add your pay and your bills once, or bring them from your spreadsheet with Plan → Paste a list, and the receipts and bills you photograph or forward fill in the rest.',
+      },
     ]
     : []),
   {
     q: 'How do I share with my household?',
     a: 'On the Households page, create a household and copy the invitation link for each person. They sign in with Google and accept it.',
+  },
+  ...(BILLS_LAUNCHED
+    ? [
+      {
+        // lib/services/finance-access.ts: shared finance rows are covered by any member's Premium;
+        // receipts and personal rows still need your own.
+        q: 'What does one Premium cover in a household?',
+        a: 'The plan and bills shared with the household: everyone in it can use them while one of you has Premium. Adding your own receipts, and anything you keep to yourself, needs Premium of your own.',
+      },
+    ]
+    : []),
+  {
+    q: 'Can I keep medical receipts for tax back?',
+    a: 'Yes. Receipts from a doctor, consultant or pharmacy are sorted into Healthcare and Pharmacy as they arrive. On the Receipts page, filter by that category and the tax year to find them all, images included. Revenue\'s rules decide what qualifies.',
   },
   {
     q: 'How do I manage or cancel Premium?',

@@ -26,7 +26,9 @@ const HAS_TRIAL = TRIAL_DAYS > 0 && !Number.isNaN(TRIAL_DAYS);
 
 export const metadata: Metadata = pageMetadata({
   title: 'Create an account - ReceiptWise',
-  description: 'Start with ReceiptWise: sign up with Google, photograph a receipt, and share it with your household.',
+  description: BILLS_LAUNCHED
+    ? 'Start with ReceiptWise: sign up with Google, add your pay and your bills, and see what\'s left until payday.'
+    : 'Start with ReceiptWise: sign up with Google, photograph a receipt, and share it with your household.',
   path: '/sign-up',
 });
 
@@ -54,11 +56,12 @@ export default function SignUpPage() {
             <div className="space-y-8 order-2 lg:order-1">
               <div>
                 <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                  One receipt drawer for the whole household
+                  {BILLS_LAUNCHED ? 'Know what’s left until payday' : 'One receipt drawer for the whole household'}
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground">
-                  Photograph a receipt, and ReceiptWise reads it for you and files it where
-                  everyone who shares the bills can see it.
+                  {BILLS_LAUNCHED
+                    ? 'Your pay, your bills and your spending in one plan, with receipts and bills read for you, and shared with your household if you like.'
+                    : 'Photograph a receipt, and ReceiptWise reads it for you and files it where everyone in your household can see it.'}
                 </p>
               </div>
 
@@ -94,7 +97,9 @@ export default function SignUpPage() {
                   <div>
                     <h2 className="font-semibold text-foreground">Household sharing</h2>
                     <p className="text-sm text-muted-foreground">
-                      Invite a partner or housemate and see the same receipts.
+                      {BILLS_LAUNCHED
+                        ? 'Invite your partner or the family, and plan the same month together.'
+                        : 'Invite your partner or the family and see the same receipts.'}
                     </p>
                   </div>
                 </div>

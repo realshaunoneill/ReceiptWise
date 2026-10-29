@@ -33,12 +33,10 @@ interface Pricing {
 }
 
 const INCLUDED = [
-  'Unlimited receipts',
-  'Automatic scanning of every receipt',
+  ...(BILLS_LAUNCHED ? ['Your month planned, payday to payday', 'Bills read from an upload or a forwarded email', 'Covers the plan and bills you share with your household'] : ['Subscription tracking']),
+  'Unlimited receipts, read for you',
   'Unlimited households',
   'Spending analytics and insights',
-  BILLS_LAUNCHED ? 'Bills, subscriptions and a monthly plan' : 'Subscription tracking',
-  ...(BILLS_LAUNCHED ? ['Bills read from an upload or a forwarded email'] : []),
   'Export as CSV, JSON, or HTML with the images',
   // Not yet on the Chrome Web Store, so it is named as coming rather than as included. "Priority
   // support" was also here: with one plan there is no lower tier to be prioritised over.
@@ -81,6 +79,8 @@ export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
     monthly && annual
       ? Math.round(((monthly.amount * 12 - annual.amount) / (monthly.amount * 12)) * 100)
       : null;
+  // The year is the price that's sold (2026-10-29), as on the upgrade page: it leads, with what it
+  // comes to a month, and the monthly price follows. All three are computed from Stripe's prices.
 
   return (
     <Card className="relative mx-auto max-w-md overflow-hidden border-primary/40 shadow-sm">
@@ -105,25 +105,31 @@ export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
               <Skeleton className="h-11 w-32" />
               <Skeleton className="h-4 w-44" />
             </div>
-          ) : monthly ? (
+          ) : monthly && annual ? (
             <>
               <p className="flex items-baseline gap-1.5">
                 <span className="amount text-4xl font-semibold tracking-tight text-foreground">
-                  {formatPrice(monthly.amount, monthly.currency)}
+                  {formatPrice(annual.amount, annual.currency)}
                 </span>
-                <span className="text-muted-foreground">per month</span>
+                <span className="text-muted-foreground">a year</span>
               </p>
-              {annual && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  or{' '}
-                  <span className="amount font-medium text-foreground">
-                    {formatPrice(annual.amount, annual.currency)}
-                  </span>{' '}
-                  a year
-                  {annualSaving && annualSaving > 0 && `, saving ${annualSaving}%`}
-                </p>
-              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                <span className="amount">{formatPrice(annual.amount / 12, annual.currency)}</span> a month
+                {annualSaving && annualSaving > 0 && `, ${annualSaving}% less than`}
+                {annualSaving && annualSaving > 0 ? ' ' : ', or '}
+                <span className="amount font-medium text-foreground">
+                  {formatPrice(monthly.amount, monthly.currency)}
+                </span>{' '}
+                billed monthly
+              </p>
             </>
+          ) : monthly ? (
+            <p className="flex items-baseline gap-1.5">
+              <span className="amount text-4xl font-semibold tracking-tight text-foreground">
+                {formatPrice(monthly.amount, monthly.currency)}
+              </span>
+              <span className="text-muted-foreground">per month</span>
+            </p>
           ) : (
             // No invented figure if Stripe is unreachable — send them to the page
             // that can quote it properly.

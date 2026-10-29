@@ -96,11 +96,12 @@ export default function Onboarding() {
         ) : step === 'welcome' ? (
           <>
             <Text variant="largeTitle" accessibilityRole="header">Welcome to ReceiptWise</Text>
-            <Text variant="body" ink="secondary">Your receipts, your bills and your month, in one place, and shared with your household if you like.</Text>
+            {/* The plan leads, as on the website (2026-10-29). No "housemates": there's no splitting. */}
+            <Text variant="body" ink="secondary">Know what's left until payday: your pay, your bills and your spending in one plan, and shared with your household if you like.</Text>
             <View style={{ gap: space.lg, marginTop: space.md }}>
-              <Point icon={ScanLine} title="Receipts, read for you" body="Photograph one, or forward it by email: the shop, the date, every item and the total." />
               <Point icon={CalendarDays} title="Your month, planned" body="From one payday to the next: what comes in, the bills that go out, and what's left each week." />
-              <Point icon={Users} title="Shared with your household" body="A partner, the family or housemates see the same receipts, bills and plan." />
+              <Point icon={ScanLine} title="Receipts and bills, read for you" body="Photograph a receipt, or forward a bill by email: the shop, every item and the total, or the bill and its amount." />
+              <Point icon={Users} title="Planned together" body="A partner or the family see the same plan, bills and receipts. One Premium covers the plan and bills you share." />
             </View>
           </>
         ) : (

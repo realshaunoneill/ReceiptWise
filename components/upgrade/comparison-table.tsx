@@ -40,7 +40,7 @@ function featuresFor(bills: boolean): Feature[] {
   },
   {
     title: 'Households',
-    description: 'Share a receipt pile with family, a partner or housemates.',
+    description: 'Share receipts, and the plan and bills, with family or a partner.',
     // Joining one you're invited to is free; it said "not included", to people already in one.
     free: 'Join one you are invited to',
     premium: 'Create your own, unlimited',

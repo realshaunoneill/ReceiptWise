@@ -21,16 +21,79 @@ English (UK), SKU `receiptwise`), created 2026-10-29 with the web session. Fille
 
 | Field | Value |
 | --- | --- |
-| Subtitle | Receipts, bills and your month |
+| Subtitle | Receipts, bills and your month (to change: see "Listing copy" below) |
 | Description, promotional text, keywords | in App Store Connect (keywords 94 of 100 bytes) |
 | URLs | support /support, marketing www.receiptwise.io, privacy /privacy |
 | Copyright | 2026 Shaun O'Neill |
 | Categories | Finance, then Productivity |
-| Price | Free (base country Ireland); Premium comes as an in-app purchase later |
+| Price | Free (base country Ireland); Premium comes as an in-app purchase later, at the prices below |
 | Content rights | Doesn't use third-party content |
 | Age rating | Nothing objectionable, no user-generated content (households share privately), 4+ |
 | App Privacy | Published, below |
 | TestFlight | Test information in; internal group "Team" (every build) with Shaun; build 1.0.0 (3) live there since 2026-10-29 |
+
+## Premium's prices (decided 2026-10-29)
+
+The same on the website (Stripe), the App Store and Google Play. On the website the trial is
+`NEXT_PUBLIC_STRIPE_TRIAL_DAYS=14`, and the live prices are `price_1UW2aSIiErQWui9ErO16TNJl` (monthly)
+and `price_1UW2aTIiErQWui9E3HOoXuPO` (yearly). Subscribers from before then keep the price they have.
+
+| Product | Store product id | Price (Ireland, the base) | Introductory offer |
+| --- | --- | --- | --- |
+| Premium, monthly | `io.receiptwise.premium.monthly` | €4.99 a month | Free for 2 weeks, new subscribers only |
+| Premium, yearly | `io.receiptwise.premium.yearly` | €34.99 a year | Free for 2 weeks, new subscribers only |
+
+- **One subscription group, "Premium"**, holding both, so changing between them is an upgrade or a
+  downgrade rather than a second subscription. Other countries take Apple's and Google's equalised
+  prices from the Irish base.
+- **The yearly plan is the one sold:** list it first in the RevenueCat offering, as the website does.
+- **Enrol in the App Store Small Business Program** before the first sale. Otherwise the commission is
+  30%, not 15%.
+- The paywall reads prices and the trial from the store (`src/purchases/terms.ts`), so nothing in the
+  app needs changing when they're set. Never type a price into the app.
+
+## Listing copy (2026-10-29, to replace what's in App Store Connect)
+
+The plan leads, as on the website. The App Store Connect web session had expired when this was
+written, so it was not pushed. Paste it in, or push it through iris with a fresh `ASC_WEB_SESSION`.
+
+| Field | Text |
+| --- | --- |
+| Subtitle (29 of 30) | Know what's left until payday |
+| Promotional text (165 of 170) | Your pay, your bills and your spending in one plan, payday to payday. Receipts and bills are read for you, and the plan is shared with your household. No bank login. |
+| Keywords (95 of 100 bytes) | `budget,planner,bills,receipt,scanner,household,family,money,spending,tracker,salary,tax,ireland` |
+
+Keywords leave out the words already in the name and subtitle, which Apple indexes anyway.
+
+Description:
+
+```
+Know what's left until payday.
+
+ReceiptWise puts your pay, your bills and your spending in one plan that runs from one payday to the next. It shows what's left after the bills, and what that comes to each week.
+
+YOUR MONTH, PLANNED
+• Add your pay and your main bills, or paste them from your budget spreadsheet
+• A bigger card bill this month? Change that month's amount and the rest of the plan follows
+• Savings goals and one-offs, with a weekly figure for what's left
+
+BILLS AND RECEIPTS, READ FOR YOU
+• Photograph a receipt: the shop, the date, every item and the total are read for you
+• Scan a paper bill or forward the email to your own ReceiptWise address, and file it against the right bill and month
+• Doctor, consultant and pharmacy receipts are sorted into Healthcare and Pharmacy as they arrive, so the year's are in one place for your tax-back claim
+
+PLANNED TOGETHER
+• Share the plan, bills and receipts with your partner or the family
+• One Premium covers the plan and bills you share with your household
+
+NO BANK LOGIN
+Nothing connects to your bank. You decide what goes in.
+
+Premium includes everything, with a free trial for new subscribers. Payment is charged to your Apple Account when you confirm the purchase. The subscription renews automatically unless it is cancelled at least 24 hours before the end of the current period. Manage or cancel it in your Apple Account settings.
+
+Terms: https://www.receiptwise.io/terms
+Privacy: https://www.receiptwise.io/privacy
+```
 
 Still owed: availability (which countries), the App Review contact phone, screenshots, review
 notes, and the demo account. Export compliance: `ITSAppUsesNonExemptEncryption: false` is set.

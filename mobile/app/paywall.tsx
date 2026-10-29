@@ -15,10 +15,12 @@ import { Notice, Skeleton } from '../src/ui/Feedback';
 import SheetScreen from '../src/ui/Sheet';
 import Text from '../src/ui/Text';
 
+// The plan first, as on the website. Sharing says what one Premium covers (the plan and bills shared
+// with a household); receipts still need your own, so nothing here says otherwise.
 const POINTS = [
+  { icon: ReceiptText, title: 'Your month, planned', body: 'What’s left until payday, from your pay and your bills, with the bills read off the PDFs.' },
   { icon: ScanLine, title: 'Receipts, read for you', body: 'Photograph one, or forward it by email: the shop, every item and the total.' },
-  { icon: ReceiptText, title: 'Your bills and your month', body: 'The plan from payday to payday, and the bills read off the PDFs.' },
-  { icon: HouseIcon, title: 'Shared with your household', body: 'Everyone in it sees the shared receipts, bills and plan.' },
+  { icon: HouseIcon, title: 'Planned together', body: 'One Premium covers the plan and bills you share with your household.' },
   { icon: LineChart, title: 'Where the money goes', body: 'A written summary, what you buy most, and any item’s history.' },
 ];
 

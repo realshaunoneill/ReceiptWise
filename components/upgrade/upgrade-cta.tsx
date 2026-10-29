@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 export function UpgradeCTA() {
   const pricingDetails = { trial: useTrialDays() };
@@ -52,7 +53,7 @@ export function UpgradeCTA() {
         <div className="max-w-xl">
           <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
             {pricingDetails.trial > 0
-              ? 'Try it on this week’s receipts'
+              ? BILLS_LAUNCHED ? 'Try it on this month’s pay and bills' : 'Try it on this week’s receipts'
               : 'Ready when you are'}
           </h2>
           <p className="mt-2 text-muted-foreground">

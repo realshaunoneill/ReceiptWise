@@ -72,7 +72,9 @@ export function ExitIntentPopup() {
             {hasFreeTrial ? (
               <>
                 There is a {trialDays}-day free trial, and no charge if you cancel before
-                it ends. Long enough to run a week of real receipts through it.
+                it ends. {BILLS_LAUNCHED
+                  ? 'Long enough to set up your month and run real receipts and bills through it.'
+                  : 'Long enough to run real receipts through it.'}
               </>
             ) : (
               <>
@@ -86,10 +88,10 @@ export function ExitIntentPopup() {
           {/* Benefits list */}
           <ul className="space-y-2">
             {[
+              ...(BILLS_LAUNCHED ? ['What’s left until payday, worked out for you', 'Bills read from an upload or a forwarded email'] : []),
               'Every receipt read and itemised for you',
               'Shared with your household as it arrives',
-              'Searchable down to the line item',
-              ...(BILLS_LAUNCHED ? ['Your month planned, payday to payday'] : []),
+              ...(BILLS_LAUNCHED ? [] : ['Searchable down to the line item']),
               'Export it all whenever you want',
             ].map((benefit) => (
               <li key={benefit} className="flex items-start gap-2.5 text-sm">
