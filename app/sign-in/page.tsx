@@ -59,7 +59,7 @@ export default async function SignInPage({
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground">
                   {BILLS_LAUNCHED
-                    ? 'Your receipts, bills and monthly plan, in one place.'
+                    ? 'Know what’s left until payday: your pay, your bills and your receipts in one plan.'
                     : 'Your receipts and your household, in one place.'}
                 </p>
               </div>
@@ -96,7 +96,9 @@ export default async function SignInPage({
                   <div>
                     <h2 className="font-semibold text-foreground">Household sharing</h2>
                     <p className="text-sm text-muted-foreground">
-                      One receipt pile for everyone who shares the bills.
+                      {BILLS_LAUNCHED
+                        ? 'Plan the same month with your partner or the family.'
+                        : 'One receipt pile for everyone who shares the bills.'}
                     </p>
                   </div>
                 </div>

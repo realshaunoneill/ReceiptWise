@@ -49,6 +49,9 @@ const TRIAL_DAYS = process.env.NEXT_PUBLIC_STRIPE_TRIAL_DAYS
   : 0;
 const HAS_TRIAL = TRIAL_DAYS > 0 && !Number.isNaN(TRIAL_DAYS);
 
+const PLAN_ALT = 'A month in the ReceiptWise plan: what is left after the pay, the bills, the savings and the one-offs, the weekly split, the bank balance until payday, and a bill to file';
+const DASHBOARD_ALT = "The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends, the month's plan and the latest receipts";
+
 /*
  * Feature cards used to carry a `gradient` field each — from-orange-500/10,
  * from-purple-500/10, from-violet-500/10 and so on — revealed on hover. Seven
@@ -255,33 +258,37 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
           )}
         </div>
 
-        {/* Dashboard Preview */}
+        {/* Product preview */}
         <div className="mx-auto mt-20 w-full max-w-6xl">
           <div className="overflow-hidden rounded-xl border bg-card shadow-2xl shadow-foreground/5">
             {/* WebP at 1600px wide (~50 KB each). On a phone the desktop capture shrank to about
                 340px and its text was unreadable, so phones get a phone capture instead (780px,
-                ~25 KB). Light and dark are separate pictures because the theme is a class, not
-                prefers-color-scheme. */}
-            <picture className="block dark:hidden">
-              <source media="(max-width: 639px)" srcSet="/dashboard-mobile-light.webp" width={780} height={1200} />
-              <img
-                src="/dashboard-full-light.webp"
-                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends, the month's plan and the latest receipts"
-                width={1600}
-                height={1639}
-                className="h-auto w-full"
-              />
-            </picture>
-            <picture className="hidden dark:block">
-              <source media="(max-width: 639px)" srcSet="/dashboard-mobile-dark.webp" width={780} height={1200} />
-              <img
-                src="/dashboard-full-dark.webp"
-                alt="The ReceiptWise dashboard: this month's receipts and spending, a breakdown by category, weekly trends, the month's plan and the latest receipts"
-                width={1600}
-                height={1639}
-                className="h-auto w-full"
-              />
-            </picture>
+                ~33 KB). Light and dark are separate pictures because the theme is a class, not
+                prefers-color-scheme. With the plan launched, the hero shows the Plan, which is what
+                the headline sells (captured 2026-10-29 from the staging household, as persona data). */}
+            {BILLS_LAUNCHED ? (
+              <>
+                <picture className="block dark:hidden">
+                  <source media="(max-width: 639px)" srcSet="/plan-mobile-light.webp" width={780} height={1200} />
+                  <img src="/plan-full-light.webp" alt={PLAN_ALT} width={1600} height={1640} className="h-auto w-full" />
+                </picture>
+                <picture className="hidden dark:block">
+                  <source media="(max-width: 639px)" srcSet="/plan-mobile-dark.webp" width={780} height={1200} />
+                  <img src="/plan-full-dark.webp" alt={PLAN_ALT} width={1600} height={1640} className="h-auto w-full" />
+                </picture>
+              </>
+            ) : (
+              <>
+                <picture className="block dark:hidden">
+                  <source media="(max-width: 639px)" srcSet="/dashboard-mobile-light.webp" width={780} height={1200} />
+                  <img src="/dashboard-full-light.webp" alt={DASHBOARD_ALT} width={1600} height={1639} className="h-auto w-full" />
+                </picture>
+                <picture className="hidden dark:block">
+                  <source media="(max-width: 639px)" srcSet="/dashboard-mobile-dark.webp" width={780} height={1200} />
+                  <img src="/dashboard-full-dark.webp" alt={DASHBOARD_ALT} width={1600} height={1639} className="h-auto w-full" />
+                </picture>
+              </>
+            )}
           </div>
         </div>
       </section>
