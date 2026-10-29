@@ -30,7 +30,7 @@ English (UK), SKU `receiptwise`), created 2026-10-29 with the web session. Fille
 | Content rights | Doesn't use third-party content |
 | Age rating | Nothing objectionable, no user-generated content (households share privately), 4+ |
 | App Privacy | Published, below |
-| TestFlight | Test information in; internal group "Team" (every build) with Shaun |
+| TestFlight | Test information in; internal group "Team" (every build) with Shaun; build 1.0.0 (3) live there since 2026-10-29 |
 
 Still owed: availability (which countries), the App Review contact phone, screenshots, review
 notes, and the demo account. Export compliance: `ITSAppUsesNonExemptEncryption: false` is set.
