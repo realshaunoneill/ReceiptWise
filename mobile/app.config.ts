@@ -38,7 +38,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: DEV ? 'io.receiptwise.app.dev' : 'io.receiptwise.app',
     // iOS 18's light, dark and tinted home-screen icons.
     icon: { light: './assets/icon.png', dark: './assets/icon-dark.png', tinted: './assets/icon-tinted.png' },
-    supportsTablet: false,
+    // The development app ("ReceiptWise Dev") runs on an iPad as well, to work on the iPad layout
+    // (Shaun, 2026-10-29). Store builds stay iPhone-only until iPad support ships with their next
+    // build (feature/accounts-and-ipad), so their native fingerprint, and TestFlight's updates,
+    // don't change.
+    supportsTablet: DEV,
     usesAppleSignIn: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
