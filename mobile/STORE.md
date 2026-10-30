@@ -31,6 +31,7 @@ English (UK), SKU `receiptwise`), created 2026-10-29 with the web session. Fille
 | Age rating | Nothing objectionable, no user-generated content (households share privately), 4+ |
 | App Privacy | Published, below |
 | TestFlight | Test information in; internal group "Team" (every build) with Shaun; build 1.0.0 (3) live there since 2026-10-29 |
+| Build for the App Store version | 1.0.0 (3) attached to version 1.0 on 2026-10-30, so its icon shows in App Store Connect; replace it with the store build when there is one |
 
 ## Premium's prices (decided 2026-10-29)
 
