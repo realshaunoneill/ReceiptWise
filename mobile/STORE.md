@@ -84,7 +84,7 @@ BILLS AND RECEIPTS, READ FOR YOU
 
 PLANNED TOGETHER
 • Share the plan, bills and receipts with your partner or the family
-• One Premium covers the plan and bills you share with your household
+• One Premium covers up to six people in your household
 
 NO BANK LOGIN
 Nothing connects to your bank. You decide what goes in.

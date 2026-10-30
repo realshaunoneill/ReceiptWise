@@ -101,7 +101,7 @@ export default function Onboarding() {
             <View style={{ gap: space.lg, marginTop: space.md }}>
               <Point icon={CalendarDays} title="Your month, planned" body="From one payday to the next: what comes in, the bills that go out, and what's left each week." />
               <Point icon={ScanLine} title="Receipts and bills, read for you" body="Photograph a receipt, or forward a bill by email: the shop, every item and the total, or the bill and its amount." />
-              <Point icon={Users} title="Planned together" body="A partner or the family see the same plan, bills and receipts. One Premium covers the plan and bills you share." />
+              <Point icon={Users} title="Planned together" body="A partner or the family see the same plan, bills and receipts. One Premium covers up to six of you." />
             </View>
           </>
         ) : (

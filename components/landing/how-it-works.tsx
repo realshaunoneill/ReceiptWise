@@ -36,7 +36,7 @@ const planSteps = [
     step: '03',
     title: 'Plan it together',
     description:
-      'Share the plan and bills with your household, and one Premium covers them for everyone in it. You all see the same month, and what is left of it.',
+      'Invite your partner or the family. One Premium covers up to six of you, and you all see the same month, and what is left of it.',
   },
 ];
 

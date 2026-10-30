@@ -7,7 +7,8 @@
 
 export type PremiumLike = {
   active: boolean;
-  source: 'stripe' | 'app_store' | 'play_store' | 'comp' | null;
+  source: 'stripe' | 'app_store' | 'play_store' | 'comp' | 'household' | null;
+  coveredBy?: string | null;
   productId: string | null;
   expiresAt: string | null;
   willRenew: boolean | null;
@@ -61,6 +62,12 @@ export function premiumBilling(premium: PremiumLike | null | undefined): Premium
       };
     case 'comp':
       return { title: 'Free Premium, given to you', detail: expiresAt ? `Until ${day(expiresAt)}` : null, manage: null };
+    case 'household':
+      return {
+        title: premium.coveredBy ? `Covered by ${premium.coveredBy}'s Premium` : 'Covered by your household',
+        detail: 'One Premium covers up to six people who share a household',
+        manage: null,
+      };
     default:
       return null;
   }

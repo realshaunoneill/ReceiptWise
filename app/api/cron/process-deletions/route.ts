@@ -10,6 +10,7 @@ import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-b
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { HouseholdService } from '@/lib/services/household-service';
+import { refreshHouseholdCover } from '@/lib/services/entitlement-service';
 import { deleteSubscriber, isRevenueCatConfigured } from '@/lib/revenuecat';
 
 export const runtime = 'nodejs';
@@ -195,6 +196,10 @@ export async function GET(req: NextRequest) {
         );
       }
     }
+
+    // A deleted account's Premium no longer covers its households, and anyone it pushed past the
+    // limit may be covered now.
+    if (processed > 0) await refreshHouseholdCover(correlationId);
 
     return NextResponse.json({ processed, failed: failed.length });
   } catch (error) {

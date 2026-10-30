@@ -19,7 +19,7 @@ export default function TermsPage() {
         <div>
           <h1 id="terms-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Terms of service</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: 29 October 2026
+            Last updated: 30 October 2026
           </p>
         </div>
 
@@ -181,6 +181,11 @@ export default function TermsPage() {
               Premium users may create households and invite other people to share receipts, and bills, income,
               goals and plan items they choose to share. By creating or joining a household, you agree that other
               members can see what is shared with it.
+            </p>
+            <p>
+              One Premium subscription also covers up to five other people who share a household with the
+              subscriber, in the order they joined, with the same features. That cover is not a separate
+              subscription: it ends when the subscriber&apos;s Premium ends or when either of you leaves the household.
             </p>
             <p>
               The household owner is responsible for who they invite, and can remove members.

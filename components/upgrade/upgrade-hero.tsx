@@ -21,7 +21,7 @@ export function UpgradeHero() {
       </h1>
       <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
         {BILLS_LAUNCHED
-          ? 'Your month planned payday to payday, bills and receipts read for you, and as many households as you like. One Premium also covers the plan and bills you share with them. There is no higher tier to graduate to.'
+          ? 'Your month planned payday to payday, bills and receipts read for you, and as many households as you like. One Premium covers up to six people in a household. There is no higher tier to graduate to.'
           : 'Unlimited receipts, unlimited households, and every insight the app can produce. There is no higher tier to graduate to.'}
       </p>
       {trialDays > 0 && (

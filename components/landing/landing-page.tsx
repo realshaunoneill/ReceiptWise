@@ -61,9 +61,8 @@ const DASHBOARD_ALT = "The ReceiptWise dashboard: this month's receipts and spen
  */
 /*
  * The plan comes first since 2026-10-29: it is what people use, and "see where it went" is free in
- * every bank app. Sharing says exactly what one Premium covers (lib/services/finance-access.ts):
- * the plan and bills shared with a household. Receipts still need Premium of your own, so nothing
- * here says anyone in a household can add one.
+ * every bank app. Since 2026-10-30 one Premium covers everyone in a household, up to six people
+ * (lib/entitlements.ts decideHouseholdCover), receipts included, and the copy says that limit.
  */
 const features = [
   ...(BILLS_LAUNCHED ? [{
@@ -80,7 +79,7 @@ const features = [
     icon: Users,
     title: 'Planned together',
     description:
-      'Make a household with your partner or the family. One Premium covers the plan and bills you share with it, so everyone works from the same month.',
+      'Make a household with your partner or the family. One Premium covers up to six of you, receipts and all, so everyone works from the same month.',
   }] : [{
     icon: Users,
     title: 'Household sharing',
@@ -135,7 +134,7 @@ const features = [
 
 const benefits = BILLS_LAUNCHED
   ? [
-    'One Premium covers the plan and bills you share',
+    'One Premium covers up to six people in a household',
     'Bills, savings and a weekly split, payday to payday',
     // Plan → Paste a list takes lines straight from a spreadsheet (lib/plan/parse-lines.ts).
     'Paste your budget spreadsheet straight in',
@@ -411,7 +410,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
               There is no feature matrix to study and nothing held back for a higher tier.
-              {BILLS_LAUNCHED && ' One Premium covers the plan and bills you share with your household.'}
+              {BILLS_LAUNCHED && ' One Premium covers up to six people in your household.'}
               {HAS_TRIAL && ` Try all of it free for ${TRIAL_DAYS} days.`}
             </p>
           </div>

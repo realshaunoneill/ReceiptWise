@@ -53,7 +53,7 @@ export default function Subscription() {
         <Section>
           <Notice tone="neutral" title={covering ? `Covered by ${covering}'s Premium` : 'Not on Premium'}>
             {covering
-              ? 'Its shared bills and plan are yours to use. Reading receipts needs Premium of your own.'
+              ? 'Its shared bills and plan are yours to use. One Premium covers up to six people, and that one already covers six, so reading receipts needs Premium of your own.'
               : 'Premium reads your receipts and bills, and keeps your monthly plan.'}
           </Notice>
           {purchasesAvailable && <Button label="See Premium" onPress={() => router.push('/paywall')} style={{ marginTop: 12 }} />}

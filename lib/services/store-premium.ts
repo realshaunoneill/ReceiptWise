@@ -1,6 +1,6 @@
 import { and, eq, inArray, notInArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { premiumGrants } from '@/lib/db/schema';
+import { authUser, premiumGrants, users } from '@/lib/db/schema';
 import { decidePremium, type GrantSource } from '@/lib/entitlements';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { getSubscriber, grantsFromSubscriber } from '@/lib/revenuecat';
@@ -54,17 +54,33 @@ export type PremiumSummary = {
   expiresAt: Date | null;
   willRenew: boolean | null;
   inTrial: boolean;
+  coveredBy: string | null;
 };
 
 export async function premiumSummary(userId: string): Promise<PremiumSummary> {
   const grants = await db.select().from(premiumGrants).where(eq(premiumGrants.userId, userId));
   const { premium, grant } = decidePremium(grants, new Date());
+  const household = grant?.source === 'household';
   return {
     active: premium,
     source: (grant?.source as GrantSource | undefined) ?? null,
-    productId: grant?.productId ?? null,
+    // A household grant's productId is the payer's user id: kept on the server, named instead.
+    productId: household ? null : grant?.productId ?? null,
     expiresAt: grant?.expiresAt ?? null,
     willRenew: grant?.willRenew ?? null,
     inTrial: grant?.status === 'trialing',
+    coveredBy: household && grant?.productId ? await firstName(grant.productId) : null,
   };
+}
+
+/** "Aoife", from the person's name, or the part of their email before the @. */
+async function firstName(userId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ name: authUser.name, email: users.email })
+    .from(users)
+    .leftJoin(authUser, eq(users.authUserId, authUser.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!row) return null;
+  return row.name?.trim().split(/\s+/)[0] || row.email.split('@')[0];
 }

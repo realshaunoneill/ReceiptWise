@@ -1,4 +1,5 @@
 import * as push from '@/lib/push/events';
+import { refreshHouseholdCover } from '@/lib/services/entitlement-service';
 import { db } from '@/lib/db';
 import { authUser, households, householdUsers, householdInvitations, users, receipts, subscriptions, financialAccounts, incomeSources, planEntries, savingsGoals, billDocuments, type Household, type HouseholdInvitation, type HouseholdMember, type NewHousehold, type NewHouseholdUser } from '@/lib/db/schema';
 import { eq, and, asc, inArray, count, ne, sql } from 'drizzle-orm';
@@ -452,9 +453,13 @@ export class HouseholdService {
         .returning({ id: householdUsers.id });
 
       return { householdId: invitation.householdId, alreadyMember: inserted.length === 0 };
-    }).then((result) => {
+    }).then(async (result) => {
       // The owner hears who joined (after the transaction, so they never hear of one that failed).
-      if (!result.alreadyMember) push.later(push.memberAdded(result.householdId, userId));
+      if (!result.alreadyMember) {
+        push.later(push.memberAdded(result.householdId, userId));
+        // Someone's Premium in it may cover them now.
+        await refreshHouseholdCover();
+      }
       return result;
     });
   }
@@ -488,6 +493,7 @@ export class HouseholdService {
       await this.clearDefaultHousehold(tx, householdId, [userId]);
       await this.detachFinanceRows(tx, householdId, [userId]);
     });
+    await refreshHouseholdCover();
   }
 
   /**
@@ -538,9 +544,11 @@ export class HouseholdService {
     };
 
     if (executor) {
+      // Inside the caller's transaction: the caller refreshes household cover once it commits.
       await run(executor);
     } else {
       await db.transaction(run);
+      await refreshHouseholdCover();
     }
   }
 
@@ -591,6 +599,7 @@ export class HouseholdService {
       await this.clearDefaultHousehold(tx, householdId, [userId]);
       await this.detachFinanceRows(tx, householdId, [userId]);
     });
+    await refreshHouseholdCover();
 
     return { deletedHousehold: false };
   }

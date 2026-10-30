@@ -622,7 +622,7 @@ export default function SettingsPage() {
                   {billing?.manage && <p className="text-sm text-muted-foreground">{billing.manage}</p>}
                   {!userData?.subscribed && coveringHousehold && (
                     <p className="text-sm text-muted-foreground">
-                      {coveringHousehold}&apos;s Premium covers its shared bills and plan. Reading receipts needs Premium of your own.
+                      {coveringHousehold}&apos;s shared bills and plan are yours to use. One Premium covers up to six people, and the one there already covers six, so reading receipts needs Premium of your own.
                     </p>
                   )}
 

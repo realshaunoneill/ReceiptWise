@@ -43,10 +43,9 @@ const QUESTIONS = [
   ...(BILLS_LAUNCHED
     ? [
       {
-        // lib/services/finance-access.ts: shared finance rows are covered by any member's Premium;
-        // receipts and personal rows still need your own.
+        // lib/entitlements.ts decideHouseholdCover: the payer and up to five others, earliest to join first.
         q: 'What does one Premium cover in a household?',
-        a: 'The plan and bills shared with the household: everyone in it can use them while one of you has Premium. Adding your own receipts, and anything you keep to yourself, needs Premium of your own.',
+        a: 'Up to six people: the person with Premium and five others who share a household with them, in the order they joined. Each of them gets all of Premium, receipts included. If that Premium ends, or someone leaves the household, their cover ends too.',
       },
     ]
     : []),

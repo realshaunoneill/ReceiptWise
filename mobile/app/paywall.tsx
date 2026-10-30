@@ -15,12 +15,12 @@ import { Notice, Skeleton } from '../src/ui/Feedback';
 import SheetScreen from '../src/ui/Sheet';
 import Text from '../src/ui/Text';
 
-// The plan first, as on the website. Sharing says what one Premium covers (the plan and bills shared
-// with a household); receipts still need your own, so nothing here says otherwise.
+// The plan first, as on the website. One Premium covers up to six people in a household
+// (lib/entitlements.ts decideHouseholdCover), receipts included.
 const POINTS = [
   { icon: ReceiptText, title: 'Your month, planned', body: 'What’s left until payday, from your pay and your bills, with the bills read off the PDFs.' },
   { icon: ScanLine, title: 'Receipts, read for you', body: 'Photograph one, or forward it by email: the shop, every item and the total.' },
-  { icon: HouseIcon, title: 'Planned together', body: 'One Premium covers the plan and bills you share with your household.' },
+  { icon: HouseIcon, title: 'Planned together', body: 'One Premium covers up to six people in your household, receipts and all.' },
   { icon: LineChart, title: 'Where the money goes', body: 'A written summary, what you buy most, and any item’s history.' },
 ];
 

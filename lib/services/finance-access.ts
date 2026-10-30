@@ -1,7 +1,8 @@
-import { and, eq, exists, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { db } from '@/lib/db';
-import { householdUsers, users, type User } from '@/lib/db/schema';
+import { householdUsers, premiumGrants, type User } from '@/lib/db/schema';
+import { ENTITLED_STATUSES, OWN_SOURCES } from '@/lib/entitlements';
 
 /**
  * Who can see and change finance rows: tracked subscriptions and bills now, and accounts,
@@ -33,7 +34,11 @@ function skipSubscriptionCheck(): boolean {
   return process.env.SKIP_SUBSCRIPTION_CHECK === 'true';
 }
 
-/** Households the user belongs to where at least one member is subscribed. */
+/**
+ * Households the user belongs to where at least one member has Premium of their own (paid or given;
+ * lib/entitlements.ts OWN_SOURCES). Not users.subscribed, which household cover also sets: Premium
+ * through one household mustn't open another's shared plan and bills.
+ */
 export async function entitledHouseholdIds(userId: string): Promise<string[]> {
   if (skipSubscriptionCheck()) {
     const memberships = await db
@@ -44,12 +49,20 @@ export async function entitledHouseholdIds(userId: string): Promise<string[]> {
   }
 
   const fellowMember = alias(householdUsers, 'fellow_member');
+  const ownPremium = db
+    .select({ one: sql`1` })
+    .from(premiumGrants)
+    .where(and(
+      eq(premiumGrants.userId, fellowMember.userId),
+      inArray(premiumGrants.source, [...OWN_SOURCES]),
+      inArray(premiumGrants.status, [...ENTITLED_STATUSES]),
+      or(isNull(premiumGrants.expiresAt), gt(premiumGrants.expiresAt, sql`now()`)),
+    ));
   const rows = await db
     .selectDistinct({ householdId: householdUsers.householdId })
     .from(householdUsers)
     .innerJoin(fellowMember, eq(fellowMember.householdId, householdUsers.householdId))
-    .innerJoin(users, eq(users.id, fellowMember.userId))
-    .where(and(eq(householdUsers.userId, userId), eq(users.subscribed, true)));
+    .where(and(eq(householdUsers.userId, userId), exists(ownPremium)));
   return rows.map((row) => row.householdId);
 }
 

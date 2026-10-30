@@ -13,6 +13,12 @@ describe('premiumBilling', () => {
     expect(premiumBilling({ ...base, source: 'comp', expiresAt: '2027-10-27T10:00:00Z' })).toEqual({ title: 'Free Premium, given to you', detail: 'Until 27 Oct 2027', manage: null });
   });
 
+  it('names whose Premium covers someone in a household', () => {
+    expect(premiumBilling({ ...base, source: 'household', coveredBy: 'Aoife' })?.title).toBe("Covered by Aoife's Premium");
+    expect(premiumBilling({ ...base, source: 'household', coveredBy: null })?.title).toBe('Covered by your household');
+    expect(premiumBilling({ ...base, source: 'household' })?.manage).toBeNull();
+  });
+
   it('is nothing without Premium of its own', () => {
     expect(premiumBilling({ ...base, active: false, source: null })).toBeNull();
     expect(premiumBilling(undefined)).toBeNull();

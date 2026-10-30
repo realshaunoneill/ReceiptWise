@@ -157,9 +157,8 @@ export default function SharingPage() {
                 <CardDescription>
                   You can see their shared receipts on the Receipts page.
                   {billsEnabled && (entitlements?.householdIds.length ?? 0) > 0
-                    ? ' Their shared bills and plan are included: another member\'s Premium covers them.'
-                    : ''}
-                  {' '}Adding receipts of your own needs Premium.
+                    ? ' Their shared bills and plan are included, but the Premium there already covers six people, so adding receipts of your own needs Premium.'
+                    : ' Adding receipts of your own needs Premium: when someone in a household has it, it covers up to six people.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>

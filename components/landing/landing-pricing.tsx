@@ -33,7 +33,7 @@ interface Pricing {
 }
 
 const INCLUDED = [
-  ...(BILLS_LAUNCHED ? ['Your month planned, payday to payday', 'Bills read from an upload or a forwarded email', 'Covers the plan and bills you share with your household'] : ['Subscription tracking']),
+  ...(BILLS_LAUNCHED ? ['Your month planned, payday to payday', 'Bills read from an upload or a forwarded email', 'Covers up to six people in your household'] : ['Subscription tracking']),
   'Unlimited receipts, read for you',
   'Unlimited households',
   'Spending analytics and insights',
