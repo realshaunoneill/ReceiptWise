@@ -21,7 +21,7 @@ English (UK), SKU `receiptwise`), created 2026-10-29 with the web session. Fille
 
 | Field | Value |
 | --- | --- |
-| Subtitle | Receipts, bills and your month (to change: see "Listing copy" below) |
+| Subtitle | Know what's left until payday (since 2026-10-30; see "Listing copy" below) |
 | Description, promotional text, keywords | in App Store Connect (keywords 94 of 100 bytes) |
 | URLs | support /support, marketing www.receiptwise.io, privacy /privacy |
 | Copyright | 2026 Shaun O'Neill |
@@ -54,8 +54,9 @@ and `price_1UW2aTIiErQWui9E3HOoXuPO` (yearly). Subscribers from before then keep
 
 ## Listing copy (2026-10-29, to replace what's in App Store Connect)
 
-The plan leads, as on the website. The App Store Connect web session had expired when this was
-written, so it was not pushed. Paste it in, or push it through iris with a fresh `ASC_WEB_SESSION`.
+The plan leads, as on the website. **In App Store Connect since 2026-10-30** (pushed through iris
+with `ASC_WEB_SESSION` and read back): en-GB app info localization `20e3699b-…` for the subtitle,
+and version 1.0's localization `4483559b-…` for the rest. Change it here first, then there.
 
 | Field | Text |
 | --- | --- |
