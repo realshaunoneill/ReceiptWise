@@ -15,7 +15,7 @@ export default function PrivacyPage() {
         <div>
           <h1 id="privacy-title" className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Privacy policy</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
-            Last updated: 29 October 2026
+            Last updated: 30 October 2026
           </p>
         </div>
 
@@ -45,6 +45,7 @@ export default function PrivacyPage() {
               <li>Your name, email address and profile picture, from the Google account you sign in with</li>
               <li>Your sign-in sessions, kept for up to 30 days</li>
               <li>Settings you choose, such as your currency and where new receipts go</li>
+              <li>How you found ReceiptWise, saved once when your account is made: the website that sent you, or the campaign named in the link you followed, or that you signed up in the app</li>
             </ul>
 
             <p><strong>Receipts:</strong></p>
@@ -103,6 +104,7 @@ export default function PrivacyPage() {
               <li><strong>Learning how ReceiptWise is used</strong>: understanding where it gets in people&apos;s way. Basis: your consent (Art. 6(1)(a)), which you can withdraw at any time from &quot;Cookie settings&quot; at the bottom of any page.</li>
               <li><strong>Legal obligations</strong>: for example keeping invoices for tax purposes. Basis: legal obligation (Art. 6(1)(c)).</li>
               <li><strong>Answering you</strong> when you contact support. Basis: legitimate interests, or our contract with you.</li>
+              <li><strong>Knowing what brings people to ReceiptWise</strong>: how new accounts found us, counted together, so we spend only on what works. Basis: our legitimate interests (Art. 6(1)(f)).</li>
             </ul>
             <p>We do not sell your data, and we do not send marketing email.</p>
           </CardContent>

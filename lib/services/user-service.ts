@@ -1,8 +1,25 @@
 import { db } from '@/lib/db';
 import { users, type User, type NewUser } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
+
+/** How long after an account is made its sign-up source can still be recorded. */
+const SIGNUP_SOURCE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export class UserService {
+  /**
+   * Save how a new account found ReceiptWise (shared/attribution.ts), the first time only, and only
+   * within a day of the account being made. Returns whether it was saved.
+   */
+  static async recordSignupSource(user: User, source: string, campaign: string | null): Promise<boolean> {
+    if (user.signupSource || Date.now() - user.createdAt.getTime() > SIGNUP_SOURCE_WINDOW_MS) return false;
+    const updated = await db
+      .update(users)
+      .set({ signupSource: source, signupCampaign: campaign })
+      .where(and(eq(users.id, user.id), isNull(users.signupSource), gt(users.createdAt, new Date(Date.now() - SIGNUP_SOURCE_WINDOW_MS))))
+      .returning({ id: users.id });
+    return updated.length > 0;
+  }
+
   /**
    * The app user for a Better Auth user: found by the link, else by verified email (an account
    * from the Clerk years, or one whose auth user was recreated), else created. `email` must be the

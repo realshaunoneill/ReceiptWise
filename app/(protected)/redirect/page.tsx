@@ -6,6 +6,7 @@ import { useUser } from '@/lib/hooks/use-user';
 import { useSession } from '@/lib/auth-client';
 import { Loader2 } from 'lucide-react';
 import { takePendingInvite } from '@/lib/utils/pending-invite';
+import { visitAttribution } from '@/shared/attribution';
 
 /**
  * Where a sign-in lands:
@@ -36,6 +37,18 @@ export default function RedirectPage() {
     // Only redirect when we have valid user data
     if (user) {
       setHasRedirected(true);
+
+      // A new account records how they found us, once (shared/attribution.ts). The server keeps
+      // only the first, and only for an account made in the last day.
+      if (Date.now() - new Date(user.createdAt).getTime() < 24 * 60 * 60 * 1000) {
+        const { src, cmp } = visitAttribution(window.location.search, '', window.location.hostname);
+        void fetch('/api/users/me/signup-source', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: src, campaign: cmp }),
+          keepalive: true,
+        }).catch(() => {});
+      }
 
       // Someone who opened an invitation link while signed out goes back to it first,
       // whatever their subscription state — otherwise sign-up swallowed the invitation.

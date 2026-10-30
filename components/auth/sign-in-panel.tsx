@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth-client';
 import { TEST_EMAIL_DOMAIN } from '@/lib/dev-login';
 import { NEW_USER_URL } from '@/lib/sign-in-redirect';
+import { attributionQuery, visitAttribution } from '@/shared/attribution';
 
 
 function GoogleIcon() {
@@ -108,7 +109,10 @@ export function SignInPanel({
         onClick={async () => {
           setBusy(true);
           setError(null);
-          const result = await signInWithGoogle(next, NEW_USER_URL).catch((err: unknown) => ({
+          // A first sign-in lands on /redirect, which records how they found us: ?src and ?cmp from
+          // the landing page's link, or the site that linked here (shared/attribution.ts).
+          const newUserUrl = NEW_USER_URL + attributionQuery(visitAttribution(window.location.search, document.referrer, window.location.hostname));
+          const result = await signInWithGoogle(next, newUserUrl).catch((err: unknown) => ({
             error: { message: err instanceof Error ? err.message : undefined },
           }));
           // On success the browser is already on its way to Google.

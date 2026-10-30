@@ -24,6 +24,10 @@ export const users = pgTable('users', {
   // the person's time zone, for sending at their local 9 am and keeping quiet hours.
   notificationPrefs: jsonb('notification_prefs'),
   timeZone: text('time_zone'),
+  // How they found ReceiptWise, saved once when the account is new (shared/attribution.ts): a
+  // link's utm_source or the referring site ("chatgpt.com"), "app-ios"/"app-android", or "direct".
+  signupSource: text('signup_source'),
+  signupCampaign: text('signup_campaign'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({

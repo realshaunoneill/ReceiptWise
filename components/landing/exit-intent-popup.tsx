@@ -16,7 +16,7 @@ import { BILLS_LAUNCHED } from '@/lib/public-features';
 const POPUP_DISMISSED_KEY = 'exitIntentDismissed';
 const POPUP_COOLDOWN_HOURS = 24;
 
-export function ExitIntentPopup() {
+export function ExitIntentPopup({ attribution = '' }: { attribution?: string }) {
   const [showPopup, setShowPopup] = useState(false);
   const [hasTriggered, setHasTriggered] = useState(false);
 
@@ -104,7 +104,7 @@ export function ExitIntentPopup() {
           {/* CTA Buttons */}
           <div className="flex flex-col gap-2 pt-2">
             <Button asChild className="w-full gap-2" size="lg">
-              <Link href="/sign-up" onClick={handleDismiss}>
+              <Link href={`/sign-up${attribution}`} onClick={handleDismiss}>
                 {hasFreeTrial ? 'Start the free trial' : 'Create an account'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>

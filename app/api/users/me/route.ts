@@ -13,6 +13,7 @@ import { featureFlagsFor } from '@/lib/features';
 import { type User } from '@/lib/db/schema';
 import { getFinanceEntitlements } from '@/lib/services/finance-access';
 import { premiumSummary } from '@/lib/services/store-premium';
+import { UserService } from '@/lib/services/user-service';
 
 /**
  * The user row plus what the client needs to decide what to show: feature flags, where the user
@@ -43,6 +44,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { user } = authResult;
+
+    // An account made in the app says so (the app sends x-client: "receiptwise-app/1.0.0 (ios)"),
+    // the first time it asks who it is. The website's are recorded by /redirect instead.
+    const platform = request.headers.get('x-client')?.match(/^receiptwise-app\/\S+ \((ios|android)\)/)?.[1];
+    if (platform && !user.signupSource) {
+      if (await UserService.recordSignupSource(user, `app-${platform}`, null)) user.signupSource = `app-${platform}`;
+    }
 
     Logger.info('User profile fetched successfully', {
       requestId,

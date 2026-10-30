@@ -24,6 +24,7 @@ import { HowItWorks } from '@/components/landing/how-it-works';
 import { LandingPricing } from '@/components/landing/landing-pricing';
 import { ExitIntentPopup } from '@/components/landing/exit-intent-popup';
 import { useSession } from '@/lib/auth-client';
+import { useAttributionQuery } from '@/lib/hooks/use-attribution';
 import { BILLS_LAUNCHED } from '@/lib/public-features';
 
 const scrollToSection = (id: string) => {
@@ -159,6 +160,8 @@ const benefits = BILLS_LAUNCHED
 export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boolean }) {
   const { data: session, isPending } = useSession();
   const isSignedIn = isPending ? initialSignedIn : Boolean(session);
+  // How this visit arrived, carried on to sign-up so a new account records it (shared/attribution.ts).
+  const attribution = useAttributionQuery();
 
   // Header component that handles loading state gracefully
   const Header = () => {
@@ -180,7 +183,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
             </Button>
             <ThemeToggle />
             <Button asChild>
-              <Link href="/sign-in">Sign in</Link>
+              <Link href={`/sign-in${attribution}`}>Sign in</Link>
             </Button>
           </div>
         </div>
@@ -234,7 +237,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
             ) : (
               <>
                 <Button asChild size="lg" className="gap-2">
-                  <Link href="/sign-up">
+                  <Link href={`/sign-up${attribution}`}>
                     {HAS_TRIAL ? 'Start the free trial' : 'Create an account'}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
@@ -364,7 +367,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
                 </Button>
               ) : (
                 <Button asChild size="lg" className="mt-8 gap-2">
-                  <Link href="/sign-up">
+                  <Link href={`/sign-up${attribution}`}>
                     {HAS_TRIAL ? 'Start the free trial' : 'Create an account'}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
@@ -418,7 +421,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
           {/* One paid plan with a free trial, by decision — there is no free tier. The €0
               card that used to sit here advertised 5 receipts/month, which the API
               rejected with a 403. */}
-          <LandingPricing isSignedIn={isSignedIn} />
+          <LandingPricing isSignedIn={isSignedIn} attribution={attribution} />
         </div>
       </section>
 
@@ -500,7 +503,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
             </Button>
           ) : (
             <Button asChild size="lg" className="mt-8 gap-2 bg-background text-foreground hover:bg-background/90">
-              <Link href="/sign-up">
+              <Link href={`/sign-up${attribution}`}>
                 {HAS_TRIAL ? 'Start the free trial' : 'Create an account'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
@@ -511,7 +514,7 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
       </main>
 
       {/* Exit Intent Popup - only for non-signed-in users */}
-      {!isPending && !isSignedIn && <ExitIntentPopup />}
+      {!isPending && !isSignedIn && <ExitIntentPopup attribution={attribution} />}
     </div>
   );
 }

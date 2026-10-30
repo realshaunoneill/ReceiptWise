@@ -51,7 +51,7 @@ function formatPrice(amount: number, currency: string) {
   }).format(amount / 100);
 }
 
-export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
+export function LandingPricing({ isSignedIn, attribution = '' }: { isSignedIn: boolean; attribution?: string }) {
   const { data: pricing, isLoading } = useQuery<Pricing>({
     queryKey: ['pricing'],
     queryFn: async () => {
@@ -162,7 +162,7 @@ export function LandingPricing({ isSignedIn }: { isSignedIn: boolean }) {
         ) : (
           <>
             <Button asChild className="mt-8 w-full gap-2">
-              <Link href={isSignedIn ? '/upgrade' : '/sign-up'}>
+              <Link href={isSignedIn ? '/upgrade' : `/sign-up${attribution}`}>
                 {trialDays > 0 ? `Start the ${trialDays}-day free trial` : 'Subscribe'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
