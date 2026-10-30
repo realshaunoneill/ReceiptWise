@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatTotals, totalsByCurrency } from '@/lib/utils/currency-totals';
 import { nextPaymentAmount, nextPaymentLabel } from '@/shared/labels/subscriptions';
+import { useAppHref } from '@/lib/app-base';
 
 /** What the list gives each row: GET /api/subscriptions adds the next cycle's own amount. */
 type UpcomingSubscription = Subscription & { nextAmount?: string | null };
@@ -35,6 +36,7 @@ export function UpcomingPayments({
   onSelectSubscription,
 }: UpcomingPaymentsProps) {
   const router = useRouter();
+  const appHref = useAppHref();
   const { currency: userCurrency } = useCurrency();
   const billsEnabled = useFeature('bills');
 
@@ -69,7 +71,7 @@ export function UpcomingPayments({
     if (onSelectSubscription) {
       onSelectSubscription(subscriptionId);
     } else {
-      router.push(`/subscriptions?selected=${subscriptionId}`);
+      router.push(appHref(`/subscriptions?selected=${subscriptionId}`));
     }
   };
 
@@ -140,7 +142,7 @@ export function UpcomingPayments({
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => router.push('/subscriptions')}
+            onClick={() => router.push(appHref('/subscriptions'))}
           >
             {billsEnabled ? 'View all bills' : 'View all subscriptions'}
           </Button>

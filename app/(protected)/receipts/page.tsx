@@ -22,6 +22,7 @@ import { ReceiptTimeline } from '@/components/receipts/receipt-timeline';
 import type { ReceiptWithItems } from '@/lib/types/api-responses';
 import type { Receipt } from '@/lib/db/schema';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
+import { useAppHref } from '@/lib/app-base';
 
 function ReceiptsPageContent() {
   const trialDays = useTrialDays();
@@ -42,10 +43,11 @@ function ReceiptsPageContent() {
   const { data: households = [] } = useHouseholds();
 
   const router = useRouter();
+  const appHref = useAppHref();
   const pathname = usePathname();
 
   const handleUpgradeClick = () => {
-    router.push('/upgrade');
+    router.push(appHref('/upgrade'));
   };
 
   /*
@@ -118,7 +120,7 @@ function ReceiptsPageContent() {
       // A clip from the extension that was a bill went to the bill inbox, which is on the Plan.
       if (error instanceof Error && error.message === 'moved-to-bills') {
         toast.info('That was a bill, so it’s in Bills to file, on the Plan.');
-        router.push('/plan');
+        router.push(appHref('/plan'));
         return;
       }
       toast.error('That receipt couldn’t be found');

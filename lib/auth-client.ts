@@ -4,7 +4,12 @@ import { createAuthClient } from 'better-auth/react';
 import { multiSessionClient } from 'better-auth/client/plugins';
 
 /** Better Auth in the browser. Same-origin, so no baseURL: it works on www, staging and localhost alike. */
-export const authClient = createAuthClient({ plugins: [multiSessionClient()] });
+export const authClient = createAuthClient({
+  plugins: [multiSessionClient()],
+  // fetch looked up on each request rather than captured when this is made (Better Auth's default),
+  // so the demo's fetch (lib/demo/fetch-shim.ts) answers its session check too.
+  fetchOptions: { customFetchImpl: (input, init) => globalThis.fetch(input, init) },
+});
 
 export const { useSession, signOut } = authClient;
 

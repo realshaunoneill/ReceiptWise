@@ -58,6 +58,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { LinkReceiptDialog } from './link-receipt-dialog';
 import { EditSubscriptionDialog } from './edit-subscription-dialog';
+import { useAppHref } from '@/lib/app-base';
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
 
@@ -111,6 +112,7 @@ export function SubscriptionDetailModal({
   onOpenChange,
 }: SubscriptionDetailModalProps) {
   const router = useRouter();
+  const appHref = useAppHref();
   const { data: subscription, isLoading } = useSubscription(subscriptionId || '');
   const { mutate: deleteSubscription } = useDeleteSubscription();
   const { mutate: updateSubscription } = useUpdateSubscription(subscriptionId || '');
@@ -196,7 +198,7 @@ export function SubscriptionDetailModal({
   };
 
   const handleViewReceipt = (receiptId: string) => {
-    router.push(`/receipts?selected=${receiptId}`);
+    router.push(appHref(`/receipts?selected=${receiptId}`));
     onOpenChange(false);
   };
 

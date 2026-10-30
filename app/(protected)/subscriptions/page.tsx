@@ -23,6 +23,7 @@ import { useCurrency } from '@/lib/hooks/use-currency';
 import { monthlyEquivalent } from '@/lib/schedule/billing-schedule';
 import { totalsByCurrency } from '@/lib/utils/currency-totals';
 import { nextPaymentAmount } from '@/shared/labels/subscriptions';
+import { useAppHref } from '@/lib/app-base';
 
 /** Upcoming payments only earn their place above a longer list; with a few, it repeats the list. */
 const UPCOMING_FROM = 6;
@@ -47,6 +48,7 @@ function SubscriptionsPageContent() {
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const searchParams = useSearchParams();
   const router = useRouter();
+  const appHref = useAppHref();
   const { isSubscribed, isLoading: userLoading } = useUser();
   const billsEnabled = useFeature('bills');
 
@@ -299,7 +301,7 @@ function SubscriptionsPageContent() {
 
               {/* CTA */}
               <div className="space-y-3 border-t pt-6">
-                <Button onClick={() => router.push('/upgrade')} size="lg" className="gap-2">
+                <Button onClick={() => router.push(appHref('/upgrade'))} size="lg" className="gap-2">
                   <Crown className="h-4 w-4" aria-hidden="true" />
                   {trialDays > 0 ? `Start the ${trialDays}-day trial` : 'See Premium'}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -342,7 +344,7 @@ function SubscriptionsPageContent() {
               setStatusFilter('active');
               const params = new URLSearchParams(searchParams.toString());
               params.set('filter', 'missing');
-              router.push(`/subscriptions?${params.toString()}`);
+              router.push(appHref(`/subscriptions?${params.toString()}`));
             }}
           />
         </div>
@@ -374,7 +376,7 @@ function SubscriptionsPageContent() {
                 setShowMissingOnly(false);
                 const params = new URLSearchParams(searchParams.toString());
                 params.delete('filter');
-                router.push(`/subscriptions${params.toString() ? '?' + params.toString() : ''}`);
+                router.push(appHref(`/subscriptions${params.toString() ? '?' + params.toString() : ''}`));
               }}
             >
               Show all

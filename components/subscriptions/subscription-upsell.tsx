@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTrialDays } from '@/lib/hooks/use-trial-days';
 import { BILLS_LAUNCHED } from '@/lib/public-features';
+import { useAppHref } from '@/lib/app-base';
 
 interface SubscriptionUpsellProps {
   title?: string;
@@ -29,9 +30,10 @@ export function SubscriptionUpsell({
   variant = 'default',
 }: SubscriptionUpsellProps) {
   const router = useRouter();
+  const appHref = useAppHref();
 
   const handleUpgrade = () => {
-    router.push('/upgrade');
+    router.push(appHref('/upgrade'));
   };
 
   const trialDays = useTrialDays();

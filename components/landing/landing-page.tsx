@@ -242,12 +242,9 @@ export function LandingPage({ initialSignedIn = false }: { initialSignedIn?: boo
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => scrollToSection('how-it-works')}
-                >
-                  See how it works
+                {/* A full page load into the demo, so it starts clean (components/demo/demo-shell.tsx). */}
+                <Button asChild size="lg" variant="outline">
+                  <a href={BILLS_LAUNCHED ? '/demo/plan' : '/demo/receipts'}>See a demo month</a>
                 </Button>
               </>
             )}

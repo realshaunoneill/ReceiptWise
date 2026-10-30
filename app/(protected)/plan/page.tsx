@@ -31,6 +31,7 @@ import { useHouseholds } from '@/lib/hooks/use-households';
 import { useGoals, useIncome, usePlan, useSaveIncome } from '@/lib/hooks/use-plan';
 import { useFeature, useUser } from '@/lib/hooks/use-user';
 import { type PlanLine } from '@/lib/plan/compute-plan';
+import { useAppHref } from '@/lib/app-base';
 
 function PlanSkeleton() {
   return (
@@ -44,6 +45,7 @@ function PlanSkeleton() {
 }
 
 function PlanPageContent() {
+  const appHref = useAppHref();
   const { user, isLoading: userLoading, entitlements, hasFinanceAccess } = useUser();
   const billsEnabled = useFeature('bills');
   const [offset, setOffset] = useQueryState('offset', parseAsInteger.withDefault(0));
@@ -213,7 +215,7 @@ function PlanPageContent() {
                 </Button>
                 {/* Adds an essential bill by default (bill-fields' DEFAULT_BILL_FIELDS). */}
                 <CreateSubscriptionDialog label="Add a bill" variant="outline" />
-                <Button variant="ghost" asChild><Link href="/subscriptions">All bills</Link></Button>
+                <Button variant="ghost" asChild><Link href={appHref('/subscriptions')}>All bills</Link></Button>
               </div>
             </>
           )}

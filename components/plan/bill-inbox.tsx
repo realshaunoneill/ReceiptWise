@@ -21,6 +21,7 @@ import {
 import { toCents } from '@/lib/money';
 import { type PlanResponse } from '@/lib/services/plan-service';
 import { formatCents } from '@/lib/utils/currency';
+import { useAppHref } from '@/lib/app-base';
 
 type BillInboxProps = {
   plan: PlanResponse;
@@ -72,6 +73,7 @@ function describeOriginal(original: ClientBillDocument | undefined): string {
  * Bills page in the menu): where uploaded and emailed bills wait to be filed.
  */
 export function BillInbox({ plan, householdId }: BillInboxProps) {
+  const appHref = useAppHref();
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: documents = [] } = useBillInbox(householdId);
   const { mutate: uploadBill, isPending: uploading } = useUploadBill();
@@ -118,7 +120,7 @@ export function BillInbox({ plan, householdId }: BillInboxProps) {
       <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Bring in a bill</span> · Upload a bill (a PDF or a photo) and it&apos;s read into the right month, or{' '}
-          <Link href="/settings?tab=integrations" className="text-primary underline-offset-2 hover:underline">forward it by email</Link>.
+          <Link href={appHref('/settings?tab=integrations')} className="text-primary underline-offset-2 hover:underline">forward it by email</Link>.
         </p>
         <div className="shrink-0">{uploadButton}</div>
       </div>
