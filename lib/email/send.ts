@@ -4,10 +4,14 @@ import { type CorrelationId, submitLogEvent } from '@/lib/logging';
  * Service email: messages about the person's own account, never marketing (the privacy policy
  * says "We do not send marketing email"). Sent through Resend's HTTP API, with no SDK.
  *
- * Inert until RESEND_API_KEY and EMAIL_FROM are set on Vercel (e.g. EMAIL_FROM
- * "ReceiptWise <hello@mail.receiptwise.io>", on a sending domain verified in Resend; the apex MX
- * stays with the support mailbox). Until then every send answers 'off' and callers carry on: the
- * page they came from already shows what the email would have said.
+ * Set up 2026-11-10, production only: EMAIL_FROM "ReceiptWise <hello@mail.receiptwise.io>", and a
+ * RESEND_API_KEY that can only send, and only from mail.receiptwise.io (a copy is on cevo as
+ * RECEIPTWISE_RESEND_API_KEY). The domain is in the EU region on the Resend team AutoToonify and
+ * PawToonify use (a team of its own is a paid feature), with DKIM, SPF and the bounce MX on
+ * Cloudflare and no open or click tracking. The apex MX stays with the support mailbox.
+ *
+ * Without both variables (previews, local) every send answers 'off' and callers carry on: the page
+ * they came from already shows what the email would have said.
  */
 
 export type EmailResult = 'sent' | 'off' | 'failed';
