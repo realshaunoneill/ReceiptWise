@@ -275,6 +275,18 @@ export const pushDevices = pgTable('push_devices', {
 
 // Notifications sent, one per person, kind and thing (a receipt id, a payment's cycle), so the
 // same one is never sent twice, whichever job or retry gets there first.
+// One row per call to an AI model on someone's behalf (a receipt or bill read, a re-read, a spending
+// summary), so lib/ai-budget.ts can cap calls per person per day whatever path asked for them.
+// Rows older than two days are swept hourly.
+export const aiCalls = pgTable('ai_calls', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'receipt' | 'bill' | 'summary'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  userCreatedIdx: index('ai_calls_user_created_idx').on(table.userId, table.createdAt),
+}));
+
 export const notificationLog = pgTable('notification_log', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

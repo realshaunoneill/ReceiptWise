@@ -95,7 +95,7 @@ export async function intakeReceiptFile(options: IntakeOptions): Promise<{ recei
         // A bill filed from here is told about by its own processing (lib/push/events.ts).
         if (filedAsBill) return;
         if (result.ok) push.receiptProcessed(result.receipt, { ok: true, itemCount: result.items.length }, source, correlationId);
-        else if (result.reason === 'failed') push.receiptProcessed(inserted, { ok: false }, source, correlationId);
+        else if (result.reason === 'failed' || result.reason === 'limited') push.receiptProcessed(inserted, { ok: false }, source, correlationId);
       })
       .catch((error) => {
         submitLogEvent(`${source}-upload`, `Background processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { receiptId: inserted.id }, true);

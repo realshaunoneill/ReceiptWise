@@ -146,7 +146,7 @@ async function routeToReceipts(document: BillDocument, user: User, bytes: Buffer
     .where(eq(billDocuments.id, document.id));
   const result = await processReceipt(receipt.id, user.id, correlationId);
   if (result.ok) push.receiptProcessed(result.receipt, { ok: true, itemCount: result.items.length }, 'email', correlationId);
-  else if (result.reason === 'failed') push.receiptProcessed(receipt, { ok: false }, 'email', correlationId);
+  else if (result.reason === 'failed' || result.reason === 'limited') push.receiptProcessed(receipt, { ok: false }, 'email', correlationId);
 }
 
 /**

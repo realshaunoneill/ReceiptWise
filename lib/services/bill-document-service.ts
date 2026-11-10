@@ -19,6 +19,7 @@ import {
 import { STALE_PROCESSING_MS } from '@/lib/receipt-processing';
 import { readPrivate } from '@/lib/storage/private-blob';
 import { SubscriptionService } from '@/lib/services/subscription-service';
+import { reserveAiCall } from '@/lib/ai-budget';
 
 /**
  * Bills brought in by upload or email: read them, then file each one against the recurring bill
@@ -122,6 +123,18 @@ async function readBillDocument(documentId: string, correlationId: CorrelationId
     if (!bytes) return fail("The file couldn't be found. Upload it again.");
     if (claimed.mimeType === 'application/pdf' && isEncryptedPdf(bytes)) {
       return fail('This PDF is password-protected. Save a copy without the password, or upload a photo of it.');
+    }
+
+    // Counted against the person's AI budget (lib/ai-budget.ts). Refused, it waits as failed without
+    // using up one of its attempts, so Retry or the sweep can read it once the limit has passed.
+    const budget = await reserveAiCall(claimed.userId, 'bill');
+    if (!budget.ok) {
+      const [waiting] = await db
+        .update(billDocuments)
+        .set({ processingStatus: 'failed', processingError: budget.message, updatedAt: new Date() })
+        .where(eq(billDocuments.id, documentId))
+        .returning();
+      return waiting;
     }
 
     const { data, usage } = claimed.mimeType === 'text/plain'

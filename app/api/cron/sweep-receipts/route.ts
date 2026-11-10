@@ -10,6 +10,7 @@ import { processBillDocument } from '@/lib/services/bill-document-service';
 import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { pruneAiCalls } from '@/lib/ai-budget';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -172,7 +173,11 @@ export async function GET(req: NextRequest) {
       emailRecordsPurged = oldRecords.length;
     }
 
+    // The AI budget looks back a day; older rows are dead weight.
+    const aiCallsPruned = await pruneAiCalls();
+
     const summary = {
+      aiCallsPruned,
       stuckProcessing: stuckProcessing.length,
       stuckPending: stuckPending.length,
       purged,

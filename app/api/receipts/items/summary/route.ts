@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { parseMonths, receiptScope, windowStart } from '@/lib/utils/insights-params';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
 import { categoryName } from '@/components/receipts/format';
+import { reserveAiCall } from '@/lib/ai-budget';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -184,7 +185,12 @@ export async function GET(request: NextRequest) {
       topMerchants: topMerchants.slice(0, 5),
     };
 
-    // Generate AI summary using OpenAI lib
+    // A summary is a model call too, and counts against the person's AI budget.
+    const budget = await reserveAiCall(user.id, 'summary');
+    if (!budget.ok) {
+      return NextResponse.json({ error: budget.message }, { status: 429, headers: { 'Retry-After': String(budget.retryAfterSeconds) } });
+    }
+
     const { summary: aiSummary, usage: aiUsage } = await generateSpendingSummary(
       dataForAI,
       email,

@@ -6,6 +6,7 @@ import { analyzeReceiptImage, type ReceiptData, type TokenUsage } from '@/lib/re
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
 import { DEFAULT_CURRENCY } from '@/lib/utils/currency';
+import { reserveAiCall } from '@/lib/ai-budget';
 
 /*
  * The one implementation of "read a receipt image and store what it says".
@@ -39,7 +40,7 @@ export type ProcessReceiptSuccess = {
 
 export type ProcessReceiptFailure = {
   ok: false;
-  reason: 'not_found' | 'already_completed' | 'in_progress' | 'failed';
+  reason: 'not_found' | 'already_completed' | 'in_progress' | 'failed' | 'limited';
   /** Safe to show to the user. */
   message: string;
   status: number;
@@ -177,6 +178,17 @@ export async function processReceipt(
     timestamp: new Date().toISOString(),
   });
 
+  // Every read counts against the person's AI budget, re-reads included (lib/ai-budget.ts).
+  const budget = await reserveAiCall(user.id, 'receipt');
+  if (!budget.ok) {
+    await db
+      .update(receipts)
+      .set({ processingStatus: 'failed', processingError: budget.message, updatedAt: new Date() })
+      .where(eq(receipts.id, receiptId));
+    submitLogEvent('receipt-error', 'Receipt read refused: AI budget reached', correlationId, { receiptId, userId });
+    return { ok: false, reason: 'limited', message: budget.message, status: 429 };
+  }
+
   let ocrData: ReceiptData;
   let usage: TokenUsage;
   try {
@@ -202,11 +214,7 @@ export async function processReceipt(
 
   submitLogEvent('receipt-process', 'Receipt analyzed with enhanced data', correlationId, {
     receiptId,
-    merchant: ocrData.merchant,
-    total: ocrData.total,
-    currency: ocrData.currency,
-    date: ocrData.date,
-    category: ocrData.category,
+    // What was bought, where and for how much stays out of the logs; whether it read, and how much, is enough.
     isReceipt: ocrData.isReceipt,
     itemCount: ocrData.items?.length || 0,
     extractedFields: Object.keys(ocrData).length,
