@@ -2,6 +2,7 @@ import { generateText, Output } from 'ai';
 import { gatewayOptions, modelFor, toTokenUsage, type TokenUsage } from '@/lib/ai-model';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { z } from 'zod';
+import { readReceiptImage } from '@/lib/storage/receipt-blob';
 
 // Zod schemas for type-safe AI responses.
 //
@@ -118,16 +119,14 @@ export async function analyzeReceiptImage(
 ): Promise<ReceiptAnalysisResult> {
   submitLogEvent('receipt-process', 'Fetching image for analysis', correlationId, { userId });
 
-  const inputImageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS) });
-  if (!inputImageRes.ok) {
-    throw new Error(`Failed to download image: ${inputImageRes.statusText}`);
+  // From the private store, or an older image's public URL (lib/storage/receipt-blob.ts).
+  const image = await readReceiptImage(imageUrl, IMAGE_FETCH_TIMEOUT_MS);
+  if (!image) {
+    throw new Error('Failed to download image');
   }
 
-  const contentType = inputImageRes.headers.get('content-type');
-  const inputImageBuffer = await inputImageRes.arrayBuffer();
-
-  const buffer = Buffer.from(inputImageBuffer);
-  const mimeType = contentType || 'image/png';
+  const buffer = image.bytes;
+  const mimeType = image.contentType || 'image/png';
 
   const model = modelFor('receipt', options.model);
   submitLogEvent('receipt-process', `Reading receipt with ${model}`, correlationId, { userId, model });

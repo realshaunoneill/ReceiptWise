@@ -1,4 +1,14 @@
-import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, uniqueIndex, date, numeric, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, timestamp, jsonb, unique, integer, index, uniqueIndex, date, numeric, customType, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { receiptImageForClient, receiptImageForStorage } from '../storage/receipt-image-url';
+
+// A receipt's image: `private:<pathname>` in the database, a signed link wherever it's read, and a
+// signed link written back is stored as `private:<pathname>` again (lib/storage/receipt-image-url.ts).
+// Older images are public Blob URLs and pass through unchanged. Plain text in the database.
+const receiptImage = customType<{ data: string; driverData: string }>({
+  dataType: () => 'text',
+  fromDriver: (value) => receiptImageForClient(value),
+  toDriver: (value) => receiptImageForStorage(value),
+});
 
 // Users Table: the app's own profile of each person. Sign-in is Better Auth (auth_* tables below);
 // a row is linked to its auth_user by authUserId, made on first sign-in or matched by verified email.
@@ -118,7 +128,7 @@ export const receipts = pgTable('receipts', {
   // household used to hard-delete every member's receipts (and their line items) along with it;
   // now they fall back to each owner's personal view.
   householdId: uuid('household_id').references(() => households.id, { onDelete: 'set null' }),
-  imageUrl: text('image_url').notNull(),
+  imageUrl: receiptImage('image_url').notNull(),
   merchantName: text('merchant_name'),
   totalAmount: text('total_amount'),
   currency: text('currency'),

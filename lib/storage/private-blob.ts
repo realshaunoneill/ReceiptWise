@@ -3,9 +3,10 @@ import { dirname, join } from 'path';
 import { del, get, head, put } from '@vercel/blob';
 
 /**
- * The private Blob store for bills (and forwarded emails). Bills carry names, addresses and
- * account numbers, so unlike receipt images they are never at a public URL: the store is created
- * private, and files are read back through an authenticated route.
+ * The private Blob store for bills, forwarded emails and, since 2026-11, receipt images. Bills
+ * carry names, addresses and account numbers, and receipts what someone bought where, so none of
+ * it is ever at a public URL: the store is created private, bills are read back through an
+ * authenticated route and receipt images through signed links (lib/storage/receipt-image-url.ts).
  *
  * Its token is BILLS_BLOB_READ_WRITE_TOKEN (the store is connected to the project with the
  * BILLS_ prefix) and is passed explicitly on every call: with two stores, the SDK's implicit

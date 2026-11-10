@@ -18,6 +18,7 @@ Disallow: /upgrade
 Disallow: /payment
 Disallow: /redirect
 Disallow: /invite
+Disallow: /receipt-images
 Disallow: /sign-in
 
 Sitemap: https://www.receiptwise.io/sitemap.xml

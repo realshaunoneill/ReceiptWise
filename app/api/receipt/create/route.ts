@@ -13,7 +13,8 @@ import { getConsentedPostHogClient } from '@/lib/posthog-server';
 import { waitUntil } from '@vercel/functions';
 import { randomUUID } from 'crypto';
 import { checkReceiptCreationLimit } from '@/lib/receipt-rate-limit';
-import { isOwnReceiptImageUrl } from '@/lib/storage/receipt-blob';
+import { isOwnReceiptImagePath } from '@/lib/storage/receipt-blob';
+import { PRIVATE_IMAGE_PREFIX } from '@/lib/storage/receipt-image-url';
 
 // Route configuration
 export const runtime = 'nodejs';
@@ -33,15 +34,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const deletionCheck = requireNoPendingDeletion(user);
     if (deletionCheck) return deletionCheck;
 
-    const body = await req.json();
-    const { imageUrl, householdId: providedHouseholdId } = body;
+    const body = await req.json().catch(() => ({}));
+    const { pathname, householdId: providedHouseholdId } = body as { pathname?: unknown; householdId?: unknown };
 
-    if (!isOwnReceiptImageUrl(imageUrl, user.id)) {
+    // The private-store pathname the browser just uploaded to, in this user's own folder. It is
+    // stored as private:<pathname> and only ever shown through signed links.
+    if (!isOwnReceiptImagePath(pathname, user.id)) {
       return NextResponse.json(
         { error: 'A receipt image uploaded through ReceiptWise is required' },
         { status: 400 },
       );
     }
+    const imageUrl = `${PRIVATE_IMAGE_PREFIX}${pathname}`;
 
     // Filing into a household needs membership of it. Without this any subscriber could write
     // receipts into any household whose id they knew (an ex-member, say).
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Use provided householdId or fall back to user's default — but only a default the user is
     // still a member of. Leaving a household did not clear defaultHouseholdId, so uploads kept
     // landing in the old one, visible to its remaining members.
-    let householdId: string | null = providedHouseholdId || null;
+    let householdId: string | null = typeof providedHouseholdId === 'string' && providedHouseholdId ? providedHouseholdId : null;
     if (!householdId && user.defaultHouseholdId) {
       const membership = await getHouseholdMembership(user.defaultHouseholdId, user.id);
       householdId = membership ? user.defaultHouseholdId : null;
@@ -103,7 +107,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     submitLogEvent('receipt-db-created', 'Receipt entry created in database with pending status', correlationId, {
       receiptId: receipt.id,
       userId: user.id,
-      imageUrl,
       householdId,
       processingStatus: 'pending',
       timestamp: new Date().toISOString(),

@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
-import { del } from '@vercel/blob';
-import { imagesSafeToDelete, receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { deleteReceiptImages, imagesSafeToDelete } from '@/lib/storage/receipt-blob';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { authUser, billDocuments, inboundEmails, receipts, users } from '@/lib/db/schema';
@@ -109,10 +108,8 @@ async function deleteReceiptBlobs(userId: string, correlationId: CorrelationId):
   const urls = await imagesSafeToDelete(rows);
   if (urls.length === 0) return;
 
-  // del() accepts up to 1000 urls per call.
-  for (let i = 0; i < urls.length; i += 1000) {
-    await del(urls.slice(i, i + 1000), { token: receiptsBlobToken() });
-  }
+  // Private and older public images alike.
+  await deleteReceiptImages(urls);
 
   submitLogEvent('user', `Deleted ${urls.length} receipt blobs for account deletion`, correlationId, {
     userId,

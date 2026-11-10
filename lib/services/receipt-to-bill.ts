@@ -6,6 +6,7 @@ import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { processBillDocument } from '@/lib/services/bill-document-service';
 import { billsPrefix, putPrivate } from '@/lib/storage/private-blob';
 import { invalidateInsightsCache } from '@/lib/utils/cache-helpers';
+import { readReceiptImage } from '@/lib/storage/receipt-blob';
 
 /**
  * A bill that came in as a receipt: copy its image into the private bills store, file it as a bill
@@ -28,12 +29,12 @@ export class MoveToBillsError extends Error {
 }
 
 export async function moveReceiptToBills(receipt: Receipt, correlationId: CorrelationId): Promise<BillDocument> {
-  const image = await fetch(receipt.imageUrl, { signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS) });
-  if (!image.ok) throw new MoveToBillsError("The receipt image couldn't be loaded", 502);
-  const mimeType = (image.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
+  const image = await readReceiptImage(receipt.imageUrl, IMAGE_FETCH_TIMEOUT_MS);
+  if (!image) throw new MoveToBillsError("The receipt image couldn't be loaded", 502);
+  const mimeType = image.contentType;
   const extension = BILL_IMAGE_EXTENSIONS[mimeType];
   if (!extension) throw new MoveToBillsError('Only images can be moved', 400);
-  const bytes = Buffer.from(await image.arrayBuffer());
+  const bytes = image.bytes;
 
   const pathname = `${billsPrefix(receipt.userId)}receipt-${receipt.id}-${randomBytes(8).toString('hex')}.${extension}`;
   await putPrivate(pathname, bytes, mimeType);

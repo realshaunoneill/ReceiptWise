@@ -5,8 +5,7 @@ import { getAuthenticatedUser, requireAdmin } from '@/lib/auth-helpers';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
-import { del } from '@vercel/blob';
-import { imagesSafeToDelete, receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { deleteReceiptImages, imagesSafeToDelete } from '@/lib/storage/receipt-blob';
 
 export const runtime = 'nodejs';
 
@@ -65,7 +64,7 @@ export async function DELETE(
     if (deleteBlob && receipt.imageUrl) {
       try {
         const [deletable] = await imagesSafeToDelete([{ id: receipt.id, imageUrl: receipt.imageUrl }]);
-        if (deletable) await del(deletable, { token: receiptsBlobToken() });
+        if (deletable) await deleteReceiptImages([deletable]);
         submitLogEvent('admin', `Admin deleted blob for receipt ${receiptId}`, correlationId, {
           adminId: user.id,
           receiptId,
@@ -133,7 +132,7 @@ export async function POST(
     if (receipt.imageUrl) {
       try {
         const [deletable] = await imagesSafeToDelete([{ id: receipt.id, imageUrl: receipt.imageUrl }]);
-        if (deletable) await del(deletable, { token: receiptsBlobToken() });
+        if (deletable) await deleteReceiptImages([deletable]);
         submitLogEvent('admin', `Admin deleted blob for receipt ${receiptId}`, correlationId, {
           adminId: user.id,
           receiptId,

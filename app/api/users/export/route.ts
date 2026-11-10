@@ -22,6 +22,7 @@ import {
 import { eq, and, isNull, inArray, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
+import { longLivedReceiptImageUrl } from '@/lib/storage/receipt-image-url';
 
 export const runtime = 'nodejs';
 
@@ -75,7 +76,9 @@ export async function GET(req: NextRequest) {
           isNull(receipts.deletedAt),
         ),
       )
-      .orderBy(receipts.transactionDate);
+      .orderBy(receipts.transactionDate)
+      // An export is kept: its image links last 30 days rather than the hours a page's do.
+      .then((rows) => rows.map((row) => ({ ...row, imageUrl: longLivedReceiptImageUrl(row.imageUrl) })));
 
     // Line items for every exported receipt. They were only included in the
     // receipts-with-images variant, so the "all data" export — the one offered for data

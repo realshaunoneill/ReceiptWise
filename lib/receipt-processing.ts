@@ -178,20 +178,22 @@ export async function processReceipt(
     timestamp: new Date().toISOString(),
   });
 
-  // Every read counts against the person's AI budget, re-reads included (lib/ai-budget.ts).
-  const budget = await reserveAiCall(user.id, 'receipt');
-  if (!budget.ok) {
-    await db
-      .update(receipts)
-      .set({ processingStatus: 'failed', processingError: budget.message, updatedAt: new Date() })
-      .where(eq(receipts.id, receiptId));
-    submitLogEvent('receipt-error', 'Receipt read refused: AI budget reached', correlationId, { receiptId, userId });
-    return { ok: false, reason: 'limited', message: budget.message, status: 429 };
-  }
-
   let ocrData: ReceiptData;
   let usage: TokenUsage;
   try {
+    // Every read counts against the person's AI budget, re-reads included (lib/ai-budget.ts).
+    // Inside the try, so a failure to check it fails the receipt (with Retry) rather than leaving
+    // it claimed as 'processing' until the sweep.
+    const budget = await reserveAiCall(user.id, 'receipt');
+    if (!budget.ok) {
+      await db
+        .update(receipts)
+        .set({ processingStatus: 'failed', processingError: budget.message, updatedAt: new Date() })
+        .where(eq(receipts.id, receiptId));
+      submitLogEvent('receipt-error', 'Receipt read refused: AI budget reached', correlationId, { receiptId, userId });
+      return { ok: false, reason: 'limited', message: budget.message, status: 429 };
+    }
+
     const result = await analyzeReceiptImage(claimed.imageUrl, user.email, user.id, correlationId);
     ocrData = result.data;
     usage = result.usage;

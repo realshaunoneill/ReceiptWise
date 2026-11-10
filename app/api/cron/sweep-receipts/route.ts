@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { and, eq, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
-import { del } from '@vercel/blob';
-import { imagesSafeToDelete, receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { deleteReceiptImages, imagesSafeToDelete } from '@/lib/storage/receipt-blob';
 import { db } from '@/lib/db';
 import { billDocuments, inboundEmails, receipts } from '@/lib/db/schema';
 import { processInboundEmail } from '@/lib/inbound-email/ingest';
@@ -31,14 +30,6 @@ const MAX_BILL_REREADS_PER_RUN = 10;
 /** Forwarded emails: the raw message is kept this long after processing, the record this long in all. */
 const RAW_EMAIL_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const EMAIL_RECORD_KEEP_MS = 90 * 24 * 60 * 60 * 1000;
-
-function isBlobUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.endsWith('.public.blob.vercel-storage.com');
-  } catch {
-    return false;
-  }
-}
 
 /**
  * GET /api/cron/sweep-receipts (hourly)
@@ -92,11 +83,8 @@ export async function GET(req: NextRequest) {
     if (toPurge.length > 0) {
       // Images first: if the blob delete fails, the rows stay and are retried next run rather
       // than leaving an image nothing points at any more.
-      // Never an image another receipt still points at.
-      const blobUrls = (await imagesSafeToDelete(toPurge)).filter(isBlobUrl);
-      for (let i = 0; i < blobUrls.length; i += 1000) {
-        await del(blobUrls.slice(i, i + 1000), { token: receiptsBlobToken() });
-      }
+      // Never an image another receipt still points at; private and older public images alike.
+      await deleteReceiptImages(await imagesSafeToDelete(toPurge));
 
       // receipt_items cascade; subscription_payments.receipt_id is set null.
       const deleted = await db

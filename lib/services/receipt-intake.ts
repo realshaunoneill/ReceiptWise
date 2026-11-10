@@ -1,4 +1,3 @@
-import { put } from '@vercel/blob';
 import { waitUntil } from '@vercel/functions';
 import { and, eq } from 'drizzle-orm';
 import { getHouseholdMembership } from '@/lib/auth-helpers';
@@ -11,7 +10,7 @@ import * as push from '@/lib/push/events';
 import { processReceipt } from '@/lib/receipt-processing';
 import { moveReceiptToBillsAndRead } from '@/lib/services/receipt-to-bill';
 import { isPrivateStoreConfigured } from '@/lib/storage/private-blob';
-import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { storeReceiptImage } from '@/lib/storage/receipt-blob';
 
 /**
  * A receipt image sent in one request (the Chrome extension, the app): stored, filed and read on
@@ -19,7 +18,6 @@ import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
  * that sent it goes to sleep. Callers check who is sending it and the upload rate limit first.
  */
 
-const ENV_PATH_PREFIX = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
 export const MAX_RECEIPT_UPLOAD_MB = 15;
 export const RECEIPT_IMAGE_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -64,17 +62,12 @@ export async function intakeReceiptFile(options: IntakeOptions): Promise<{ recei
 
   const householdId = await resolveHousehold(user, options.householdId);
 
-  // Random suffix so blob URLs are not guessable from the user id and a timestamp.
-  const blob = await put(`${ENV_PATH_PREFIX}/receipts/${user.id}/${source}.${extension}`, file, {
-    access: 'public',
-    contentType: file.type,
-    addRandomSuffix: true,
-    token: receiptsBlobToken(),
-  });
+  // The private store, in the user's own folder, with a random name (lib/storage/receipt-blob.ts).
+  const imageUrl = await storeReceiptImage(user.id, source, Buffer.from(await file.arrayBuffer()), file.type);
 
   const [inserted] = await db
     .insert(receipts)
-    .values({ userId: user.id, householdId, imageUrl: blob.url, processingStatus: 'pending', source, clientUploadId: clientUploadId ?? null })
+    .values({ userId: user.id, householdId, imageUrl, processingStatus: 'pending', source, clientUploadId: clientUploadId ?? null })
     // Two copies of the same capture at once: the other one made the row.
     .onConflictDoNothing({ target: [receipts.userId, receipts.clientUploadId] })
     .returning();

@@ -1,5 +1,3 @@
-import { randomBytes } from 'crypto';
-import { put } from '@vercel/blob';
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
 import { and, count, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import PostalMime from 'postal-mime';
@@ -15,7 +13,7 @@ import { processBillDocument } from '@/lib/services/bill-document-service';
 import { getFinanceEntitlements } from '@/lib/services/finance-access';
 import { userForInboundToken } from '@/lib/services/inbound-address-service';
 import { billsPrefix, putPrivate, readPrivate, readWriteToken } from '@/lib/storage/private-blob';
-import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { storeReceiptImage } from '@/lib/storage/receipt-blob';
 import { forwardingConfirmation, selectParts } from './parts';
 
 /**
@@ -129,16 +127,10 @@ async function routeToReceipts(document: BillDocument, user: User, bytes: Buffer
   if (!extension || !user.subscribed) return;
   if ((await checkReceiptCreationLimit(user.id)).limited) return;
 
-  const environment = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
-  const blob = await put(`${environment}/receipts/${user.id}/email-${randomBytes(8).toString('hex')}.${extension}`, bytes, {
-    access: 'public',
-    contentType: document.mimeType,
-    addRandomSuffix: true,
-    token: receiptsBlobToken(),
-  });
+  const imageUrl = await storeReceiptImage(user.id, 'email', bytes, document.mimeType);
   const [receipt] = await db
     .insert(receipts)
-    .values({ userId: user.id, householdId: user.defaultHouseholdId ?? null, imageUrl: blob.url, processingStatus: 'pending', source: 'email' })
+    .values({ userId: user.id, householdId: user.defaultHouseholdId ?? null, imageUrl, processingStatus: 'pending', source: 'email' })
     .returning();
   await db
     .update(billDocuments)

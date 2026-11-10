@@ -4,7 +4,8 @@ import { getAuthenticatedUser, requireSubscription, requireNoPendingDeletion } f
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { sanitizeErrorMessage } from '@/lib/errors';
 import { randomUUID } from 'crypto';
-import { receiptImagePrefix, receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { receiptImagePrefix, RECEIPT_IMAGE_TYPES } from '@/lib/storage/receipt-blob';
+import { isPrivateStoreConfigured, readWriteToken } from '@/lib/storage/private-blob';
 
 // Route configuration
 export const runtime = 'nodejs';
@@ -35,7 +36,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
-      token: receiptsBlobToken(),
+      // The private store: receipt images are never at a public URL (lib/storage/receipt-image-url.ts).
+      token: readWriteToken(),
       onBeforeGenerateToken: async (
         pathname: string,
         clientPayload: string | null,
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         return {
           addRandomSuffix: true,
-          allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'],
+          allowedContentTypes: Object.keys(RECEIPT_IMAGE_TYPES),
           maximumSizeInBytes: MAX_UPLOAD_SIZE_MB * 1024 * 1024,
           tokenPayload: JSON.stringify({
             userId: user.id,
@@ -85,4 +87,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 400 },
     );
   }
+}
+
+// GET /api/receipt/upload - The folder this user's uploads must go to (the private store's paths
+// carry the deployment's environment, which the browser doesn't know).
+export async function GET(): Promise<NextResponse> {
+  const authResult = await getAuthenticatedUser();
+  if (authResult instanceof NextResponse) return authResult;
+  return NextResponse.json(
+    { prefix: receiptImagePrefix(authResult.user.id), configured: isPrivateStoreConfigured() },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  );
 }

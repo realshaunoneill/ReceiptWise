@@ -19,10 +19,9 @@ interface UploadItem {
   progress: number
   error?: string
   receiptId?: string
-  blobUrl?: string
+  /** The uploaded image's private-store pathname, kept so Retry doesn't upload it again. */
+  blobPathname?: string
 }
-
-const ENV_PATH_PREFIX = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
 
 /*
  * What /api/receipt/upload's token actually allows. The inputs used to accept image/* and the
@@ -53,6 +52,20 @@ export function ReceiptBatchUpload({
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const { user } = useUser();
   const userId = user?.id;
+  // Asked once per account and kept: the folder only changes with the account.
+  const prefixRef = useRef<{ userId: string; prefix: Promise<string> } | null>(null);
+  const uploadPrefix = useCallback(() => {
+    if (!userId) return Promise.reject(new Error('Still signing you in. Try again in a moment.'));
+    if (prefixRef.current?.userId !== userId) {
+      const prefix = fetch('/api/receipt/upload').then(async (response) => {
+        if (!response.ok) throw new Error('Could not start the upload. Try again.');
+        return ((await response.json()) as { prefix: string }).prefix;
+      });
+      prefix.catch(() => { prefixRef.current = null; });
+      prefixRef.current = { userId, prefix };
+    }
+    return prefixRef.current.prefix;
+  }, [userId]);
   // Decided once, when the count arrives, so the tips don't snap shut after the list loads.
   const [tipsOpen, setTipsOpen] = useState<boolean | null>(null);
   useEffect(() => {
@@ -160,14 +173,14 @@ export function ReceiptBatchUpload({
 
       if (!userId) throw new Error('Still signing you in. Try again in a moment.');
       const receiptId = `receipt-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-      // The user's own folder, which the upload route insists on; it adds a random suffix to the
-      // name. The pathname becomes part of a public URL, so it carries the account's id and
-      // nothing personal (it used to carry the email address).
+      // Into the private store, under the user's own folder, which the upload route insists on and
+      // tells us (it carries the deployment's environment); the route adds a random suffix.
+      const prefix = await uploadPrefix();
       const blob = await upload(
-        `${ENV_PATH_PREFIX}/receipts/${userId}/${safeFileName(item.file.name)}`,
+        `${prefix}${safeFileName(item.file.name)}`,
         item.file,
         {
-          access: 'public',
+          access: 'private',
           handleUploadUrl: '/api/receipt/upload',
           clientPayload: JSON.stringify({ receiptId, householdId }),
         },
@@ -178,15 +191,15 @@ export function ReceiptBatchUpload({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl: blob.url,
+          pathname: blob.pathname,
           householdId,
         }),
       });
 
       if (!createResponse.ok) {
         const data = await createResponse.json().catch(() => ({}));
-        // Keep the blob URL so Retry can create the entry without re-uploading.
-        setUploadItems(prev => prev.map(i => (i.id === item.id ? { ...i, blobUrl: blob.url } : i)));
+        // Keep the pathname so Retry can create the entry without re-uploading.
+        setUploadItems(prev => prev.map(i => (i.id === item.id ? { ...i, blobPathname: blob.pathname } : i)));
         throw new Error(data.error || 'Failed to create receipt entry');
       }
 
@@ -196,7 +209,7 @@ export function ReceiptBatchUpload({
       setUploadItems(prev =>
         prev.map(i =>
           i.id === item.id
-            ? { ...i, status: 'processing' as const, progress: 50, blobUrl: blob.url, receiptId: dbReceiptId }
+            ? { ...i, status: 'processing' as const, progress: 50, blobPathname: blob.pathname, receiptId: dbReceiptId }
             : i,
         ),
       );
@@ -256,7 +269,7 @@ export function ReceiptBatchUpload({
         ),
       );
     }
-  }, [householdId, onUploadComplete, userId]);
+  }, [householdId, onUploadComplete, userId, uploadPrefix]);
 
   const retryItem = useCallback(async (id: string) => {
     const item = uploadItems.find(i => i.id === id);
@@ -264,7 +277,7 @@ export function ReceiptBatchUpload({
 
     // The upload itself failed, so there is nothing on the server to retry yet: start over.
     // (This used to return silently, so the Retry button did nothing.)
-    if (!item.blobUrl) {
+    if (!item.blobPathname) {
       processItem({ ...item, status: 'pending', progress: 0, error: undefined });
       return;
     }
@@ -281,7 +294,7 @@ export function ReceiptBatchUpload({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            imageUrl: item.blobUrl,
+            pathname: item.blobPathname,
             householdId,
           }),
         });
