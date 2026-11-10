@@ -32,6 +32,8 @@ const allowedEvents: Stripe.Event.Type[] = [
     'payment_intent.canceled',
 
     'charge.refunded',
+    'charge.dispute.created',
+    'charge.dispute.closed',
   ];
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
@@ -91,7 +93,12 @@ async function processEvent(event: Stripe.Event, correlationId: CorrelationId) {
       return;
     };
 
-    // All the events I track have a customerId
+    // A dispute (chargeback) names its charge, not the customer.
+    if (event.type === 'charge.dispute.created' || event.type === 'charge.dispute.closed') {
+      return processDispute(event, correlationId);
+    }
+
+    // All the other events I track have a customerId
     const { customer: customerId } = event?.data?.object as {
       customer: string; // Sadly TypeScript does not know this
     };
@@ -158,3 +165,48 @@ async function processEvent(event: Stripe.Event, correlationId: CorrelationId) {
 
     return kvData;
   }
+
+/**
+ * A chargeback. Opened: the customer told their bank they didn't agree to the charge, so their
+ * subscription is cancelled at once (no refund: the bank is already taking the money back, and a
+ * disputed charge can't be refunded), which stops a second charge being disputed too; Premium then
+ * ends with the sync, and the alert says what to answer in the Dashboard. Closed: logged, with the
+ * outcome. Answering the dispute itself stays a person's job.
+ */
+async function processDispute(event: Stripe.Event, correlationId: CorrelationId) {
+  const dispute = event.data.object as Stripe.Dispute;
+  const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id;
+  const charge = await stripe.charges.retrieve(chargeId);
+  const customerId = typeof charge.customer === 'string' ? charge.customer : charge.customer?.id;
+  const amount = `${(dispute.amount / 100).toFixed(2)} ${dispute.currency.toUpperCase()}`;
+
+  if (event.type === 'charge.dispute.closed') {
+    submitLogEvent('stripe', `Dispute ${dispute.id} closed: ${dispute.status} (${amount})`, correlationId, { disputeId: dispute.id, status: dispute.status, customerId }, dispute.status === 'lost');
+    return;
+  }
+
+  let cancelled = 0;
+  if (customerId) {
+    const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 20 });
+    for (const subscription of subscriptions.data) {
+      if (['canceled', 'incomplete_expired'].includes(subscription.status)) continue;
+      await stripe.subscriptions.cancel(
+        subscription.id,
+        { prorate: false, invoice_now: false, cancellation_details: { comment: `Cancelled after dispute ${dispute.id}` } },
+        { idempotencyKey: `dispute-cancel-${dispute.id}-${subscription.id}` },
+      );
+      cancelled++;
+    }
+    const user = await UserService.getUserByStripeCustomerId(customerId);
+    if (user) await syncStripeDataToDatabase(customerId, correlationId);
+  }
+
+  submitLogEvent(
+    'stripe',
+    `Dispute opened on ${chargeId} (${amount}, reason ${dispute.reason}); ${cancelled} subscription(s) cancelled. Answer it in the Dashboard by ${dispute.evidence_details?.due_by ? new Date(dispute.evidence_details.due_by * 1000).toISOString().slice(0, 10) : 'the due date'}.`,
+    correlationId,
+    { disputeId: dispute.id, chargeId, customerId, reason: dispute.reason, cancelled },
+    true,
+  );
+}
+
