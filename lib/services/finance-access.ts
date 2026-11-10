@@ -3,6 +3,7 @@ import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { db } from '@/lib/db';
 import { householdUsers, premiumGrants, type User } from '@/lib/db/schema';
 import { ENTITLED_STATUSES, OWN_SOURCES } from '@/lib/entitlements';
+import { isSubscriptionCheckSkipped } from '@/lib/dev-login';
 
 /**
  * Who can see and change finance rows: tracked subscriptions and bills now, and accounts,
@@ -31,7 +32,7 @@ export type FinanceEntitlements = {
 type OwnedRow = { userId: string; householdId: string | null };
 
 function skipSubscriptionCheck(): boolean {
-  return process.env.SKIP_SUBSCRIPTION_CHECK === 'true';
+  return isSubscriptionCheckSkipped();
 }
 
 /**

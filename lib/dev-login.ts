@@ -30,3 +30,11 @@ export function isTestEmail(email: string | null | undefined): boolean {
 export function isGoogleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
+
+/**
+ * SKIP_SUBSCRIPTION_CHECK=true opens every Premium gate, for local testing. Never on the production
+ * deployment, whatever the variable says: set there by mistake, it would give Premium to everyone.
+ */
+export function isSubscriptionCheckSkipped(env: Record<string, string | undefined> = process.env): boolean {
+  return env.SKIP_SUBSCRIPTION_CHECK === 'true' && env.VERCEL_ENV !== 'production';
+}

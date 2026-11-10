@@ -118,6 +118,14 @@ async function processEvent(event: Stripe.Event, correlationId: CorrelationId) {
           // Try to find user by email
           user = await UserService.getUserByEmail(customer.email.toLowerCase());
 
+          // Only onto an account with no customer yet, or the one the customer was made for:
+          // otherwise a second customer with the same email (made in the Dashboard, say) would
+          // take over the account's billing from the one it has.
+          if (user && user.stripeCustomerId && customer.metadata?.userId !== user.id) {
+            submitLogEvent('stripe', `Not re-associating customer ${customerId}: user ${user.id} already has customer ${user.stripeCustomerId}`, correlationId, { userId: user.id, customerId }, true);
+            return;
+          }
+
           if (user) {
             // Re-associate the Stripe customer ID with this user
             await UserService.updateStripeCustomerId(user.id, customerId);

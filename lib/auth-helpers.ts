@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getAuth } from '@/lib/auth';
-import { isDevLoginEnabled, isTestEmail } from '@/lib/dev-login';
+import { isDevLoginEnabled, isTestEmail, isSubscriptionCheckSkipped } from '@/lib/dev-login';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { UserService } from '@/lib/services/user-service';
 import { randomUUID } from 'crypto';
@@ -70,7 +70,7 @@ export async function requireSubscription(userOrResult: { user: User } | User | 
 
   const user = 'user' in userOrResult ? userOrResult.user : userOrResult;
 
-  const skipSubscriptionCheck = process.env.SKIP_SUBSCRIPTION_CHECK === 'true';
+  const skipSubscriptionCheck = isSubscriptionCheckSkipped();
 
   if (!skipSubscriptionCheck && !user.subscribed) {
     return NextResponse.json(

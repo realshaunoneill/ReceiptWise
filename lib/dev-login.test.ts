@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDevLoginEnabled, isTestEmail } from './dev-login';
+import { isDevLoginEnabled, isSubscriptionCheckSkipped, isTestEmail } from './dev-login';
 
 describe('isDevLoginEnabled', () => {
   const on = { RECEIPTWISE_DEV_LOGIN: '1' };
@@ -27,5 +27,14 @@ describe('isTestEmail', () => {
     expect(isTestEmail('someone@receiptwise.test.example.com')).toBe(false);
     expect(isTestEmail('someone@evilreceiptwise.test')).toBe(false);
     expect(isTestEmail(null)).toBe(false);
+  });
+});
+
+describe('isSubscriptionCheckSkipped', () => {
+  it('skips the Premium check locally and on previews when asked, never in production', () => {
+    expect(isSubscriptionCheckSkipped({ SKIP_SUBSCRIPTION_CHECK: 'true' })).toBe(true);
+    expect(isSubscriptionCheckSkipped({ SKIP_SUBSCRIPTION_CHECK: 'true', VERCEL_ENV: 'preview' })).toBe(true);
+    expect(isSubscriptionCheckSkipped({ SKIP_SUBSCRIPTION_CHECK: 'true', VERCEL_ENV: 'production' })).toBe(false);
+    expect(isSubscriptionCheckSkipped({})).toBe(false);
   });
 });

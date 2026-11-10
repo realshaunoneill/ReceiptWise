@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { apiKeys, users, type ApiKey, type User } from '@/lib/db/schema';
+import { isSubscriptionCheckSkipped } from '@/lib/dev-login';
 
 /*
  * API-key authentication for the Chrome extension routes (/api/extension/*), which have no sign-in
@@ -77,7 +78,7 @@ export async function authenticateApiKey(request: NextRequest): Promise<ApiKeyAu
     };
   }
 
-  const skipSubscriptionCheck = process.env.SKIP_SUBSCRIPTION_CHECK === 'true';
+  const skipSubscriptionCheck = isSubscriptionCheckSkipped();
   if (!skipSubscriptionCheck && !user.subscribed) {
     return { ok: false, error: 'Active subscription required', status: 403 };
   }

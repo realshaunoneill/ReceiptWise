@@ -72,8 +72,9 @@ function createAuth() {
     trustedOrigins: [
       PRODUCTION_URL,
       'https://receiptwise.io',
-      'https://staging.receiptwise.io',
-      'http://localhost:3000',
+      // Staging and a local server, but not on the production deployment, which only its own
+      // site (and the app) should be able to call.
+      ...(process.env.VERCEL_ENV !== 'production' ? ['https://staging.receiptwise.io', 'http://localhost:3000'] : []),
       ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
       ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
       ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
