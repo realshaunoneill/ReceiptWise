@@ -1,3 +1,5 @@
+import { redactValue } from '@/lib/logging';
+
 /**
  * Error handling utilities for the Receipt & Spending Tracker
  * Provides consistent error responses and logging across the application
@@ -146,10 +148,11 @@ export class Logger {
       ...options,
     };
 
-    const formattedLog = this.formatLogEntry(entry);
+    // The same redaction as submitLogEvent: no email addresses, receipt contents or image links,
+    // even in the platform's own logs.
+    const formattedLog = String(redactValue(this.formatLogEntry(entry)));
 
-    // In production, you might want to send logs to a logging service
-    // For now, we'll use console methods
+    // Console only: these reach the platform's runtime logs, not the log service.
     switch (level) {
       case LogLevel.DEBUG:
         if (process.env.NODE_ENV === 'development') {

@@ -116,7 +116,7 @@ export async function analyzeReceiptImage(
   correlationId: CorrelationId,
   options: { model?: string } = {},
 ): Promise<ReceiptAnalysisResult> {
-  submitLogEvent('receipt-process', 'Fetching image for analysis', correlationId, { imageUrl, userId });
+  submitLogEvent('receipt-process', 'Fetching image for analysis', correlationId, { userId });
 
   const inputImageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS) });
   if (!inputImageRes.ok) {
@@ -242,8 +242,6 @@ Extract all numeric values as numbers (not strings).`,
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorDetails: Record<string, unknown> = {
       userId,
-      userEmail,
-      imageUrl,
       mimeType,
       imageSize: buffer.length,
       errorMessage,
@@ -251,8 +249,8 @@ Extract all numeric values as numbers (not strings).`,
 
     // Check if this is a NoObjectGeneratedError from the AI SDK
     if (error && typeof error === 'object' && 'text' in error) {
-      // The raw text response that failed to parse
-      errorDetails.rawResponse = (error as { text?: string }).text;
+      // How much the model answered, not what: its answer is the receipt's contents.
+      errorDetails.rawResponseLength = (error as { text?: string }).text?.length ?? 0;
     }
 
     // Include the cause if present (often contains validation details)
@@ -283,11 +281,9 @@ Extract all numeric values as numbers (not strings).`,
     userId,
   });
 
-  // Log the full extracted receipt data for debugging
-  submitLogEvent('receipt-analysis-result', 'Full receipt analysis data extracted', correlationId, {
+  // Counts only: what the receipt says is the customer's, and stays out of the logs.
+  submitLogEvent('receipt-analysis-result', 'Receipt analysis data extracted', correlationId, {
     userId,
-    userEmail,
-    extractedData: result.output,
     itemCount: result.output.items?.length || 0,
     rawItemCount: result.output.rawItems?.length || 0,
   });

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { waitUntil } from '@vercel/functions';
 
 
 export type EventType =
@@ -51,6 +52,8 @@ export type EventType =
   | 'plan'
   | 'bill-document'
   | 'inbound-email'
+  | 'billing'
+  | 'email'
   | 'cron';
 export type CorrelationId = `${string}-${string}-${string}-${string}-${string}`;
 
@@ -79,14 +82,26 @@ const simpleLog = (
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const EMAIL_KEY_PATTERN = /e-?mail/i;
 
-function redactValue(value: unknown, depth = 0): unknown {
-  if (typeof value === 'string') return value.replace(EMAIL_PATTERN, '[email]');
+/*
+ * The same goes for what's in a receipt and where its picture is. A receipt image's public URL is
+ * a bearer link to it, and a receipt's items, notes and the model's raw output are the customer's
+ * spending; ids and counts are enough to debug with.
+ */
+const IMAGE_URL_PATTERN = /https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/\S*/gi;
+const CONTENT_KEY_PATTERN = /^(imageUrl|imageUrls|extractedData|businessNotes|notes|items|rawItems|rawText|rawResponse|output)$/i;
+
+function redactString(value: string): string {
+  return value.replace(EMAIL_PATTERN, '[email]').replace(IMAGE_URL_PATTERN, '[image-url]');
+}
+
+export function redactValue(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') return redactString(value);
   if (depth > 4 || value === null || typeof value !== 'object' || value instanceof Date) return value;
   if (Array.isArray(value)) return value.map((v) => redactValue(v, depth + 1));
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, v]) => [
       key,
-      EMAIL_KEY_PATTERN.test(key) ? '[email]' : redactValue(v, depth + 1),
+      EMAIL_KEY_PATTERN.test(key) ? '[email]' : CONTENT_KEY_PATTERN.test(key) ? '[omitted]' : redactValue(v, depth + 1),
     ]),
   );
 }
@@ -98,7 +113,7 @@ export const submitLogEvent =(
     rawData?: Record<string, unknown>,
     alert = false,
   ) => {
-    const logLine = rawLogLine.replace(EMAIL_PATTERN, '[email]');
+    const logLine = redactString(rawLogLine);
     const data = rawData ? (redactValue(rawData) as Record<string, unknown>) : undefined;
 
     const logEvent = async () => {
@@ -115,6 +130,9 @@ export const submitLogEvent =(
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            // The flag call sites already pass for failures, so the log can be searched and
+            // alerted on by level ("where(level=error)").
+            level: alert ? 'error' : 'info',
             event,
             message: logLine,
             correlationId,
@@ -139,8 +157,20 @@ export const submitLogEvent =(
       }
     };
 
-    void logEvent();
+    // Keeps the function alive until the line is sent: a bare promise is cut off when a response
+    // returns, which loses exactly the last lines before it (and outside Vercel it just runs).
+    waitUntil(logEvent());
 };
+
+/*
+ * Failures (call sites pass alert=true) also go to a Discord channel when ALERT_DISCORD_WEBHOOK is
+ * set on Vercel, so a broken webhook, cron or checkout is seen the day it happens rather than when
+ * a customer writes in. The same line is sent at most once per instance per 15 minutes, so a burst
+ * of the same error is one message.
+ */
+const ALERT_WEBHOOK = process.env.ALERT_DISCORD_WEBHOOK;
+const ALERT_QUIET_MS = 15 * 60 * 1000;
+const lastAlerted = new Map<string, number>();
 
 const submitAlert = async (
   event: EventType,
@@ -148,12 +178,30 @@ const submitAlert = async (
   correlationId: CorrelationId | null,
   data?: Record<string, unknown>,
 ) => {
+  if (!ALERT_WEBHOOK) return;
   try {
-    const _message = `🚨 <b>${event.toUpperCase()}</b>\n` +
-      `Message: ${logLine}\n` +
-      (data?.userId ? `User ID: <pre>${data.userId}</pre>` : '');
+    // Numbers and ids vary between otherwise identical errors, so they're not part of the key.
+    const key = `${event}:${logLine.replace(/[0-9a-f-]{8,}|\d+/gi, '#').slice(0, 160)}`;
+    const now = Date.now();
+    if (now - (lastAlerted.get(key) ?? 0) < ALERT_QUIET_MS) return;
+    lastAlerted.set(key, now);
 
-    // await sendTelegramAlert(message);
+    const where = process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production' ? ` (${process.env.VERCEL_ENV})` : '';
+    const content = [
+      `🚨 **ReceiptWise${where}: ${event}**`,
+      logLine.slice(0, 1500),
+      data?.userId ? `User: \`${String(data.userId)}\`` : null,
+      correlationId ? `Correlation: \`${correlationId}\`` : null,
+    ].filter(Boolean).join('\n');
+
+    const response = await fetch(ALERT_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // No @everyone or role pings, whatever an error message happens to contain.
+      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) console.error('Failed to send alert', response.status);
   } catch (error) {
     console.error('Failed to send alert:', error);
   }
