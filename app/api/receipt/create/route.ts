@@ -13,30 +13,10 @@ import { getConsentedPostHogClient } from '@/lib/posthog-server';
 import { waitUntil } from '@vercel/functions';
 import { randomUUID } from 'crypto';
 import { checkReceiptCreationLimit } from '@/lib/receipt-rate-limit';
+import { isOwnReceiptImageUrl } from '@/lib/storage/receipt-blob';
 
 // Route configuration
 export const runtime = 'nodejs';
-
-const ENV_PATH_PREFIX = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
-
-/**
- * The image must be one this app uploaded: a Vercel Blob URL under this environment's receipts
- * prefix. Anything else would be fetched server-side for OCR (a blind SSRF), rendered as an
- * <img> to every household member (a tracking pixel), and handed to blob del() on deletion.
- */
-function isOwnBlobUrl(raw: unknown): raw is string {
-  if (typeof raw !== 'string') return false;
-  try {
-    const url = new URL(raw);
-    return (
-      url.protocol === 'https:' &&
-      url.hostname.endsWith('.public.blob.vercel-storage.com') &&
-      url.pathname.startsWith(`/${ENV_PATH_PREFIX}/receipts/`)
-    );
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const correlationId = (req.headers.get('x-correlation-id') || randomUUID()) as CorrelationId;
@@ -56,7 +36,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const body = await req.json();
     const { imageUrl, householdId: providedHouseholdId } = body;
 
-    if (!isOwnBlobUrl(imageUrl)) {
+    if (!isOwnReceiptImageUrl(imageUrl, user.id)) {
       return NextResponse.json(
         { error: 'A receipt image uploaded through ReceiptWise is required' },
         { status: 400 },

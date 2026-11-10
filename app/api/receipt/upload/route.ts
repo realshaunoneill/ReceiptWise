@@ -4,14 +4,12 @@ import { getAuthenticatedUser, requireSubscription, requireNoPendingDeletion } f
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { sanitizeErrorMessage } from '@/lib/errors';
 import { randomUUID } from 'crypto';
-import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { receiptImagePrefix, receiptsBlobToken } from '@/lib/storage/receipt-blob';
 
 // Route configuration
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Increased for OpenAI processing
 
-const ENV_PATH_PREFIX =
-  process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
 const MAX_UPLOAD_SIZE_MB = parseInt(
   process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || '15',
 );
@@ -42,11 +40,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         pathname: string,
         clientPayload: string | null,
       ) => {
-        if (!pathname.startsWith(`${ENV_PATH_PREFIX}/receipts/`)) {
+        // The user's own folder, and a random suffix, so nobody can write over or claim another
+        // person's image (lib/storage/receipt-blob.ts isOwnReceiptImageUrl).
+        if (!pathname.startsWith(receiptImagePrefix(user.id))) {
           throw new Error('Invalid pathname');
         }
 
         return {
+          addRandomSuffix: true,
           allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'],
           maximumSizeInBytes: MAX_UPLOAD_SIZE_MB * 1024 * 1024,
           tokenPayload: JSON.stringify({

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { and, eq, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
 import { del } from '@vercel/blob';
-import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { imagesSafeToDelete, receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import { db } from '@/lib/db';
 import { billDocuments, inboundEmails, receipts } from '@/lib/db/schema';
 import { processInboundEmail } from '@/lib/inbound-email/ingest';
@@ -91,7 +91,8 @@ export async function GET(req: NextRequest) {
     if (toPurge.length > 0) {
       // Images first: if the blob delete fails, the rows stay and are retried next run rather
       // than leaving an image nothing points at any more.
-      const blobUrls = toPurge.map((r) => r.imageUrl).filter(isBlobUrl);
+      // Never an image another receipt still points at.
+      const blobUrls = (await imagesSafeToDelete(toPurge)).filter(isBlobUrl);
       for (let i = 0; i < blobUrls.length; i += 1000) {
         await del(blobUrls.slice(i, i + 1000), { token: receiptsBlobToken() });
       }

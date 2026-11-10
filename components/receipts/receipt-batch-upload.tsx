@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { upload } from '@vercel/blob/client';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useUser } from '@/lib/hooks/use-user';
 
 interface UploadItem {
   id: string
@@ -50,6 +51,8 @@ export function ReceiptBatchUpload({
   receiptCount?: number
 }) {
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const { user } = useUser();
+  const userId = user?.id;
   // Decided once, when the count arrives, so the tips don't snap shut after the list loads.
   const [tipsOpen, setTipsOpen] = useState<boolean | null>(null);
   useEffect(() => {
@@ -155,11 +158,13 @@ export function ReceiptBatchUpload({
         prev.map(i => (i.id === item.id ? { ...i, status: 'uploading' as const, progress: 25 } : i)),
       );
 
+      if (!userId) throw new Error('Still signing you in. Try again in a moment.');
       const receiptId = `receipt-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-      // The pathname becomes part of a public URL (and ended up in logs and analytics), so it
-      // must not carry the user's email address, which it used to.
+      // The user's own folder, which the upload route insists on; it adds a random suffix to the
+      // name. The pathname becomes part of a public URL, so it carries the account's id and
+      // nothing personal (it used to carry the email address).
       const blob = await upload(
-        `${ENV_PATH_PREFIX}/receipts/${receiptId}/${safeFileName(item.file.name)}`,
+        `${ENV_PATH_PREFIX}/receipts/${userId}/${safeFileName(item.file.name)}`,
         item.file,
         {
           access: 'public',
@@ -251,7 +256,7 @@ export function ReceiptBatchUpload({
         ),
       );
     }
-  }, [householdId, onUploadComplete]);
+  }, [householdId, onUploadComplete, userId]);
 
   const retryItem = useCallback(async (id: string) => {
     const item = uploadItems.find(i => i.id === id);

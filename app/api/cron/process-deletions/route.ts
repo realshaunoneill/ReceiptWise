@@ -2,10 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
 import { del } from '@vercel/blob';
-import { receiptsBlobToken } from '@/lib/storage/receipt-blob';
+import { imagesSafeToDelete, receiptsBlobToken } from '@/lib/storage/receipt-blob';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { authUser, billDocuments, receipts, users } from '@/lib/db/schema';
+import { authUser, billDocuments, inboundEmails, receipts, users } from '@/lib/db/schema';
 import { deletePrivate, isPrivateStoreConfigured } from '@/lib/storage/private-blob';
 import { isCronAuthorized } from '@/lib/cron-auth';
 import { type CorrelationId, submitLogEvent } from '@/lib/logging';
@@ -18,7 +18,8 @@ export const maxDuration = 300;
 
 /**
  * Users processed per run. Deletion is not time-critical (the window is 24h and the job
- * runs daily), so a bounded batch keeps us inside maxDuration. Anything left over is
+ * runs hourly, so a deletion happens within an hour of its 24h), and a bounded batch keeps us
+ * inside maxDuration. Anything left over is
  * picked up on the next run.
  */
 const MAX_USERS_PER_RUN = 25;
@@ -75,16 +76,37 @@ async function deleteBillFiles(userId: string, correlationId: CorrelationId): Pr
 }
 
 /**
+ * Delete the raw forwarded emails still in the private store (kept until 7 days after they're
+ * read). Their rows cascade away with the user, and the sweep finds raw files only through those
+ * rows, so without this they would stay for ever.
+ */
+async function deleteRawEmails(userId: string, correlationId: CorrelationId): Promise<void> {
+  if (!isPrivateStoreConfigured()) return;
+  const rows = await db
+    .select({ rawBlobPathname: inboundEmails.rawBlobPathname })
+    .from(inboundEmails)
+    .where(and(eq(inboundEmails.userId, userId), isNotNull(inboundEmails.rawBlobPathname)));
+  const pathnames = rows.map((row) => row.rawBlobPathname!);
+  for (let i = 0; i < pathnames.length; i += 1000) {
+    await deletePrivate(pathnames.slice(i, i + 1000));
+  }
+  if (pathnames.length > 0) {
+    submitLogEvent('user', `Deleted ${pathnames.length} forwarded emails for account deletion`, correlationId, { userId, fileCount: pathnames.length });
+  }
+}
+
+/**
  * Delete every stored receipt image for a user. Blob objects are not covered by the
  * database FK cascade, so without this the images outlive the account.
  */
 async function deleteReceiptBlobs(userId: string, correlationId: CorrelationId): Promise<void> {
   const rows = await db
-    .select({ imageUrl: receipts.imageUrl })
+    .select({ id: receipts.id, imageUrl: receipts.imageUrl })
     .from(receipts)
     .where(eq(receipts.userId, userId));
 
-  const urls = rows.map(r => r.imageUrl).filter((u): u is string => Boolean(u));
+  // Not an image another account's receipt still shows (rows from before per-user uploads).
+  const urls = await imagesSafeToDelete(rows);
   if (urls.length === 0) return;
 
   // del() accepts up to 1000 urls per call.
@@ -147,6 +169,7 @@ export async function GET(req: NextRequest) {
 
         await deleteReceiptBlobs(user.id, correlationId);
         await deleteBillFiles(user.id, correlationId);
+        await deleteRawEmails(user.id, correlationId);
 
         // RevenueCat's record of the person (their purchase history under our id). Best effort: a
         // store subscription is cancelled by the person in the store, not here, and RevenueCat
