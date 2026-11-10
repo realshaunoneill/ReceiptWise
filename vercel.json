@@ -6,24 +6,28 @@
   "ignoreCommand": "[ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git diff --quiet \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD -- . ':(exclude)mobile'",
   "crons": [
     {
-      "path": "/api/cron/process-deletions",
-      "schedule": "0 3 * * *"
-    },
-    {
       "path": "/api/cron/sweep-receipts",
-      "schedule": "15 * * * *"
+      "schedule": "5 * * * *"
     },
     {
-      "path": "/api/cron/bills-daily",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/reconcile-store-premium",
-      "schedule": "40 * * * *"
+      "path": "/api/cron/process-deletions",
+      "schedule": "6 * * * *"
     },
     {
       "path": "/api/cron/notify",
-      "schedule": "5 * * * *"
+      "schedule": "7 * * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-store-premium",
+      "schedule": "8 * * * *"
+    },
+    {
+      "path": "/api/cron/bills-daily",
+      "schedule": "9 2 * * *"
+    },
+    {
+      "path": "/api/cron/stripe-resync",
+      "schedule": "10 2 * * *"
     },
     {
       "path": "/api/cron/growth-report",

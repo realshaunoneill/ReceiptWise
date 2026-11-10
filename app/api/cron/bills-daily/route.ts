@@ -8,7 +8,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 /**
- * GET /api/cron/bills-daily (02:00 UTC)
+ * GET /api/cron/bills-daily (02:09 UTC: every cron runs in the first minutes of the hour, so the
+ * database wakes once an hour for all of them, not once per job)
  *
  * Brings every tracked subscription and bill up to date: creates the payment rows for cycles
  * that came round, marks direct debits, standing orders and card payments paid once collected,
