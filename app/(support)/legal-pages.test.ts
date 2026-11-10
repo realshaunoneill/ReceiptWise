@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 // 2026-10-29): kinds of data and kinds of company, never the suppliers' names, their regions or how
 // the service is built. This reads each page's source with its comments removed, so a name in a
 // code comment is fine but one in the text fails.
-const PAGES = ['privacy', 'terms', 'refund', 'delete-account'];
+const PAGES = ['privacy', 'terms', 'refund', 'delete-account', 'cancel'];
 
 const SUPPLIERS = [
   'Stripe', 'Vercel', 'Neon', 'Postgres', 'PostHog', 'Rapid7', 'InsightOps', 'Migadu', 'Cloudflare',

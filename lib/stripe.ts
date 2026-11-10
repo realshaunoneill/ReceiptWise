@@ -4,6 +4,13 @@ import { type CorrelationId, submitLogEvent } from '@/lib/logging';
 import { getAppUrl } from '@/lib/app-url';
 import { stripeGrantStatus } from '@/lib/entitlements';
 import { recomputeSubscribed, upsertGrant } from '@/lib/services/entitlement-service';
+import {
+  decideCancelOptions,
+  isModeAllowed,
+  type CancelMode,
+  type CancelOptions,
+  type CancelOutcome,
+} from '@/lib/billing/withdrawal';
 
 /*
  * This module used to start with 'use server', which turns every exported async function into
@@ -193,6 +200,12 @@ export async function createCheckoutSession(
       stripeCustomerId,
       correlationId,
     );
+
+    // Only one open checkout per customer. Sessions stay open for 24 hours, so two of them (two
+    // tabs, or back and try again) could both be paid and make two subscriptions; the live
+    // subscription check in the route can't see one that hasn't been paid yet.
+    const open = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 10 });
+    await Promise.all(open.data.map((session) => stripe.checkout.sessions.expire(session.id).catch(() => null)));
 
     const trialDays = await getTrialDaysForCustomer(customerId);
     const hasValidTrial = trialDays > 0;
@@ -394,5 +407,97 @@ export async function createBillingPortalSession(
   } catch (error) {
     submitLogEvent('stripe', `Error creating billing portal session: ${error instanceof Error ? error.message : 'Unknown error'}`, correlationId, { customerId }, true);
     throw error;
+  }
+}
+
+/** What cancelling would do for this customer right now (lib/billing/withdrawal.ts decides). */
+export async function getCancelOptions(customerId: string, now = new Date()): Promise<CancelOptions> {
+  const [subscriptions, charges] = await Promise.all([
+    stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 20 }),
+    stripe.charges.list({ customer: customerId, limit: 10 }),
+  ]);
+  const live = subscriptions.data.find((sub) => [...ENTITLED_STATUSES, 'unpaid'].includes(sub.status));
+  return decideCancelOptions(
+    live
+      ? {
+          id: live.id,
+          status: live.status,
+          trialEnd: live.trial_end,
+          currentPeriodEnd: live.items.data[0]?.current_period_end ?? null,
+          cancelAtPeriodEnd: live.cancel_at_period_end,
+        }
+      : null,
+    charges.data.map((c) => ({
+      id: c.id,
+      amount: c.amount,
+      amountRefunded: c.amount_refunded,
+      currency: c.currency,
+      created: c.created,
+      status: c.status,
+    })),
+    now,
+  );
+}
+
+/**
+ * Carries out a cancellation the page offered. Withdrawing cancels at once and then refunds the
+ * charge it covers; the refund comes second, so a failure there leaves someone refunded by hand
+ * (alerted) rather than still subscribed. Idempotency keys make a double submit harmless.
+ */
+export async function cancelPremium(
+  customerId: string,
+  options: CancelOptions,
+  mode: CancelMode,
+  correlationId: CorrelationId,
+): Promise<{ endsAt: string | null; refund: CancelOutcome['refund']; reference: string }> {
+  if (options.kind === 'none' || !isModeAllowed(options, mode)) {
+    throw new Error(`Cancel mode ${mode} is not available (${options.kind})`);
+  }
+  const subscriptionId = options.subscriptionId;
+
+  if (mode === 'period_end') {
+    const updated = await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+      cancellation_details: { comment: 'Cancelled by the customer at receiptwise.io/cancel' },
+    });
+    submitLogEvent('billing', `Subscription ${subscriptionId} set to cancel at period end`, correlationId, { customerId, subscriptionId });
+    const end = updated.items.data[0]?.current_period_end ?? null;
+    return { endsAt: end ? new Date(end * 1000).toISOString() : null, refund: null, reference: subscriptionId };
+  }
+
+  await stripe.subscriptions.cancel(
+    subscriptionId,
+    {
+      prorate: false,
+      invoice_now: false,
+      cancellation_details: { comment: 'Withdrawal from the contract at receiptwise.io/cancel' },
+    },
+    { idempotencyKey: `withdraw-${subscriptionId}` },
+  );
+  submitLogEvent('billing', `Subscription ${subscriptionId} cancelled now (withdrawal)`, correlationId, { customerId, subscriptionId });
+
+  if (options.kind !== 'refundable') return { endsAt: null, refund: null, reference: subscriptionId };
+
+  const { charge } = options;
+  try {
+    const refund = await stripe.refunds.create(
+      {
+        charge: charge.id,
+        amount: charge.amount,
+        reason: 'requested_by_customer',
+        metadata: { reason: 'withdrawal', subscriptionId },
+      },
+      { idempotencyKey: `withdraw-refund-${charge.id}` },
+    );
+    submitLogEvent('billing', `Refunded ${charge.amount} ${charge.currency} for withdrawal from ${subscriptionId}`, correlationId, { customerId, subscriptionId, refundId: refund.id });
+    return {
+      endsAt: null,
+      refund: { amount: charge.amount, currency: charge.currency, status: refund.status === 'failed' ? 'pending' : 'refunded' },
+      reference: refund.id,
+    };
+  } catch (error) {
+    // Cancelled but not refunded: someone has to refund it by hand, as the page now promises.
+    submitLogEvent('billing', `Withdrawal refund FAILED for charge ${charge.id}: ${error instanceof Error ? error.message : 'Unknown error'}. Refund it by hand.`, correlationId, { customerId, subscriptionId, chargeId: charge.id }, true);
+    return { endsAt: null, refund: { amount: charge.amount, currency: charge.currency, status: 'pending' }, reference: subscriptionId };
   }
 }

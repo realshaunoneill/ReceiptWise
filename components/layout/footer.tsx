@@ -14,6 +14,8 @@ export function Footer() {
             <Link href="/privacy" className="transition-colors hover:text-foreground">Privacy</Link>
             <Link href="/terms" className="transition-colors hover:text-foreground">Terms</Link>
             <Link href="/refund" className="transition-colors hover:text-foreground">Refunds</Link>
+            {/* The EU's "withdraw from contract here" function has to be easy to find from anywhere. */}
+            <Link href="/cancel" className="transition-colors hover:text-foreground">Cancel or withdraw</Link>
             <Link href="/support" className="transition-colors hover:text-foreground">Support</Link>
             <CookieSettingsButton className="transition-colors hover:text-foreground" />
             <a href="mailto:support@receiptwise.io" className="transition-colors hover:text-foreground">

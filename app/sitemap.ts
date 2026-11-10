@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/privacy', changeFreq: 'monthly' as const, priority: 0.5 },
     { path: '/terms', changeFreq: 'monthly' as const, priority: 0.5 },
     { path: '/refund', changeFreq: 'monthly' as const, priority: 0.5 },
+    { path: '/cancel', changeFreq: 'yearly' as const, priority: 0.3 },
     { path: '/sign-up', changeFreq: 'monthly' as const, priority: 0.6 },
   ].map((route) => ({
     url: `${baseUrl}${route.path}`,

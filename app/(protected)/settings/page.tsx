@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,9 +23,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useSession } from '@/lib/auth-client';
 import { useFeature, useUser as useUserData } from '@/lib/hooks/use-user';
-import { premiumBilling } from '@/shared/labels/premium';
+import { premiumBilling, stripeBillingDetail, type StripeSubscriptionFacts } from '@/shared/labels/premium';
 import { useOnboarding } from '@/components/onboarding/onboarding-provider';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { PlayCircle, User, CreditCard, Download, AlertTriangle, Settings2, SlidersHorizontal, Trash2, Clock, Mail, FileImage, Copy, Plus, Key, Lock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -55,7 +56,23 @@ export default function SettingsPage() {
   const { data: session, isPending: sessionPending } = useSession();
   const authUser = session?.user;
   const { user: userData, isLoading: userDataLoading, refetch: refetchUser } = useUserData();
-  const billing = premiumBilling(userData?.premium);
+  // A website subscription's dates and a failed payment come from Stripe itself (the endpoint also
+  // re-syncs Premium): the grant only knows it's live.
+  const paysOnWebsite = userData?.premium?.source === 'stripe';
+  const stripeSubscription = useQuery({
+    queryKey: ['stripe-subscription', userData?.id],
+    queryFn: async () => {
+      const response = await fetch('/api/users/me/subscription');
+      if (!response.ok) return null;
+      const body = await response.json() as { subscriptionData?: StripeSubscriptionFacts };
+      return body.subscriptionData ?? null;
+    },
+    enabled: paysOnWebsite,
+    staleTime: 5 * 60 * 1000,
+  });
+  const stripeDetail = stripeBillingDetail(paysOnWebsite ? stripeSubscription.data : null);
+  const basicBilling = premiumBilling(userData?.premium);
+  const billing = basicBilling && paysOnWebsite ? { ...basicBilling, detail: stripeDetail.detail } : basicBilling;
   const { startOnboarding } = useOnboarding();
   const billsEnabled = useFeature('bills');
   // The Chrome extension isn't on the Web Store yet: its keys show for admins only until it is.
@@ -607,19 +624,31 @@ export default function SettingsPage() {
                           <a href="https://play.google.com/store/account/subscriptions" target="_blank" rel="noopener noreferrer">Manage on Google Play</a>
                         </Button>
                       ) : !userData.premium || userData.premium.source === 'stripe' ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleManageSubscription}
-                          disabled={billingPortalMutation.isPending}
-                        >
-                          {billingPortalMutation.isPending ? 'Loading…' : 'Manage billing'}
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={handleManageSubscription}
+                            disabled={billingPortalMutation.isPending}
+                          >
+                            {billingPortalMutation.isPending ? 'Loading…' : 'Manage billing'}
+                          </Button>
+                          <Button variant="ghost" asChild>
+                            <Link href="/cancel">Cancel or withdraw</Link>
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   </div>
 
                   {/* A store subscription is managed in the store: the website has no portal for it. */}
                   {billing?.manage && <p className="text-sm text-muted-foreground">{billing.manage}</p>}
+                  {stripeDetail.warning && (
+                    <Alert variant="warning">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Payment failed</AlertTitle>
+                      <AlertDescription>{stripeDetail.warning}</AlertDescription>
+                    </Alert>
+                  )}
                   {!userData?.subscribed && coveringHousehold && (
                     <p className="text-sm text-muted-foreground">
                       {coveringHousehold}&apos;s shared bills and plan are yours to use. One Premium covers up to six people, and the one there already covers six, so reading receipts needs Premium of your own.

@@ -42,9 +42,10 @@ export default function RefundPage() {
                   <div>
                     <h3 className="font-medium">14 days to change your mind</h3>
                     <p className="text-sm text-muted-foreground">
-                      Ask within 14 days of a charge, the first payment after your trial or any renewal, and we
-                      refund that payment in full. This covers the right of withdrawal consumers have in the EU and
-                      UK, and we apply it to everyone.
+                      Within 14 days of a charge, the first payment after your trial or any renewal, withdraw at{' '}
+                      <Link href="/cancel" className="text-primary hover:underline">Cancel or withdraw</Link> (or ask us)
+                      and we refund that payment in full. This covers the right of withdrawal consumers have in the EU
+                      and UK, and we apply it to everyone.
                     </p>
                   </div>
                 </div>
@@ -80,7 +81,7 @@ export default function RefundPage() {
                   <div>
                     <h3 className="font-medium">Cancel any time</h3>
                     <p className="text-sm text-muted-foreground">
-                      Cancel from Settings whenever you like, and you keep Premium until the end of the period you paid for. Cancel during the free trial and you are never charged.
+                      Cancel at <Link href="/cancel" className="text-primary hover:underline">Cancel or withdraw</Link> or from Settings whenever you like, and you keep Premium until the end of the period you paid for. Cancel during the free trial and you are never charged.
                     </p>
                   </div>
                 </div>

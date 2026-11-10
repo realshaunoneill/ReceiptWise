@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { premiumBilling, premiumPeriod } from './premium';
+import { premiumBilling, premiumPeriod, stripeBillingDetail } from './premium';
 
 const base = { active: true, productId: null, expiresAt: null, willRenew: null, inTrial: false };
 
@@ -28,5 +28,21 @@ describe('premiumBilling', () => {
     expect(premiumPeriod('io.receiptwise.premium.yearly')).toBe('Yearly');
     expect(premiumPeriod('premium:monthly')).toBe('Monthly');
     expect(premiumPeriod('something')).toBeNull();
+  });
+});
+
+describe('stripeBillingDetail', () => {
+  const s = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
+
+  it('says when a trial ends, a subscription renews, or a cancelled one stops', () => {
+    expect(stripeBillingDetail({ status: 'trialing', trialEnd: s('2026-11-24T10:00:00Z') }).detail).toBe('Free trial until 24 Nov 2026');
+    expect(stripeBillingDetail({ status: 'active', currentPeriodEnd: s('2026-12-01T10:00:00Z') }).detail).toBe('Renews 1 Dec 2026');
+    expect(stripeBillingDetail({ status: 'active', currentPeriodEnd: s('2026-12-01T10:00:00Z'), cancelAtPeriodEnd: true }).detail).toBe('Ends 1 Dec 2026');
+  });
+
+  it('warns when a payment failed', () => {
+    expect(stripeBillingDetail({ status: 'past_due', currentPeriodEnd: s('2026-12-01T10:00:00Z') }).warning).toMatch(/Update your card/);
+    expect(stripeBillingDetail({ status: 'active' }).warning).toBeNull();
+    expect(stripeBillingDetail(null)).toEqual({ detail: null, warning: null });
   });
 });

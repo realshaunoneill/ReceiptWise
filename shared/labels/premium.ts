@@ -72,3 +72,30 @@ export function premiumBilling(premium: PremiumLike | null | undefined): Premium
       return null;
   }
 }
+
+/** The subscription facts GET /api/users/me/subscription returns for a website subscription. */
+export type StripeSubscriptionFacts = {
+  status: string;
+  trialEnd?: number | null;
+  currentPeriodEnd?: number | null;
+  cancelAtPeriodEnd?: boolean;
+};
+
+/**
+ * "Free trial until 24 Nov 2026", "Renews 1 Dec 2026" or "Ends 1 Dec 2026" for a website
+ * subscription, plus a warning when a payment has failed and the card needs changing (Stripe is
+ * still retrying, so Premium is on for now).
+ */
+export function stripeBillingDetail(sub: StripeSubscriptionFacts | null | undefined): { detail: string | null; warning: string | null } {
+  if (!sub) return { detail: null, warning: null };
+  const at = (seconds: number | null | undefined) => (seconds ? day(new Date(seconds * 1000).toISOString()) : null);
+  const end = at(sub.currentPeriodEnd);
+  const detail =
+    sub.status === 'trialing' && sub.trialEnd ? `Free trial until ${at(sub.trialEnd)}${sub.cancelAtPeriodEnd ? ', then it stops' : ''}`
+    : end ? (sub.cancelAtPeriodEnd ? `Ends ${end}` : `Renews ${end}`)
+    : null;
+  const warning = sub.status === 'past_due' || sub.status === 'unpaid'
+    ? 'Your last payment didn’t go through. Update your card in Manage billing to keep Premium.'
+    : null;
+  return { detail, warning };
+}
